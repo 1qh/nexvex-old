@@ -50,7 +50,7 @@ internal final class ProfileViewModel {
                 profile = result
                 displayName = result.displayName
                 bio = result.bio ?? ""
-                theme = result.theme
+                theme = result.theme.rawValue
                 notifications = result.notifications
                 avatarID = result.avatar
                 isLoading = false
@@ -68,7 +68,7 @@ internal final class ProfileViewModel {
                 self.profile = result
                 self.displayName = result.displayName
                 self.bio = result.bio ?? ""
-                self.theme = result.theme
+                self.theme = result.theme.rawValue
                 self.notifications = result.notifications
                 self.avatarID = result.avatar
                 self.isLoading = false

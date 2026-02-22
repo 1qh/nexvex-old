@@ -910,3 +910,78 @@ Set `CONVEX_TEST_MODE=true` when running tests. This enables `makeTestAuth`'s id
 - **Bulk operations cap at 100 items** per call.
 - **CRUD factories use `as never` casts** at the Zod↔Convex type boundary internally. Consumer code is fully typesafe.
 - **`anyApi` Proxy accepts arbitrary property names at runtime** — Convex's generated `api` object is typed as `FilterApi<typeof fullApi, ...>` (strict), but the runtime value is `anyApi` — a `Proxy` with type `Record<string, Record<string, { [key: string]: ... }>>`. TypeScript won't flag `api.blogprofile` (wrong casing) even if only `api.blogProfile` exists, because the `[key: string]` index signature permits any property name. Typos in module paths silently construct invalid function references that crash at runtime with "Could not find public function". Rely on E2E tests and Convex deploy errors to catch these — the type system cannot prevent them.
+
+## Native Apps
+
+lazyconvex includes a Swift codegen CLI and 8 native apps (4 mobile + 4 desktop) that consume the same Convex backend as the web demos.
+
+### Swift Codegen
+
+Generate typed Swift models, enums, and API wrappers from your Zod schemas:
+
+```bash
+bun add lazyconvex
+bunx lazyconvex-codegen-swift --schema packages/be/t.ts --convex packages/be/convex --output swift-core/Sources/ConvexCore/Generated.swift
+```
+
+Output includes:
+- **Structs** matching all fields from Zod schemas (`Blog`, `Chat`, `Wiki`, `Movie`, etc.)
+- **Enums** for Zod enum fields (`BlogCategory`, `WikiStatus`, `TaskPriority`, etc.)
+- **API constants** for every exported Convex function (`BlogAPI.list`, `OrgAPI.create`, etc.)
+- **Typed wrappers** with `ConvexClientProtocol` — compile-time checked arguments:
+
+```swift
+try await BlogAPI.create(client, category: .tech, content: "Hello", published: true, title: "Post")
+try await WikiAPI.update(client, orgId: orgId, id: wikiId, status: .published)
+let profile: BlogProfile? = try await BlogProfileAPI.get(client)
+```
+
+A typo in a field name or wrong enum value is a Swift compile error.
+
+### ConvexClientProtocol
+
+The codegen output depends on a thin protocol in `swift-core`:
+
+```swift
+public protocol ConvexClientProtocol: Sendable {
+    func query<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T
+    func mutation<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T
+    func mutation(_ name: String, args: [String: Any]) async throws
+    func action<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T
+}
+```
+
+Conform your Convex client to this protocol and the typed wrappers work automatically.
+
+### Mobile Apps (Skip)
+
+4 cross-platform apps (iOS + Android) using [Skip](https://skip.tools):
+
+| App | Features |
+|-----|----------|
+| Movie | Search + detail, TMDB cache, no auth |
+| Blog | Auth + CRUD + file upload + pagination + search + profile |
+| Chat | Child CRUD + AI + public/private |
+| Org | Multi-tenancy + ACL + soft delete + bulk ops + invites + onboarding |
+
+### Desktop Apps (SwiftCrossUI)
+
+4 native macOS apps using [SwiftCrossUI](https://github.com/nicktmro/swift-cross-ui) with 141 E2E tests:
+
+| App | E2E Tests |
+|-----|-----------|
+| Movie | 20 |
+| Blog | 46 |
+| Chat | 34 |
+| Org | 41 |
+
+### Architecture
+
+```
+swift-core/           Shared models, enums, protocol (Foundation-only)
+desktop/              4 SwiftCrossUI macOS apps + HTTP/WebSocket Convex client
+mobile/               4 Skip cross-platform apps (iOS + Android)
+packages/lazyconvex/  Codegen CLI (codegen-swift.ts)
+```
+
+All native apps share the same generated `Generated.swift` via SPM dependencies and symlinks.

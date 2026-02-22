@@ -249,84 +249,33 @@ xcodebuild test -project desktop/movie/MovieDesktop.xcodeproj -scheme MovieUITes
 
 ---
 
-## Swift Codegen: Typed API from Zod Schemas
+## Completed: Swift Codegen (Done ✅)
 
-### Status
+Reusable CLI at `packages/lazyconvex/src/codegen-swift.ts`. Generates typed Swift from Zod schemas.
 
-**Codegen script: Done ✅** — Moved from project-specific `packages/be/codegen-swift.ts` to reusable library CLI at `packages/lazyconvex/src/codegen-swift.ts`.
+**Output**: 11 structs, 8 enums, 13 modules, 109 API constants, 9 typed wrappers.
 
-**Current output**: 477 lines — 11 structs, 8 enums, 13 modules, 109 API constants.
+### What was built
 
-**What works now**:
 - [x] CLI with `--schema`, `--convex`, `--output` args
-- [x] `bun codegen:swift` generates valid Swift (477 lines)
+- [x] `bun codegen:swift` generates valid Swift
 - [x] Models match all fields from Zod schemas
 - [x] Enums match all Zod enum values
 - [x] API constants cover all exported Convex functions
-- [x] `swift build --package-path swift-core` passes
-- [x] All 4 desktop apps build
-- [x] `swift build --package-path mobile/convex-shared` passes (symlink works)
+- [x] Typed static methods on API enums call `ConvexClientProtocol`
+- [x] `ConvexClientProtocol` in swift-core, conformed by desktop `ConvexClient` and mobile `ConvexService`
+- [x] Desktop: all 43 string-based Convex calls replaced with typed API constants/wrappers
+- [x] Mobile: all string-based calls replaced with API constants (SKIP transpiler constraint)
+- [x] All builds pass (swift-core, desktop x4, mobile)
+- [x] All tests pass (swift-core 18/18, desktop 4/4 suites, BE 215, lazyconvex 382)
 - [x] `bun fix` passes
-- [x] `codegen:swift` script in root package.json
 - [x] Old hand-written Models.swift replaced by Generated.swift
-- [x] Symlink updated: `mobile/convex-shared/.../Models.swift` → `Generated.swift`
-- [x] Project-specific types moved to `swift-core/Sources/ConvexCore/Extensions.swift`
+- [x] Symlink: `mobile/convex-shared/.../Models.swift` → `Generated.swift`
+- [x] `ConvexClientProtocol.swift` symlink: mobile → swift-core
 
-**Remaining**:
+### Mobile SKIP Constraint
 
-### Migration Step 2: ConvexClientProtocol
-
-Create a shared protocol in swift-core so generated API wrappers work on both platforms:
-
-```swift
-public protocol ConvexClientProtocol: Sendable {
-    func query<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T
-    func mutation<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T
-    func mutation(_ name: String, args: [String: Any]) async throws
-    func action<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T
-    func action(_ name: String, args: [String: Any]) async throws
-}
-```
-
-File: `swift-core/Sources/ConvexCore/ConvexClientProtocol.swift`
-
-### Migration Step 3: Conform Clients
-
-- [ ] Conform desktop `ConvexClient` (desktop/shared) to `ConvexClientProtocol`
-- [ ] Conform mobile `ConvexService` (mobile/convex-shared) to `ConvexClientProtocol`
-
-### Migration Step 4: Typed API Wrappers
-
-Update codegen to emit typed static methods (not just string constants) that call `ConvexClientProtocol`:
-
-```swift
-public enum BlogAPI {
-    public static func create(
-        client: ConvexClientProtocol,
-        title: String, content: String, category: BlogCategory,
-        published: Bool, coverImage: String? = nil, tags: [String]? = nil
-    ) async throws -> String {
-        try await client.mutation("blog:create", args: [
-            "title": title, "content": content,
-            "category": category.rawValue, "published": published,
-        ])
-    }
-}
-```
-
-### Migration Step 5: Replace String-Based Calls
-
-- [ ] Migrate desktop app code: replace `client.mutation("blog:create", args: [...])` with `BlogAPI.create(client:...)`
-- [ ] Migrate mobile app code: same pattern
-
-### Migration Step 6: Verification
-
-- [ ] `bun codegen:swift` generates valid Swift with typed API wrappers
-- [ ] `swift build` passes for swift-core, desktop/shared, all 4 desktop apps, mobile/convex-shared
-- [ ] `swift test --package-path swift-core` passes
-- [ ] `bun test:desktop` passes
-- [ ] `bun fix` passes
-- [ ] Typo in API call arg → Swift compile error (the whole point)
+Mobile uses API string constants only (not typed wrappers) because `ConvexClientProtocol` conformance on `ConvexService` is wrapped in `#if !SKIP` — the SKIP transpiler cannot handle the generic protocol methods.
 
 ### Zod to Swift Type Mapping
 

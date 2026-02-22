@@ -75,7 +75,7 @@ internal struct ListView: View {
                         HStack {
                             VStack {
                                 Text(blog.title)
-                                Text(blog.category)
+                                Text(blog.category.rawValue)
                                 Text(blog.published ? "Published" : "Draft")
                                 Text(formatTimestamp(blog.updatedAt))
                             }

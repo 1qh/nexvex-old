@@ -28,7 +28,7 @@ internal final class FormViewModel: SwiftCrossUI.ObservableObject {
         if case let .edit(blog) = mode {
             title = blog.title
             content = blog.content
-            category = blog.category
+            category = blog.category.rawValue
             published = blog.published
         }
     }

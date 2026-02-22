@@ -19,7 +19,7 @@ internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
             let profile: ProfileData = try await client.query("blogProfile:get")
             displayName = profile.displayName
             bio = profile.bio ?? ""
-            theme = profile.theme
+            theme = profile.theme.rawValue
             notifications = profile.notifications
         } catch {
             errorMessage = error.localizedDescription

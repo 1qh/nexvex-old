@@ -1,4 +1,4 @@
-// swiftlint:disable file_types_order
+// swiftlint:disable file_types_order file_length
 import Foundation
 
 public struct MovieGenre: Codable, Sendable {
@@ -833,4 +833,4 @@ public enum TaskAPI {
     }
 }
 
-// swiftlint:enable file_types_order
+// swiftlint:enable file_types_order file_length

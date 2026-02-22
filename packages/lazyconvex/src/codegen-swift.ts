@@ -485,7 +485,7 @@ for (const [childName, childDef] of Object.entries(children)) {
 const lines: string[] = [],
   emit = (s: string) => lines.push(s)
 
-emit('// swiftlint:disable file_types_order')
+emit('// swiftlint:disable file_types_order file_length')
 emit('import Foundation')
 emit('')
 
@@ -820,7 +820,7 @@ for (const [modName, fns] of Object.entries(modules)) {
   emit('')
 }
 
-emit('// swiftlint:enable file_types_order')
+emit('// swiftlint:enable file_types_order file_length')
 
 const output = `${lines.join('\n')}\n`
 writeFileSync(OUTPUT_PATH, output)

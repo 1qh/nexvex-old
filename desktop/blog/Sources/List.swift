@@ -29,7 +29,7 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject {
         errorMessage = nil
         do {
             let result: PaginatedResult<Blog> = try await client.query(
-                "blog:list",
+                BlogAPI.list,
                 args: [
                     "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
                     "where": ["or": [["published": true], ["own": true]] as [[String: Any]]] as [String: Any],
@@ -45,7 +45,7 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func deleteBlog(id: String) async {
         do {
-            try await client.mutation("blog:rm", args: ["id": id])
+            try await BlogAPI.rm(client, id: id)
             await load()
         } catch {
             errorMessage = error.localizedDescription

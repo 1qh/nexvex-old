@@ -39,7 +39,7 @@ internal final class ProfileViewModel {
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
-            to: "blogProfile:get",
+            to: BlogProfileAPI.get,
             args: [:],
             type: ProfileData.self,
             onUpdate: { [weak self] (result: ProfileData) in
@@ -62,7 +62,7 @@ internal final class ProfileViewModel {
         )
         #else
         subscriptionID = ConvexService.shared.subscribeProfileData(
-            to: "blogProfile:get",
+            to: BlogProfileAPI.get,
             args: [:],
             onUpdate: { result in
                 self.profile = result
@@ -132,7 +132,7 @@ internal final class ProfileViewModel {
                 if let aid = avatarID {
                     args["avatar"] = aid
                 }
-                try await ConvexService.shared.mutate("blogProfile:upsert", args: args)
+                try await ConvexService.shared.mutate(BlogProfileAPI.upsert, args: args)
             } catch {
                 errorMessage = error.localizedDescription
             }

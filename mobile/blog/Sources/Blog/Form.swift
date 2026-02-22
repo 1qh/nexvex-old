@@ -123,7 +123,7 @@ internal final class FormViewModel {
                     if let coverID = coverImageID {
                         args["coverImage"] = coverID
                     }
-                    try await ConvexService.shared.mutate("blog:create", args: args)
+                    try await ConvexService.shared.mutate(BlogAPI.create, args: args)
 
                 case let .edit(blog):
                     var args: [String: Any] = [
@@ -140,7 +140,7 @@ internal final class FormViewModel {
                         args["coverImage"] = coverID
                     }
                     args["expectedUpdatedAt"] = blog.updatedAt
-                    try await ConvexService.shared.mutate("blog:update", args: args)
+                    try await ConvexService.shared.mutate(BlogAPI.update, args: args)
                 }
                 onDone()
             } catch {
@@ -174,7 +174,7 @@ internal final class FormViewModel {
                 if !tags.isEmpty {
                     args["tags"] = tags
                 }
-                try await ConvexService.shared.mutate("blog:update", args: args)
+                try await ConvexService.shared.mutate(BlogAPI.update, args: args)
                 lastSavedTitle = title
                 lastSavedContent = content
                 autoSaveMessage = "Saved"

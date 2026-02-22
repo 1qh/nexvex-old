@@ -16,7 +16,7 @@ internal final class MessageViewModel: SwiftCrossUI.ObservableObject {
         errorMessage = nil
         do {
             let loaded: [Message] = try await client.query(
-                "message:list",
+                MessageAPI.list,
                 args: ["chatId": chatID]
             )
             messages = loaded
@@ -38,14 +38,14 @@ internal final class MessageViewModel: SwiftCrossUI.ObservableObject {
 
         do {
             let parts: [[String: Any]] = [["type": "text", "text": text]]
-            try await client.mutation("message:create", args: [
+            try await client.mutation(MessageAPI.create, args: [
                 "chatId": chatID,
                 "parts": parts,
                 "role": "user",
             ])
 
             isAiLoading = true
-            try await client.action("mobile-ai:chat", args: ["chatId": chatID])
+            try await client.action(MobileAiAPI.chat, args: ["chatId": chatID])
             isAiLoading = false
             await load(chatID: chatID)
         } catch {
@@ -78,7 +78,7 @@ internal struct MessageView: View {
                 ScrollView {
                     ForEach(viewModel.messages) { message in
                         HStack {
-                            if message.role == "user" {
+                            if message.role == .user {
                                 Text("")
                             }
                             VStack {
@@ -90,7 +90,7 @@ internal struct MessageView: View {
                                 }
                             }
                             .padding(8)
-                            if message.role != "user" {
+                            if message.role != .user {
                                 Text("")
                             }
                         }

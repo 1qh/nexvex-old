@@ -20,7 +20,7 @@ internal final class SwitcherViewModel {
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
-            to: "org:myOrgs",
+            to: OrgAPI.myOrgs,
             type: [OrgWithRole].self,
             onUpdate: { [weak self] (result: [OrgWithRole]) in
                 self?.orgs = result
@@ -33,7 +33,7 @@ internal final class SwitcherViewModel {
         )
         #else
         subscriptionID = ConvexService.shared.subscribeOrgsWithRole(
-            to: "org:myOrgs",
+            to: OrgAPI.myOrgs,
             onUpdate: { result in
                 self.orgs = Array(result)
                 self.isLoading = false
@@ -53,7 +53,7 @@ internal final class SwitcherViewModel {
     func createOrg(name: String, slug: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("org:create", args: [
+                try await ConvexService.shared.mutate(OrgAPI.create, args: [
                     "data": [
                         "name": name,
                         "slug": slug,

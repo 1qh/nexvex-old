@@ -13,7 +13,7 @@ internal final class BlogDetailViewModel: SwiftCrossUI.ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let loaded: Blog = try await client.query("blog:read", args: ["id": blogID])
+            let loaded: Blog = try await BlogAPI.read(client, id: blogID)
             blog = loaded
         } catch {
             errorMessage = error.localizedDescription
@@ -28,7 +28,7 @@ internal final class BlogDetailViewModel: SwiftCrossUI.ObservableObject {
         }
 
         do {
-            try await client.mutation("blog:rm", args: ["id": blog._id])
+            try await BlogAPI.rm(client, id: blog._id)
             path.wrappedValue.removeLast()
         } catch {
             errorMessage = error.localizedDescription

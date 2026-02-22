@@ -21,7 +21,7 @@ internal final class DetailViewModel {
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
-            to: "blog:read",
+            to: BlogAPI.read,
             args: ["id": blogID],
             type: Blog.self,
             onUpdate: { [weak self] (result: Blog) in
@@ -35,7 +35,7 @@ internal final class DetailViewModel {
         )
         #else
         subscriptionID = ConvexService.shared.subscribeBlog(
-            to: "blog:read",
+            to: BlogAPI.read,
             args: ["id": blogID],
             onUpdate: { result in
                 self.blog = result
@@ -60,7 +60,7 @@ internal final class DetailViewModel {
 
         Task {
             do {
-                try await ConvexService.shared.mutate("blog:rm", args: ["id": blog._id])
+                try await ConvexService.shared.mutate(BlogAPI.rm, args: ["id": blog._id])
             } catch {
                 errorMessage = error.localizedDescription
             }

@@ -16,7 +16,7 @@ internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
     func load() async {
         isLoading = true
         do {
-            let profile: ProfileData = try await client.query("blogProfile:get")
+            let profile: ProfileData = try await client.query(BlogProfileAPI.get)
             displayName = profile.displayName
             bio = profile.bio ?? ""
             theme = profile.theme.rawValue
@@ -37,15 +37,14 @@ internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
         isSaving = true
         errorMessage = nil
         do {
-            var args: [String: Any] = [
-                "displayName": displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                "theme": theme,
-                "notifications": notifications,
-            ]
-            if !bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                args["bio"] = bio.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            try await client.mutation("blogProfile:upsert", args: args)
+            try await BlogProfileAPI.upsert(
+                client,
+                bio: bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : bio
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                notifications: notifications,
+                theme: BlogProfileTheme(rawValue: theme)
+            )
         } catch {
             errorMessage = error.localizedDescription
         }

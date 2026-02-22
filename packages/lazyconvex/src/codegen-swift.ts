@@ -210,6 +210,8 @@ const parseArgs = (): { convex: string; output: string; schema: string } => {
     emitUnionBlock(fieldTypes, name)
   },
   factoryFields: Record<string, Map<string, FieldEntry>> = {},
+  userSchemaFields: Record<string, Map<string, FieldEntry>> = {},
+  tableFactoryType: Record<string, 'base' | 'child' | 'orgScoped' | 'owned' | 'singleton'> = {},
   addAutoFileUrlFields = (fields: Map<string, FieldEntry>, shape: Record<string, { _zod: { def: ZodDef } }>) => {
     for (const [fieldName, fieldSchema] of Object.entries(shape)) {
       const kind = detectFileKind(fieldSchema._zod.def)
@@ -230,11 +232,24 @@ const parseArgs = (): { convex: string; output: string; schema: string } => {
     addAutoFileUrlFields(fields, shape)
     return fields
   },
-  collectSchemas = (schemas: Record<string, ZodType>, extraFields: Map<string, FieldEntry>) => {
+  collectSchemas = (
+    schemas: Record<string, ZodType>,
+    extraFields: Map<string, FieldEntry>,
+    factoryType: 'base' | 'orgScoped' | 'owned' | 'singleton'
+  ) => {
     for (const [tableName, schema] of Object.entries(schemas)) {
       const def = getDef(schema),
         shape = def.shape ?? def.properties
-      if (shape) factoryFields[tableName] = resolveSchemaFields(shape, tableName, extraFields)
+      if (shape) {
+        factoryFields[tableName] = resolveSchemaFields(shape, tableName, extraFields)
+        tableFactoryType[tableName] = factoryType
+        const uFields = new Map<string, FieldEntry>()
+        for (const [fieldName, fieldSchema] of Object.entries(shape)) {
+          const resolved = resolveType(fieldSchema._zod.def, tableName, fieldName)
+          uFields.set(fieldName, resolved)
+        }
+        userSchemaFields[tableName] = uFields
+      }
     }
   },
   extractBalancedBlock = (content: string, startIdx: number): null | string => {
@@ -447,15 +462,24 @@ const parseArgs = (): { convex: string; output: string; schema: string } => {
     ['userId', { isOptional: true, swiftType: 'String' }]
   ])
 
-collectSchemas(owned, ownedExtra)
-collectSchemas(orgScoped, orgScopedExtra)
-collectSchemas(base, baseExtra)
-collectSchemas(singleton, singletonExtra)
+collectSchemas(owned, ownedExtra, 'owned')
+collectSchemas(orgScoped, orgScopedExtra, 'orgScoped')
+collectSchemas(base, baseExtra, 'base')
+collectSchemas(singleton, singletonExtra, 'singleton')
 
 for (const [childName, childDef] of Object.entries(children)) {
   const def = getDef(childDef.schema),
     shape = def.shape ?? def.properties
-  if (shape) factoryFields[childName] = resolveSchemaFields(shape, childName, childExtra)
+  if (shape) {
+    factoryFields[childName] = resolveSchemaFields(shape, childName, childExtra)
+    tableFactoryType[childName] = 'child'
+    const uFields = new Map<string, FieldEntry>()
+    for (const [fieldName, fieldSchema] of Object.entries(shape)) {
+      const resolved = resolveType(fieldSchema._zod.def, childName, fieldName)
+      uFields.set(fieldName, resolved)
+    }
+    userSchemaFields[childName] = uFields
+  }
 }
 
 const lines: string[] = [],
@@ -616,12 +640,181 @@ emit(`${indent(1)}public var id: String { _id }`)
 emit('}')
 emit('')
 
-const modules = collectModules()
+const SAFE_ARG_TYPES = new Set(['[Bool]', '[Double]', '[String]', 'Bool', 'Double', 'String']),
+  modules = collectModules(),
+  isArgSafe = (field: FieldEntry): boolean => {
+    const t = field.swiftType
+    return SAFE_ARG_TYPES.has(t) || enumRegistry.has(t)
+  },
+  allFieldsArgSafe = (fields: Map<string, FieldEntry>): boolean => {
+    for (const [, field] of fields) if (!isArgSafe(field)) return false
+    return true
+  },
+  isEnumField = (swiftType: string): boolean => enumRegistry.has(swiftType),
+  emitParam = (name: string, field: FieldEntry, forceOptional: boolean): string => {
+    const t = forceOptional || field.isOptional ? `${field.swiftType}?` : field.swiftType,
+      defaultVal = forceOptional || field.isOptional ? ' = nil' : ''
+    return `${name}: ${t}${defaultVal}`
+  },
+  emitArgAssignment = (name: string, field: FieldEntry, forceOptional: boolean): null | string => {
+    const isOpt = forceOptional || field.isOptional,
+      value = isEnumField(field.swiftType) ? `${name}.rawValue` : name
+    if (isOpt) return null
+    return `"${name}": ${value}`
+  },
+  emitOptionalGuard = (name: string, field: FieldEntry): string => {
+    const value = isEnumField(field.swiftType) ? `${name}.rawValue` : name
+    return `${indent(2)}if let ${name} { args["${name}"] = ${value} }`
+  },
+  // eslint-disable-next-line max-statements
+  emitCreateWrapper = (modName: string, fields: Map<string, FieldEntry>, factoryType: string) => {
+    const params: string[] = ['_ client: ConvexClientProtocol'],
+      required: string[] = [],
+      optional: string[] = []
+    if (factoryType === 'orgScoped') params.push('orgId: String')
+    for (const [fname, field] of fields) {
+      params.push(emitParam(fname, field, false))
+      const assign = emitArgAssignment(fname, field, false)
+      if (assign) required.push(assign)
+      else optional.push(fname)
+    }
+    if (factoryType === 'orgScoped') required.unshift('"orgId": orgId')
+    emit(`${indent(1)}public static func create(`)
+    emit(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+    emit(`${indent(1)}) async throws {`)
+    const binding = optional.length > 0 ? 'var' : 'let'
+    emit(`${indent(2)}${binding} args: [String: Any] = [${required.join(', ')}]`)
+    for (const fname of optional) {
+      const field = fields.get(fname)
+      if (field) emit(emitOptionalGuard(fname, field))
+    }
+    emit(`${indent(2)}try await client.mutation("${modName}:create", args: args)`)
+    emit(`${indent(1)}}`)
+  },
+  // eslint-disable-next-line max-statements
+  emitUpdateWrapper = (modName: string, fields: Map<string, FieldEntry>, factoryType: string) => {
+    const params: string[] = ['_ client: ConvexClientProtocol'],
+      required: string[] = ['"id": id'],
+      optional: string[] = []
+    if (factoryType === 'orgScoped') {
+      params.push('orgId: String')
+      required.push('"orgId": orgId')
+    }
+    params.push('id: String')
+    for (const [fname, field] of fields) {
+      params.push(emitParam(fname, field, true))
+      optional.push(fname)
+    }
+    params.push('expectedUpdatedAt: Double? = nil')
+    optional.push('expectedUpdatedAt')
+    emit(`${indent(1)}public static func update(`)
+    emit(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+    emit(`${indent(1)}) async throws {`)
+    emit(`${indent(2)}var args: [String: Any] = [${required.join(', ')}]`)
+    for (const fname of optional) {
+      const field =
+        fname === 'expectedUpdatedAt' ? ({ isOptional: true, swiftType: 'Double' } as FieldEntry) : fields.get(fname)
+      if (field) emit(emitOptionalGuard(fname, field))
+    }
+    emit(`${indent(2)}try await client.mutation("${modName}:update", args: args)`)
+    emit(`${indent(1)}}`)
+  },
+  emitRmWrapper = (modName: string, factoryType: string) => {
+    const params = ['_ client: ConvexClientProtocol'],
+      argParts = ['"id": id']
+    if (factoryType === 'orgScoped') {
+      params.push('orgId: String')
+      argParts.push('"orgId": orgId')
+    }
+    params.push('id: String')
+    emit(`${indent(1)}public static func rm(${params.join(', ')}) async throws {`)
+    emit(`${indent(2)}try await client.mutation("${modName}:rm", args: [${argParts.join(', ')}])`)
+    emit(`${indent(1)}}`)
+  },
+  emitReadWrapper = (modName: string, structName: string, factoryType: string) => {
+    const params = ['_ client: ConvexClientProtocol'],
+      argParts = ['"id": id']
+    if (factoryType === 'orgScoped') {
+      params.push('orgId: String')
+      argParts.push('"orgId": orgId')
+    }
+    params.push('id: String')
+    emit(`${indent(1)}public static func read(${params.join(', ')}) async throws -> ${structName} {`)
+    emit(`${indent(2)}try await client.query("${modName}:read", args: [${argParts.join(', ')}])`)
+    emit(`${indent(1)}}`)
+  },
+  // eslint-disable-next-line max-statements
+  emitUpsertWrapper = (modName: string, fields: Map<string, FieldEntry>) => {
+    const params: string[] = ['_ client: ConvexClientProtocol'],
+      optional: string[] = []
+    for (const [fname, field] of fields) {
+      params.push(emitParam(fname, field, true))
+      optional.push(fname)
+    }
+    emit(`${indent(1)}public static func upsert(`)
+    emit(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+    emit(`${indent(1)}) async throws {`)
+    emit(`${indent(2)}var args: [String: Any] = [:]`)
+    for (const fname of optional) {
+      const field = fields.get(fname)
+      if (field) emit(emitOptionalGuard(fname, field))
+    }
+    emit(`${indent(2)}try await client.mutation("${modName}:upsert", args: args)`)
+    emit(`${indent(1)}}`)
+  },
+  emitGetWrapper = (modName: string, structName: string) => {
+    emit(`${indent(1)}public static func get(_ client: ConvexClientProtocol) async throws -> ${structName}? {`)
+    emit(`${indent(2)}try await client.query("${modName}:get", args: [:])`)
+    emit(`${indent(1)}}`)
+  },
+  // eslint-disable-next-line max-statements
+  emitChildCreateWrapper = (modName: string, fields: Map<string, FieldEntry>) => {
+    const params: string[] = ['_ client: ConvexClientProtocol'],
+      required: string[] = [],
+      optional: string[] = []
+    for (const [fname, field] of fields) {
+      params.push(emitParam(fname, field, false))
+      const assign = emitArgAssignment(fname, field, false)
+      if (assign) required.push(assign)
+      else optional.push(fname)
+    }
+    const binding = optional.length > 0 ? 'var' : 'let'
+    emit(`${indent(1)}public static func create(`)
+    emit(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+    emit(`${indent(1)}) async throws {`)
+    emit(`${indent(2)}${binding} args: [String: Any] = [${required.join(', ')}]`)
+    for (const fname of optional) {
+      const field = fields.get(fname)
+      if (field) emit(emitOptionalGuard(fname, field))
+    }
+    emit(`${indent(2)}try await client.mutation("${modName}:create", args: args)`)
+    emit(`${indent(1)}}`)
+  }
 
 for (const [modName, fns] of Object.entries(modules)) {
-  const apiName = `${pascalCase(modName)}API`
+  const apiName = `${pascalCase(modName)}API`,
+    tableName = modName.replace(/^(?<ch>[a-z])/u, (_, c: string) => c.toLowerCase()),
+    factoryType = tableFactoryType[tableName],
+    fields = userSchemaFields[tableName],
+    structName = safeSwiftName(pascalCase(tableName)),
+    fnSet = new Set(fns)
+
   emit(`public enum ${apiName} {`)
   for (const fn of fns) emit(`${indent(1)}public static let ${fn} = "${modName}:${fn}"`)
+
+  if (factoryType && fields) {
+    emit('')
+    if (factoryType === 'owned' || factoryType === 'orgScoped') {
+      if (fnSet.has('create')) emitCreateWrapper(modName, fields, factoryType)
+      if (fnSet.has('update')) emitUpdateWrapper(modName, fields, factoryType)
+      if (fnSet.has('rm')) emitRmWrapper(modName, factoryType)
+      if (fnSet.has('read')) emitReadWrapper(modName, structName, factoryType)
+    } else if (factoryType === 'singleton') {
+      if (fnSet.has('upsert')) emitUpsertWrapper(modName, fields)
+      if (fnSet.has('get')) emitGetWrapper(modName, structName)
+    } else if (factoryType === 'child' && fnSet.has('create') && allFieldsArgSafe(fields))
+      emitChildCreateWrapper(modName, fields)
+  }
 
   emit('}')
   emit('')
@@ -637,7 +830,12 @@ const structCount = emittedStructs.size + nestedEmitted.size,
   moduleCount = Object.keys(modules).length
 let fnCount = 0
 for (const fns of Object.values(modules)) fnCount += fns.length
+let wrapperCount = 0
+for (const [modName] of Object.entries(modules)) {
+  const tableName = modName.replace(/^(?<ch>[a-z])/u, (_, c: string) => c.toLowerCase())
+  if (tableFactoryType[tableName]) wrapperCount += 1
+}
 
 process.stdout.write(
-  `Generated ${OUTPUT_PATH}\n  ${String(structCount)} structs, ${String(enumCount)} enums, ${String(moduleCount)} modules, ${String(fnCount)} API constants\n`
+  `Generated ${OUTPUT_PATH}\n  ${String(structCount)} structs, ${String(enumCount)} enums, ${String(moduleCount)} modules, ${String(fnCount)} API constants, ${String(wrapperCount)} typed wrappers\n`
 )

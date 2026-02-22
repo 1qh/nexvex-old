@@ -1,7 +1,7 @@
 import ConvexCore
 import Foundation
 
-public final class ConvexClient: @unchecked Sendable {
+public final class ConvexClient: ConvexClientProtocol, @unchecked Sendable {
     private let deploymentURL: String
     private var authToken: String?
     private let lock = NSLock()

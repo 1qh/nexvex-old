@@ -26,7 +26,7 @@ internal final class ListViewModel {
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
-            to: "chat:list",
+            to: ChatAPI.list,
             args: args,
             type: PaginatedResult<Chat>.self,
             onUpdate: { [weak self] (result: PaginatedResult<Chat>) in
@@ -44,7 +44,7 @@ internal final class ListViewModel {
         )
         #else
         subscriptionID = ConvexService.shared.subscribePaginatedChats(
-            to: "chat:list",
+            to: ChatAPI.list,
             args: args,
             onUpdate: { result in
                 self.chats = Array(result.page)
@@ -65,7 +65,7 @@ internal final class ListViewModel {
     func createChat() {
         Task {
             do {
-                try await ConvexService.shared.mutate("chat:create", args: [
+                try await ConvexService.shared.mutate(ChatAPI.create, args: [
                     "title": "New Chat",
                     "isPublic": false,
                 ])
@@ -78,7 +78,7 @@ internal final class ListViewModel {
     func deleteChat(id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("chat:rm", args: ["id": id])
+                try await ConvexService.shared.mutate(ChatAPI.rm, args: ["id": id])
             } catch {
                 errorMessage = error.localizedDescription
             }

@@ -20,7 +20,7 @@ internal final class TasksViewModel {
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
-            to: "task:byProject",
+            to: TaskAPI.byProject,
             args: ["orgId": orgID, "projectId": projectID],
             type: [TaskItem].self,
             onUpdate: { [weak self] (result: [TaskItem]) in
@@ -34,7 +34,7 @@ internal final class TasksViewModel {
         )
         #else
         subscriptionID = ConvexService.shared.subscribeTasks(
-            to: "task:byProject",
+            to: TaskAPI.byProject,
             args: ["orgId": orgID, "projectId": projectID],
             onUpdate: { result in
                 self.tasks = Array(result)
@@ -55,7 +55,7 @@ internal final class TasksViewModel {
     func createTask(orgID: String, projectID: String, title: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("task:create", args: [
+                try await ConvexService.shared.mutate(TaskAPI.create, args: [
                     "orgId": orgID,
                     "projectId": projectID,
                     "title": title,
@@ -69,7 +69,7 @@ internal final class TasksViewModel {
     func toggleTask(orgID: String, taskID: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("task:toggle", args: [
+                try await ConvexService.shared.mutate(TaskAPI.toggle, args: [
                     "orgId": orgID,
                     "id": taskID,
                 ])
@@ -82,7 +82,7 @@ internal final class TasksViewModel {
     func deleteTask(orgID: String, id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("task:rm", args: [
+                try await ConvexService.shared.mutate(TaskAPI.rm, args: [
                     "orgId": orgID,
                     "id": id,
                 ])

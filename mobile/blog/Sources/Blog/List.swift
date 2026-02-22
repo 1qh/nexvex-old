@@ -51,7 +51,7 @@ internal final class ListViewModel {
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
-            to: "blog:list",
+            to: BlogAPI.list,
             args: args,
             type: PaginatedResult<Blog>.self,
             onUpdate: { [weak self] (result: PaginatedResult<Blog>) in
@@ -69,7 +69,7 @@ internal final class ListViewModel {
         )
         #else
         subscriptionID = ConvexService.shared.subscribePaginatedBlogs(
-            to: "blog:list",
+            to: BlogAPI.list,
             args: args,
             onUpdate: { result in
                 self.blogs = Array(result.page)
@@ -90,7 +90,7 @@ internal final class ListViewModel {
     func deleteBlog(id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("blog:rm", args: ["id": id])
+                try await ConvexService.shared.mutate(BlogAPI.rm, args: ["id": id])
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -100,7 +100,7 @@ internal final class ListViewModel {
     func togglePublished(id: String, published: Bool) {
         Task {
             do {
-                try await ConvexService.shared.mutate("blog:update", args: [
+                try await ConvexService.shared.mutate(BlogAPI.update, args: [
                     "id": id,
                     "published": !published,
                 ])

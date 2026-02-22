@@ -12,7 +12,7 @@ public final class FileClient: @unchecked Sendable {
     }
 
     public func upload(data: Data, contentType: String) async throws -> String {
-        let uploadURL: String = try await client.mutation("file:upload")
+        let uploadURL: String = try await client.mutation(FileAPI.upload)
         return try await postFile(data: data, contentType: contentType, uploadURL: uploadURL)
     }
 

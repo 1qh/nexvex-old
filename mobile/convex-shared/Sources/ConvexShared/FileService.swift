@@ -39,13 +39,13 @@ public final class FileService: @unchecked Sendable {
     private func getUploadURL() async throws -> String {
         #if !SKIP
         return try await ConvexService.shared.mutate(
-            "file:upload",
+            FileAPI.upload,
             args: [:],
             returning: String.self
         )
         #else
         return try await ConvexService.shared.mutateReturningString(
-            name: "file:upload",
+            name: FileAPI.upload,
             args: [:]
         )
         #endif

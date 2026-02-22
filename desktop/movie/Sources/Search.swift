@@ -25,7 +25,7 @@ internal final class SearchViewModel: SwiftCrossUI.ObservableObject {
             errorMessage = nil
             do {
                 let found: [SearchResult] = try await client.action(
-                    "movie:search",
+                    MovieAPI.search,
                     args: ["query": trimmed]
                 )
                 if !Task.isCancelled {

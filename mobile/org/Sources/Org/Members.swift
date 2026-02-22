@@ -24,7 +24,7 @@ internal final class MembersViewModel {
 
         #if !SKIP
         membersSubID = ConvexService.shared.subscribe(
-            to: "org:members",
+            to: OrgAPI.members,
             args: ["orgId": orgID],
             type: [OrgMemberEntry].self,
             onUpdate: { [weak self] (result: [OrgMemberEntry]) in
@@ -37,7 +37,7 @@ internal final class MembersViewModel {
             }
         )
         invitesSubID = ConvexService.shared.subscribe(
-            to: "org:pendingInvites",
+            to: OrgAPI.pendingInvites,
             args: ["orgId": orgID],
             type: [OrgInvite].self,
             onUpdate: { [weak self] (result: [OrgInvite]) in
@@ -49,7 +49,7 @@ internal final class MembersViewModel {
         )
         #else
         membersSubID = ConvexService.shared.subscribeOrgMembers(
-            to: "org:members",
+            to: OrgAPI.members,
             args: ["orgId": orgID],
             onUpdate: { result in
                 self.members = Array(result)
@@ -61,7 +61,7 @@ internal final class MembersViewModel {
             }
         )
         invitesSubID = ConvexService.shared.subscribeInvites(
-            to: "org:pendingInvites",
+            to: OrgAPI.pendingInvites,
             args: ["orgId": orgID],
             onUpdate: { result in
                 self.invites = Array(result)
@@ -81,7 +81,7 @@ internal final class MembersViewModel {
     func inviteMember(orgID: String, email: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("org:invite", args: [
+                try await ConvexService.shared.mutate(OrgAPI.invite, args: [
                     "orgId": orgID,
                     "email": email,
                     "isAdmin": false,
@@ -95,7 +95,7 @@ internal final class MembersViewModel {
     func revokeInvite(orgID: String, inviteID: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("org:revokeInvite", args: [
+                try await ConvexService.shared.mutate(OrgAPI.revokeInvite, args: [
                     "orgId": orgID,
                     "inviteId": inviteID,
                 ])
@@ -108,7 +108,7 @@ internal final class MembersViewModel {
     func setAdmin(orgID: String, userID: String, isAdmin: Bool) {
         Task {
             do {
-                try await ConvexService.shared.mutate("org:setAdmin", args: [
+                try await ConvexService.shared.mutate(OrgAPI.setAdmin, args: [
                     "orgId": orgID,
                     "userId": userID,
                     "isAdmin": isAdmin,
@@ -122,7 +122,7 @@ internal final class MembersViewModel {
     func removeMember(orgID: String, userID: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("org:removeMember", args: [
+                try await ConvexService.shared.mutate(OrgAPI.removeMember, args: [
                     "orgId": orgID,
                     "userId": userID,
                 ])

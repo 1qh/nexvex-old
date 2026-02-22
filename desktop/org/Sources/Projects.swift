@@ -14,7 +14,7 @@ internal final class ProjectsViewModel: SwiftCrossUI.ObservableObject {
         errorMessage = nil
         do {
             let result: PaginatedResult<Project> = try await client.query(
-                "project:list",
+                ProjectAPI.list,
                 args: [
                     "orgId": orgID,
                     "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
@@ -30,11 +30,12 @@ internal final class ProjectsViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func createProject(orgID: String, name: String, description: String) async {
         do {
-            try await client.mutation("project:create", args: [
-                "orgId": orgID,
-                "name": name,
-                "description": description,
-            ])
+            try await ProjectAPI.create(
+                client,
+                orgId: orgID,
+                description: description.isEmpty ? nil : description,
+                name: name
+            )
             await load(orgID: orgID)
         } catch {
             errorMessage = error.localizedDescription
@@ -44,10 +45,7 @@ internal final class ProjectsViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func deleteProject(orgID: String, id: String) async {
         do {
-            try await client.mutation("project:rm", args: [
-                "orgId": orgID,
-                "id": id,
-            ])
+            try await ProjectAPI.rm(client, orgId: orgID, id: id)
             await load(orgID: orgID)
         } catch {
             errorMessage = error.localizedDescription
@@ -108,7 +106,7 @@ internal struct ProjectsView: View {
                                     Text(desc)
                                 }
                                 if let status = project.status {
-                                    Text(status.capitalized)
+                                    Text(status.rawValue.capitalized)
                                 }
                             }
                             Button("Delete") {
@@ -138,7 +136,7 @@ internal final class TasksViewModel: SwiftCrossUI.ObservableObject {
         errorMessage = nil
         do {
             let loaded: [TaskItem] = try await client.query(
-                "task:byProject",
+                TaskAPI.byProject,
                 args: ["orgId": orgID, "projectId": projectID]
             )
             tasks = loaded
@@ -151,11 +149,12 @@ internal final class TasksViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func createTask(orgID: String, projectID: String, title: String) async {
         do {
-            try await client.mutation("task:create", args: [
-                "orgId": orgID,
-                "projectId": projectID,
-                "title": title,
-            ])
+            try await TaskAPI.create(
+                client,
+                orgId: orgID,
+                projectId: projectID,
+                title: title
+            )
             await load(orgID: orgID, projectID: projectID)
         } catch {
             errorMessage = error.localizedDescription
@@ -165,7 +164,7 @@ internal final class TasksViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func toggleTask(orgID: String, projectID: String, taskID: String) async {
         do {
-            try await client.mutation("task:toggle", args: [
+            try await client.mutation(TaskAPI.toggle, args: [
                 "orgId": orgID,
                 "id": taskID,
             ])
@@ -178,10 +177,7 @@ internal final class TasksViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func deleteTask(orgID: String, projectID: String, id: String) async {
         do {
-            try await client.mutation("task:rm", args: [
-                "orgId": orgID,
-                "id": id,
-            ])
+            try await TaskAPI.rm(client, orgId: orgID, id: id)
             await load(orgID: orgID, projectID: projectID)
         } catch {
             errorMessage = error.localizedDescription
@@ -217,7 +213,7 @@ internal struct TasksView: View {
                             }
                             Text(task.title)
                             if let priority = task.priority {
-                                Text(priority.capitalized)
+                                Text(priority.rawValue.capitalized)
                             }
                             Button("Delete") {
                                 Task { await viewModel.deleteTask(orgID: orgID, projectID: projectID, id: task._id) }

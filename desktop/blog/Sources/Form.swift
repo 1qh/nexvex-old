@@ -45,24 +45,24 @@ internal final class FormViewModel: SwiftCrossUI.ObservableObject {
         do {
             switch mode {
             case .create:
-                let args: [String: Any] = [
-                    "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "content": content.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "category": category,
-                    "published": published,
-                ]
-                try await client.mutation("blog:create", args: args)
+                try await BlogAPI.create(
+                    client,
+                    category: BlogCategory(rawValue: category) ?? .tech,
+                    content: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                    published: published,
+                    title: title.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
 
             case let .edit(blog):
-                let args: [String: Any] = [
-                    "id": blog._id,
-                    "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "content": content.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "category": category,
-                    "published": published,
-                    "expectedUpdatedAt": blog.updatedAt,
-                ]
-                try await client.mutation("blog:update", args: args)
+                try await BlogAPI.update(
+                    client,
+                    id: blog._id,
+                    category: BlogCategory(rawValue: category),
+                    content: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                    published: published,
+                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                    expectedUpdatedAt: blog.updatedAt
+                )
             }
             onDone()
         } catch {

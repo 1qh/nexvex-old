@@ -25,7 +25,7 @@ internal final class ProjectsViewModel {
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
-            to: "project:list",
+            to: ProjectAPI.list,
             args: args,
             type: PaginatedResult<Project>.self,
             onUpdate: { [weak self] (result: PaginatedResult<Project>) in
@@ -39,7 +39,7 @@ internal final class ProjectsViewModel {
         )
         #else
         subscriptionID = ConvexService.shared.subscribePaginatedProjects(
-            to: "project:list",
+            to: ProjectAPI.list,
             args: args,
             onUpdate: { result in
                 self.projects = Array(result.page)
@@ -60,7 +60,7 @@ internal final class ProjectsViewModel {
     func createProject(orgID: String, name: String, description: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("project:create", args: [
+                try await ConvexService.shared.mutate(ProjectAPI.create, args: [
                     "orgId": orgID,
                     "name": name,
                     "description": description,
@@ -74,7 +74,7 @@ internal final class ProjectsViewModel {
     func deleteProject(orgID: String, id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("project:rm", args: [
+                try await ConvexService.shared.mutate(ProjectAPI.rm, args: [
                     "orgId": orgID,
                     "id": id,
                 ])

@@ -30,7 +30,7 @@ internal final class WikiListViewModel: SwiftCrossUI.ObservableObject {
         errorMessage = nil
         do {
             let result: PaginatedResult<Wiki> = try await client.query(
-                "wiki:list",
+                WikiAPI.list,
                 args: [
                     "orgId": orgID,
                     "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
@@ -46,13 +46,14 @@ internal final class WikiListViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func createWiki(orgID: String, title: String, slug: String) async {
         do {
-            try await client.mutation("wiki:create", args: [
-                "orgId": orgID,
-                "title": title,
-                "slug": slug,
-                "status": "draft",
-                "content": "",
-            ])
+            try await WikiAPI.create(
+                client,
+                orgId: orgID,
+                content: "",
+                slug: slug,
+                status: .draft,
+                title: title
+            )
             await load(orgID: orgID)
         } catch {
             errorMessage = error.localizedDescription
@@ -62,10 +63,7 @@ internal final class WikiListViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func deleteWiki(orgID: String, id: String) async {
         do {
-            try await client.mutation("wiki:rm", args: [
-                "orgId": orgID,
-                "id": id,
-            ])
+            try await WikiAPI.rm(client, orgId: orgID, id: id)
             await load(orgID: orgID)
         } catch {
             errorMessage = error.localizedDescription
@@ -75,7 +73,7 @@ internal final class WikiListViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func restoreWiki(orgID: String, id: String) async {
         do {
-            try await client.mutation("wiki:restore", args: [
+            try await client.mutation(WikiAPI.restore, args: [
                 "orgId": orgID,
                 "id": id,
             ])
@@ -137,7 +135,7 @@ internal struct WikiListView: View {
                                 Text(wiki.title)
                                 HStack {
                                     Text(wiki.slug)
-                                    Text(wiki.status.capitalized)
+                                    Text(wiki.status.rawValue.capitalized)
                                 }
                             }
                             Button("Delete") {
@@ -170,7 +168,7 @@ internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject {
     @SwiftCrossUI.Published var title = ""
     @SwiftCrossUI.Published var slug = ""
     @SwiftCrossUI.Published var content = ""
-    @SwiftCrossUI.Published var status = "draft"
+    @SwiftCrossUI.Published var status = WikiStatus.draft.rawValue
     @SwiftCrossUI.Published var isLoading = true
     @SwiftCrossUI.Published var saveStatus = ""
     @SwiftCrossUI.Published var errorMessage: String?
@@ -179,14 +177,11 @@ internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject {
     func load(orgID: String, wikiID: String) async {
         isLoading = true
         do {
-            let wiki: Wiki = try await client.query("wiki:read", args: [
-                "orgId": orgID,
-                "id": wikiID,
-            ])
+            let wiki: Wiki = try await WikiAPI.read(client, orgId: orgID, id: wikiID)
             title = wiki.title
             slug = wiki.slug
             content = wiki.content ?? ""
-            status = wiki.status
+            status = wiki.status.rawValue
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -197,14 +192,15 @@ internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject {
     func save(orgID: String, wikiID: String) async {
         saveStatus = "Saving..."
         do {
-            try await client.mutation("wiki:update", args: [
-                "orgId": orgID,
-                "id": wikiID,
-                "title": title,
-                "slug": slug,
-                "content": content,
-                "status": status,
-            ])
+            try await WikiAPI.update(
+                client,
+                orgId: orgID,
+                id: wikiID,
+                content: content,
+                slug: slug,
+                status: WikiStatus(rawValue: status),
+                title: title
+            )
             saveStatus = "Saved"
         } catch {
             saveStatus = "Error saving"
@@ -215,10 +211,7 @@ internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func deleteWiki(orgID: String, wikiID: String) async {
         do {
-            try await client.mutation("wiki:rm", args: [
-                "orgId": orgID,
-                "id": wikiID,
-            ])
+            try await WikiAPI.rm(client, orgId: orgID, id: wikiID)
         } catch {
             errorMessage = error.localizedDescription
         }

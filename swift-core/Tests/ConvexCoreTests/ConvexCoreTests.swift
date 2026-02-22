@@ -22,7 +22,7 @@ struct ModelsTests {
         let movie = try JSONDecoder().decode(Movie.self, from: Data(json.utf8))
         #expect(movie.title == "Inception")
         #expect(movie.tmdb_id == 27_205)
-        #expect(movie.id == "27205")
+        #expect(movie.id == "")
         #expect(movie.genres.count == 1)
     }
 
@@ -156,7 +156,7 @@ struct ModelsTests {
         """
         let task = try JSONDecoder().decode(TaskItem.self, from: Data(json.utf8))
         #expect(task.title == "Fix bug")
-        #expect(task.priority == "high")
+        #expect(task.priority == .high)
         #expect(task.completed == false)
     }
 
@@ -170,7 +170,7 @@ struct ModelsTests {
             "slug": "wiki-page",
             "content": "Content here",
             "orgId": "o1",
-            "status": "active",
+            "status": "draft",
             "editors": ["u1", "u2"],
             "deletedAt": null,
             "userId": "u1",

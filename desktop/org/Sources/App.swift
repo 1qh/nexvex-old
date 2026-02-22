@@ -202,7 +202,7 @@ internal struct SwitcherView: View {
     private func loadOrgs() async {
         isLoading = true
         do {
-            let loaded: [OrgWithRole] = try await client.query("org:myOrgs")
+            let loaded: [OrgWithRole] = try await client.query(OrgAPI.myOrgs)
             orgs = loaded
         } catch {
             errorMessage = error.localizedDescription
@@ -219,7 +219,7 @@ internal struct SwitcherView: View {
         }
 
         do {
-            try await client.mutation("org:create", args: [
+            try await client.mutation(OrgAPI.create, args: [
                 "data": ["name": name, "slug": slug] as [String: Any],
             ])
             newOrgName = ""
@@ -302,14 +302,14 @@ internal struct OnboardingView: View {
         isSubmitting = true
         errorMessage = nil
         do {
-            let profileArgs: [String: Any] = [
-                "displayName": displayName,
-                "bio": bio,
-                "theme": theme,
-                "notifications": notifications,
-            ]
-            try await client.mutation("orgProfile:upsert", args: profileArgs)
-            try await client.mutation("org:create", args: [
+            try await OrgProfileAPI.upsert(
+                client,
+                bio: bio,
+                displayName: displayName,
+                notifications: notifications,
+                theme: OrgProfileTheme(rawValue: theme)
+            )
+            try await client.mutation(OrgAPI.create, args: [
                 "data": ["name": orgName, "slug": orgSlug] as [String: Any],
             ])
             isSubmitting = false

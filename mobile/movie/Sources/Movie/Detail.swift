@@ -18,13 +18,13 @@ internal final class DetailViewModel {
         do {
             #if !SKIP
             let loaded: Movie = try await ConvexService.shared.action(
-                "movie:load",
+                MovieAPI.load,
                 args: ["tmdb_id": Double(tmdbID)],
                 returning: Movie.self
             )
             #else
             let loaded: Movie = try await ConvexService.shared.actionMovie(
-                name: "movie:load",
+                name: MovieAPI.load,
                 args: ["tmdb_id": Double(tmdbID)]
             )
             #endif

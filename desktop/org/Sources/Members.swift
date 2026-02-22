@@ -15,12 +15,12 @@ internal final class MembersViewModel: SwiftCrossUI.ObservableObject {
         errorMessage = nil
         do {
             let loadedMembers: [OrgMemberEntry] = try await client.query(
-                "org:members",
+                OrgAPI.members,
                 args: ["orgId": orgID]
             )
             members = loadedMembers
             let loadedInvites: [OrgInvite] = try await client.query(
-                "org:pendingInvites",
+                OrgAPI.pendingInvites,
                 args: ["orgId": orgID]
             )
             invites = loadedInvites
@@ -33,7 +33,7 @@ internal final class MembersViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func inviteMember(orgID: String, email: String) async {
         do {
-            try await client.mutation("org:invite", args: [
+            try await client.mutation(OrgAPI.invite, args: [
                 "orgId": orgID,
                 "email": email,
                 "isAdmin": false,
@@ -47,7 +47,7 @@ internal final class MembersViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func revokeInvite(orgID: String, inviteID: String) async {
         do {
-            try await client.mutation("org:revokeInvite", args: [
+            try await client.mutation(OrgAPI.revokeInvite, args: [
                 "orgId": orgID,
                 "inviteId": inviteID,
             ])
@@ -60,7 +60,7 @@ internal final class MembersViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func setAdmin(orgID: String, userID: String, isAdmin: Bool) async {
         do {
-            try await client.mutation("org:setAdmin", args: [
+            try await client.mutation(OrgAPI.setAdmin, args: [
                 "orgId": orgID,
                 "userId": userID,
                 "isAdmin": isAdmin,
@@ -74,7 +74,7 @@ internal final class MembersViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func removeMember(orgID: String, userID: String) async {
         do {
-            try await client.mutation("org:removeMember", args: [
+            try await client.mutation(OrgAPI.removeMember, args: [
                 "orgId": orgID,
                 "userId": userID,
             ])

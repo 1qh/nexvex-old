@@ -26,13 +26,13 @@ internal final class SearchViewModel {
             do {
                 #if !SKIP
                 let found: [SearchResult] = try await ConvexService.shared.action(
-                    "movie:search",
+                    MovieAPI.search,
                     args: ["query": trimmed],
                     returning: [SearchResult].self
                 )
                 #else
                 let found: [SearchResult] = try await ConvexService.shared.actionSearchResults(
-                    name: "movie:search",
+                    name: MovieAPI.search,
                     args: ["query": trimmed]
                 )
                 #endif

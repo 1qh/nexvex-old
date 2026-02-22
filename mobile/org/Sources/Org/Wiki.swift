@@ -25,7 +25,7 @@ internal final class WikiListViewModel {
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
-            to: "wiki:list",
+            to: WikiAPI.list,
             args: args,
             type: PaginatedResult<Wiki>.self,
             onUpdate: { [weak self] (result: PaginatedResult<Wiki>) in
@@ -39,7 +39,7 @@ internal final class WikiListViewModel {
         )
         #else
         subscriptionID = ConvexService.shared.subscribePaginatedWikis(
-            to: "wiki:list",
+            to: WikiAPI.list,
             args: args,
             onUpdate: { result in
                 self.wikis = Array(result.page)
@@ -60,7 +60,7 @@ internal final class WikiListViewModel {
     func createWiki(orgID: String, title: String, slug: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("wiki:create", args: [
+                try await ConvexService.shared.mutate(WikiAPI.create, args: [
                     "orgId": orgID,
                     "title": title,
                     "slug": slug,
@@ -76,7 +76,7 @@ internal final class WikiListViewModel {
     func deleteWiki(orgID: String, id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("wiki:rm", args: [
+                try await ConvexService.shared.mutate(WikiAPI.rm, args: [
                     "orgId": orgID,
                     "id": id,
                 ])
@@ -89,7 +89,7 @@ internal final class WikiListViewModel {
     func restoreWiki(orgID: String, id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate("wiki:restore", args: [
+                try await ConvexService.shared.mutate(WikiAPI.restore, args: [
                     "orgId": orgID,
                     "id": id,
                 ])
@@ -314,7 +314,7 @@ internal struct WikiEditView: View {
     private func saveWiki() async {
         saveStatus = "Saving..."
         do {
-            try await ConvexService.shared.mutate("wiki:update", args: [
+            try await ConvexService.shared.mutate(WikiAPI.update, args: [
                 "orgId": orgID,
                 "id": wikiID,
                 "title": title,
@@ -336,7 +336,7 @@ internal struct WikiEditView: View {
     private func deleteWiki() {
         Task {
             do {
-                try await ConvexService.shared.mutate("wiki:rm", args: [
+                try await ConvexService.shared.mutate(WikiAPI.rm, args: [
                     "orgId": orgID,
                     "id": wikiID,
                 ])

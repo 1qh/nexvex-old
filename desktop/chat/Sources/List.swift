@@ -14,7 +14,7 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject {
         errorMessage = nil
         do {
             let result: PaginatedResult<Chat> = try await client.query(
-                "chat:list",
+                ChatAPI.list,
                 args: [
                     "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
                     "where": ["own": true] as [String: Any],
@@ -30,10 +30,7 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func createChat() async {
         do {
-            try await client.mutation("chat:create", args: [
-                "title": "New Chat",
-                "isPublic": false,
-            ])
+            try await ChatAPI.create(client, isPublic: false, title: "New Chat")
             await load()
         } catch {
             errorMessage = error.localizedDescription
@@ -43,7 +40,7 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject {
     @MainActor
     func deleteChat(id: String) async {
         do {
-            try await client.mutation("chat:rm", args: ["id": id])
+            try await ChatAPI.rm(client, id: id)
             await load()
         } catch {
             errorMessage = error.localizedDescription

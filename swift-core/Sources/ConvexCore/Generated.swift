@@ -329,6 +329,37 @@ public struct OrgJoinRequest: Codable, Identifiable, Sendable {
 public enum BlogProfileAPI {
     public static let get = "blogProfile:get"
     public static let upsert = "blogProfile:upsert"
+
+    public static func upsert(
+        _ client: ConvexClientProtocol,
+        avatar: String? = nil,
+        bio: String? = nil,
+        displayName: String? = nil,
+        notifications: Bool? = nil,
+        theme: BlogProfileTheme? = nil
+    ) async throws {
+        var args = [String: Any]()
+        if let avatar {
+            args["avatar"] = avatar
+        }
+        if let bio {
+            args["bio"] = bio
+        }
+        if let displayName {
+            args["displayName"] = displayName
+        }
+        if let notifications {
+            args["notifications"] = notifications
+        }
+        if let theme {
+            args["theme"] = theme.rawValue
+        }
+        try await client.mutation("blogProfile:upsert", args: args)
+    }
+
+    public static func get(_ client: ConvexClientProtocol) async throws -> BlogProfile? {
+        try await client.query("blogProfile:get", args: [:])
+    }
 }
 
 public enum ProjectAPI {
@@ -342,6 +373,64 @@ public enum ProjectAPI {
     public static let rm = "project:rm"
     public static let setEditors = "project:setEditors"
     public static let update = "project:update"
+
+    public static func create(
+        _ client: ConvexClientProtocol,
+        orgId: String,
+        description: String? = nil,
+        editors: [String]? = nil,
+        name: String,
+        status: ProjectStatus? = nil
+    ) async throws {
+        var args: [String: Any] = ["orgId": orgId, "name": name]
+        if let description {
+            args["description"] = description
+        }
+        if let editors {
+            args["editors"] = editors
+        }
+        if let status {
+            args["status"] = status.rawValue
+        }
+        try await client.mutation("project:create", args: args)
+    }
+
+    public static func update(
+        _ client: ConvexClientProtocol,
+        orgId: String,
+        id: String,
+        description: String? = nil,
+        editors: [String]? = nil,
+        name: String? = nil,
+        status: ProjectStatus? = nil,
+        expectedUpdatedAt: Double? = nil
+    ) async throws {
+        var args: [String: Any] = ["id": id, "orgId": orgId]
+        if let description {
+            args["description"] = description
+        }
+        if let editors {
+            args["editors"] = editors
+        }
+        if let name {
+            args["name"] = name
+        }
+        if let status {
+            args["status"] = status.rawValue
+        }
+        if let expectedUpdatedAt {
+            args["expectedUpdatedAt"] = expectedUpdatedAt
+        }
+        try await client.mutation("project:update", args: args)
+    }
+
+    public static func rm(_ client: ConvexClientProtocol, orgId: String, id: String) async throws {
+        try await client.mutation("project:rm", args: ["id": id, "orgId": orgId])
+    }
+
+    public static func read(_ client: ConvexClientProtocol, orgId: String, id: String) async throws -> Project {
+        try await client.query("project:read", args: ["id": id, "orgId": orgId])
+    }
 }
 
 public enum WikiAPI {
@@ -357,6 +446,74 @@ public enum WikiAPI {
     public static let rm = "wiki:rm"
     public static let setEditors = "wiki:setEditors"
     public static let update = "wiki:update"
+
+    public static func create(
+        _ client: ConvexClientProtocol,
+        orgId: String,
+        content: String? = nil,
+        deletedAt: Double? = nil,
+        editors: [String]? = nil,
+        slug: String,
+        status: WikiStatus,
+        title: String
+    ) async throws {
+        var args: [String: Any] = ["orgId": orgId, "slug": slug, "status": status.rawValue, "title": title]
+        if let content {
+            args["content"] = content
+        }
+        if let deletedAt {
+            args["deletedAt"] = deletedAt
+        }
+        if let editors {
+            args["editors"] = editors
+        }
+        try await client.mutation("wiki:create", args: args)
+    }
+
+    public static func update(
+        _ client: ConvexClientProtocol,
+        orgId: String,
+        id: String,
+        content: String? = nil,
+        deletedAt: Double? = nil,
+        editors: [String]? = nil,
+        slug: String? = nil,
+        status: WikiStatus? = nil,
+        title: String? = nil,
+        expectedUpdatedAt: Double? = nil
+    ) async throws {
+        var args: [String: Any] = ["id": id, "orgId": orgId]
+        if let content {
+            args["content"] = content
+        }
+        if let deletedAt {
+            args["deletedAt"] = deletedAt
+        }
+        if let editors {
+            args["editors"] = editors
+        }
+        if let slug {
+            args["slug"] = slug
+        }
+        if let status {
+            args["status"] = status.rawValue
+        }
+        if let title {
+            args["title"] = title
+        }
+        if let expectedUpdatedAt {
+            args["expectedUpdatedAt"] = expectedUpdatedAt
+        }
+        try await client.mutation("wiki:update", args: args)
+    }
+
+    public static func rm(_ client: ConvexClientProtocol, orgId: String, id: String) async throws {
+        try await client.mutation("wiki:rm", args: ["id": id, "orgId": orgId])
+    }
+
+    public static func read(_ client: ConvexClientProtocol, orgId: String, id: String) async throws -> Wiki {
+        try await client.query("wiki:read", args: ["id": id, "orgId": orgId])
+    }
 }
 
 public enum MobileAiAPI {
@@ -372,6 +529,77 @@ public enum BlogAPI {
     public static let search = "blog:search"
     public static let rm = "blog:rm"
     public static let update = "blog:update"
+
+    public static func create(
+        _ client: ConvexClientProtocol,
+        attachments: [String]? = nil,
+        category: BlogCategory,
+        content: String,
+        coverImage: String? = nil,
+        published: Bool,
+        tags: [String]? = nil,
+        title: String
+    ) async throws {
+        var args: [String: Any] = ["category": category.rawValue, "content": content, "published": published, "title": title]
+        if let attachments {
+            args["attachments"] = attachments
+        }
+        if let coverImage {
+            args["coverImage"] = coverImage
+        }
+        if let tags {
+            args["tags"] = tags
+        }
+        try await client.mutation("blog:create", args: args)
+    }
+
+    public static func update(
+        _ client: ConvexClientProtocol,
+        id: String,
+        attachments: [String]? = nil,
+        category: BlogCategory? = nil,
+        content: String? = nil,
+        coverImage: String? = nil,
+        published: Bool? = nil,
+        tags: [String]? = nil,
+        title: String? = nil,
+        expectedUpdatedAt: Double? = nil
+    ) async throws {
+        var args: [String: Any] = ["id": id]
+        if let attachments {
+            args["attachments"] = attachments
+        }
+        if let category {
+            args["category"] = category.rawValue
+        }
+        if let content {
+            args["content"] = content
+        }
+        if let coverImage {
+            args["coverImage"] = coverImage
+        }
+        if let published {
+            args["published"] = published
+        }
+        if let tags {
+            args["tags"] = tags
+        }
+        if let title {
+            args["title"] = title
+        }
+        if let expectedUpdatedAt {
+            args["expectedUpdatedAt"] = expectedUpdatedAt
+        }
+        try await client.mutation("blog:update", args: args)
+    }
+
+    public static func rm(_ client: ConvexClientProtocol, id: String) async throws {
+        try await client.mutation("blog:rm", args: ["id": id])
+    }
+
+    public static func read(_ client: ConvexClientProtocol, id: String) async throws -> Blog {
+        try await client.query("blog:read", args: ["id": id])
+    }
 }
 
 public enum MovieAPI {
@@ -414,6 +642,43 @@ public enum ChatAPI {
     public static let pubRead = "chat:pubRead"
     public static let rm = "chat:rm"
     public static let update = "chat:update"
+
+    public static func create(
+        _ client: ConvexClientProtocol,
+        isPublic: Bool,
+        title: String
+    ) async throws {
+        let args: [String: Any] = ["isPublic": isPublic, "title": title]
+        try await client.mutation("chat:create", args: args)
+    }
+
+    public static func update(
+        _ client: ConvexClientProtocol,
+        id: String,
+        isPublic: Bool? = nil,
+        title: String? = nil,
+        expectedUpdatedAt: Double? = nil
+    ) async throws {
+        var args: [String: Any] = ["id": id]
+        if let isPublic {
+            args["isPublic"] = isPublic
+        }
+        if let title {
+            args["title"] = title
+        }
+        if let expectedUpdatedAt {
+            args["expectedUpdatedAt"] = expectedUpdatedAt
+        }
+        try await client.mutation("chat:update", args: args)
+    }
+
+    public static func rm(_ client: ConvexClientProtocol, id: String) async throws {
+        try await client.mutation("chat:rm", args: ["id": id])
+    }
+
+    public static func read(_ client: ConvexClientProtocol, id: String) async throws -> Chat {
+        try await client.query("chat:read", args: ["id": id])
+    }
 }
 
 public enum MessageAPI {
@@ -427,6 +692,37 @@ public enum MessageAPI {
 public enum OrgProfileAPI {
     public static let get = "orgProfile:get"
     public static let upsert = "orgProfile:upsert"
+
+    public static func upsert(
+        _ client: ConvexClientProtocol,
+        avatar: String? = nil,
+        bio: String? = nil,
+        displayName: String? = nil,
+        notifications: Bool? = nil,
+        theme: OrgProfileTheme? = nil
+    ) async throws {
+        var args = [String: Any]()
+        if let avatar {
+            args["avatar"] = avatar
+        }
+        if let bio {
+            args["bio"] = bio
+        }
+        if let displayName {
+            args["displayName"] = displayName
+        }
+        if let notifications {
+            args["notifications"] = notifications
+        }
+        if let theme {
+            args["theme"] = theme.rawValue
+        }
+        try await client.mutation("orgProfile:upsert", args: args)
+    }
+
+    public static func get(_ client: ConvexClientProtocol) async throws -> OrgProfile? {
+        try await client.query("orgProfile:get", args: [:])
+    }
 }
 
 public enum OrgAPI {
@@ -472,6 +768,69 @@ public enum TaskAPI {
     public static let rm = "task:rm"
     public static let toggle = "task:toggle"
     public static let update = "task:update"
+
+    public static func create(
+        _ client: ConvexClientProtocol,
+        orgId: String,
+        assigneeId: String? = nil,
+        completed: Bool? = nil,
+        priority: TaskPriority? = nil,
+        projectId: String,
+        title: String
+    ) async throws {
+        var args: [String: Any] = ["orgId": orgId, "projectId": projectId, "title": title]
+        if let assigneeId {
+            args["assigneeId"] = assigneeId
+        }
+        if let completed {
+            args["completed"] = completed
+        }
+        if let priority {
+            args["priority"] = priority.rawValue
+        }
+        try await client.mutation("task:create", args: args)
+    }
+
+    public static func update(
+        _ client: ConvexClientProtocol,
+        orgId: String,
+        id: String,
+        assigneeId: String? = nil,
+        completed: Bool? = nil,
+        priority: TaskPriority? = nil,
+        projectId: String? = nil,
+        title: String? = nil,
+        expectedUpdatedAt: Double? = nil
+    ) async throws {
+        var args: [String: Any] = ["id": id, "orgId": orgId]
+        if let assigneeId {
+            args["assigneeId"] = assigneeId
+        }
+        if let completed {
+            args["completed"] = completed
+        }
+        if let priority {
+            args["priority"] = priority.rawValue
+        }
+        if let projectId {
+            args["projectId"] = projectId
+        }
+        if let title {
+            args["title"] = title
+        }
+        if let expectedUpdatedAt {
+            args["expectedUpdatedAt"] = expectedUpdatedAt
+        }
+        try await client.mutation("task:update", args: args)
+    }
+
+    public static func rm(_ client: ConvexClientProtocol, orgId: String, id: String) async throws {
+        try await client.mutation("task:rm", args: ["id": id, "orgId": orgId])
+    }
+
+    public static func read(_ client: ConvexClientProtocol, orgId: String, id: String) async throws -> TaskItem {
+        try await client.query("task:read", args: ["id": id, "orgId": orgId])
+    }
 }
 
 // swiftlint:enable file_types_order

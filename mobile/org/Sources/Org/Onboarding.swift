@@ -185,8 +185,8 @@ internal struct OnboardingView: View {
                 if let aid = avatarID {
                     profileArgs["avatar"] = aid
                 }
-                try await ConvexService.shared.mutate("orgProfile:upsert", args: profileArgs)
-                try await ConvexService.shared.mutate("org:create", args: [
+                try await ConvexService.shared.mutate(OrgProfileAPI.upsert, args: profileArgs)
+                try await ConvexService.shared.mutate(OrgAPI.create, args: [
                     "data": [
                         "name": orgName,
                         "slug": orgSlug,

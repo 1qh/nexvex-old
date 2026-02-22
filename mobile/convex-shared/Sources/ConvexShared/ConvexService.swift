@@ -40,7 +40,7 @@ private func encodeArgs(_ args: [String: Any]) -> [String: ConvexEncodable?] {
     return result
 }
 
-public final class ConvexService: @unchecked Sendable {
+public final class ConvexService: ConvexClientProtocol, @unchecked Sendable {
     nonisolated(unsafe) public static let shared = ConvexService()
 
     private var client: ConvexClient?
@@ -151,6 +151,22 @@ public final class ConvexService: @unchecked Sendable {
         }
 
         return client
+    }
+
+    public func query<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T {
+        try await mutate(name, args: args, returning: T.self)
+    }
+
+    public func mutation<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T {
+        try await mutate(name, args: args, returning: T.self)
+    }
+
+    public func mutation(_ name: String, args: [String: Any]) async throws {
+        try await mutate(name, args: args)
+    }
+
+    public func action<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T {
+        try await action(name, args: args, returning: T.self)
     }
 }
 #endif

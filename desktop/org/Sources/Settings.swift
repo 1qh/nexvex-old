@@ -72,7 +72,7 @@ internal struct SettingsView: View {
             if !editedSlug.isEmpty {
                 data["slug"] = editedSlug
             }
-            try await client.mutation("org:update", args: [
+            try await client.mutation(OrgAPI.update, args: [
                 "orgId": orgID,
                 "data": data as [String: Any],
             ] as [String: Any])
@@ -85,7 +85,7 @@ internal struct SettingsView: View {
     @MainActor
     private func leaveOrg() async {
         do {
-            try await client.mutation("org:leave", args: ["orgId": orgID])
+            try await client.mutation(OrgAPI.leave, args: ["orgId": orgID])
             onSwitchOrg()
         } catch {
             errorMessage = error.localizedDescription
@@ -95,7 +95,7 @@ internal struct SettingsView: View {
     @MainActor
     private func deleteOrg() async {
         do {
-            try await client.mutation("org:remove", args: ["orgId": orgID])
+            try await client.mutation(OrgAPI.remove, args: ["orgId": orgID])
             onSwitchOrg()
         } catch {
             errorMessage = error.localizedDescription

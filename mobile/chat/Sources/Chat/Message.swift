@@ -25,7 +25,7 @@ internal final class MessageViewModel {
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
-            to: "message:list",
+            to: MessageAPI.list,
             args: ["chatId": chatID],
             type: [Message].self,
             onUpdate: { [weak self] (result: [Message]) in
@@ -39,7 +39,7 @@ internal final class MessageViewModel {
         )
         #else
         subscriptionID = ConvexService.shared.subscribeMessages(
-            to: "message:list",
+            to: MessageAPI.list,
             args: ["chatId": chatID],
             onUpdate: { result in
                 self.messages = Array(result)
@@ -68,7 +68,7 @@ internal final class MessageViewModel {
         Task {
             do {
                 let parts: [[String: Any]] = [["type": "text", "text": text]]
-                try await ConvexService.shared.mutate("message:create", args: [
+                try await ConvexService.shared.mutate(MessageAPI.create, args: [
                     "chatId": chatID,
                     "parts": parts,
                     "role": "user",
@@ -77,13 +77,13 @@ internal final class MessageViewModel {
                 isAiLoading = true
                 #if !SKIP
                 let _: [String: String] = try await ConvexService.shared.action(
-                    "mobile-ai:chat",
+                    MobileAiAPI.chat,
                     args: ["chatId": chatID],
                     returning: [String: String].self
                 )
                 #else
                 try await ConvexService.shared.action(
-                    name: "mobile-ai:chat",
+                    name: MobileAiAPI.chat,
                     args: ["chatId": chatID]
                 )
                 #endif

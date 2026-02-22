@@ -804,6 +804,7 @@ for (const [modName, fns] of Object.entries(modules)) {
 
   if (factoryType && fields) {
     emit('')
+    emit(`${indent(1)}#if !SKIP`)
     if (factoryType === 'owned' || factoryType === 'orgScoped') {
       if (fnSet.has('create')) emitCreateWrapper(modName, fields, factoryType)
       if (fnSet.has('update')) emitUpdateWrapper(modName, fields, factoryType)
@@ -814,6 +815,7 @@ for (const [modName, fns] of Object.entries(modules)) {
       if (fnSet.has('get')) emitGetWrapper(modName, structName)
     } else if (factoryType === 'child' && fnSet.has('create') && allFieldsArgSafe(fields))
       emitChildCreateWrapper(modName, fields)
+    emit(`${indent(1)}#endif`)
   }
 
   emit('}')

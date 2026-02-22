@@ -143,11 +143,11 @@ internal struct WikiListView: View {
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                         Spacer()
-                                        Text(wiki.status.capitalized)
+                                        Text(wiki.status.rawValue.capitalized)
                                             .font(.caption2)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
-                                            .background(wiki.status == "published" ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
+                                            .background(wiki.status == .published ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
                                             .clipShape(Capsule())
                                     }
                                 }

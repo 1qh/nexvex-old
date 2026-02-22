@@ -100,7 +100,7 @@ internal struct MessageBubble: View {
     let message: Message
 
     var body: some View {
-        let isUser = message.role == "user"
+        let isUser = message.role == .user
         HStack {
             if isUser {
                 Spacer()

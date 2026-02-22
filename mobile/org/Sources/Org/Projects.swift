@@ -123,7 +123,7 @@ internal struct ProjectsView: View {
                                     .lineLimit(2)
                             }
                             if let status = project.status {
-                                Text(status.capitalized)
+                                Text(status.rawValue.capitalized)
                                     .font(.caption2)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)

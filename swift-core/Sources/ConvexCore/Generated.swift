@@ -330,6 +330,7 @@ public enum BlogProfileAPI {
     public static let get = "blogProfile:get"
     public static let upsert = "blogProfile:upsert"
 
+    #if !SKIP
     public static func upsert(
         _ client: ConvexClientProtocol,
         avatar: String? = nil,
@@ -360,6 +361,7 @@ public enum BlogProfileAPI {
     public static func get(_ client: ConvexClientProtocol) async throws -> BlogProfile? {
         try await client.query("blogProfile:get", args: [:])
     }
+    #endif
 }
 
 public enum ProjectAPI {
@@ -374,6 +376,7 @@ public enum ProjectAPI {
     public static let setEditors = "project:setEditors"
     public static let update = "project:update"
 
+    #if !SKIP
     public static func create(
         _ client: ConvexClientProtocol,
         orgId: String,
@@ -431,6 +434,7 @@ public enum ProjectAPI {
     public static func read(_ client: ConvexClientProtocol, orgId: String, id: String) async throws -> Project {
         try await client.query("project:read", args: ["id": id, "orgId": orgId])
     }
+    #endif
 }
 
 public enum WikiAPI {
@@ -447,6 +451,7 @@ public enum WikiAPI {
     public static let setEditors = "wiki:setEditors"
     public static let update = "wiki:update"
 
+    #if !SKIP
     public static func create(
         _ client: ConvexClientProtocol,
         orgId: String,
@@ -514,6 +519,7 @@ public enum WikiAPI {
     public static func read(_ client: ConvexClientProtocol, orgId: String, id: String) async throws -> Wiki {
         try await client.query("wiki:read", args: ["id": id, "orgId": orgId])
     }
+    #endif
 }
 
 public enum MobileAiAPI {
@@ -530,6 +536,7 @@ public enum BlogAPI {
     public static let rm = "blog:rm"
     public static let update = "blog:update"
 
+    #if !SKIP
     public static func create(
         _ client: ConvexClientProtocol,
         attachments: [String]? = nil,
@@ -600,6 +607,7 @@ public enum BlogAPI {
     public static func read(_ client: ConvexClientProtocol, id: String) async throws -> Blog {
         try await client.query("blog:read", args: ["id": id])
     }
+    #endif
 }
 
 public enum MovieAPI {
@@ -618,6 +626,9 @@ public enum MovieAPI {
     public static let rm = "movie:rm"
     public static let set = "movie:set"
     public static let update = "movie:update"
+
+    #if !SKIP
+    #endif
 }
 
 public enum FileAPI {
@@ -643,6 +654,7 @@ public enum ChatAPI {
     public static let rm = "chat:rm"
     public static let update = "chat:update"
 
+    #if !SKIP
     public static func create(
         _ client: ConvexClientProtocol,
         isPublic: Bool,
@@ -679,6 +691,7 @@ public enum ChatAPI {
     public static func read(_ client: ConvexClientProtocol, id: String) async throws -> Chat {
         try await client.query("chat:read", args: ["id": id])
     }
+    #endif
 }
 
 public enum MessageAPI {
@@ -687,12 +700,16 @@ public enum MessageAPI {
     public static let update = "message:update"
     public static let pubGet = "message:pubGet"
     public static let pubList = "message:pubList"
+
+    #if !SKIP
+    #endif
 }
 
 public enum OrgProfileAPI {
     public static let get = "orgProfile:get"
     public static let upsert = "orgProfile:upsert"
 
+    #if !SKIP
     public static func upsert(
         _ client: ConvexClientProtocol,
         avatar: String? = nil,
@@ -723,6 +740,7 @@ public enum OrgProfileAPI {
     public static func get(_ client: ConvexClientProtocol) async throws -> OrgProfile? {
         try await client.query("orgProfile:get", args: [:])
     }
+    #endif
 }
 
 public enum OrgAPI {
@@ -769,6 +787,7 @@ public enum TaskAPI {
     public static let toggle = "task:toggle"
     public static let update = "task:update"
 
+    #if !SKIP
     public static func create(
         _ client: ConvexClientProtocol,
         orgId: String,
@@ -831,6 +850,7 @@ public enum TaskAPI {
     public static func read(_ client: ConvexClientProtocol, orgId: String, id: String) async throws -> TaskItem {
         try await client.query("task:read", args: ["id": id, "orgId": orgId])
     }
+    #endif
 }
 
 // swiftlint:enable file_types_order file_length

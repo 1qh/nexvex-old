@@ -152,7 +152,7 @@ internal struct TasksView: View {
                                 .strikethrough(task.completed == true)
                                 .foregroundStyle(task.completed == true ? .secondary : .primary)
                             if let priority = task.priority {
-                                PriorityBadge(priority: priority)
+                                PriorityBadge(priority: priority.rawValue)
                             }
                         }
                         Spacer()

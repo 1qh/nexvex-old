@@ -56,7 +56,7 @@ internal final class FormViewModel {
         if case let .edit(blog) = mode {
             title = blog.title
             content = blog.content
-            category = blog.category
+            category = blog.category.rawValue
             published = blog.published
             tags = blog.tags ?? []
             coverImageID = blog.coverImage

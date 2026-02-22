@@ -1279,3 +1279,173 @@ Desktop Swift files covered by existing `lint-swift` job (add `desktop/**` + `sw
 - Auth working (password + Google OAuth via system browser)
 - File upload working
  Full CI: build + test + e2e + lint, path-filtered with swift-core triggering both tracks
+
+---
+
+# Swift Codegen: Typed API Wrappers from Zod Schemas
+
+## Problem
+
+On the TypeScript side, lazyconvex gives end-to-end type safety: a typo in `api.blog.crate` raises a compile error. On the Swift side, all Convex calls use untyped strings:
+
+```swift
+try await client.mutation("blog:create", args: ["titl": "Hello"]) // compiles, crashes at runtime
+```
+
+The 293-line `swift-core/Sources/ConvexCore/Models.swift` is hand-maintained and can silently drift from the Zod schemas in `packages/be/t.ts`.
+
+## Solution
+
+A Bun codegen script (`packages/be/codegen-swift.ts`) that:
+
+1. Imports Zod schemas from `packages/be/t.ts` at runtime
+2. Introspects field names, types, optionality, enums via `schema._zod.def`
+3. Reads exported function names from `packages/be/convex/*.ts`
+4. Emits typed Swift code:
+   - **Models**: structs with correct field types, optionality, enums (replaces hand-written Models.swift)
+   - **API wrappers**: typed static methods per Convex module (replaces string-based calls)
+
+### Zod to Swift Type Mapping
+
+| Zod type | Swift type |
+|----------|-----------|
+| `string()` | `String` |
+| `number()` | `Double` |
+| `boolean()` | `Bool` |
+| `enum([...])` | Swift `enum: String, Codable, Sendable` |
+| `array(T)` | `[T]` |
+| `T.optional()` | `T?` |
+| `T.nullable()` | `T?` |
+| `cvFile()` | `String` (Convex storage ID) |
+| `cvFiles()` | `[String]` |
+| `zid(table)` | `String` (Convex document ID) |
+| `object({...})` | Swift `struct: Codable, Identifiable, Sendable` |
+| `union([...])` | Swift `enum` with associated values |
+
+### Factory to API Pattern Mapping
+
+Each lazyconvex factory generates a known set of functions with known arg/return signatures:
+
+| Factory | Generated functions | Args pattern |
+|---------|--------------------|----|
+| `crud(table, schema)` | `create`, `list`, `read`, `rm`, `update`, `search?`, `bulkRm?`, `bulkUpdate?` | create: schema fields; list: paginationOpts + where?; read: {id}; rm: {id}; update: {id, ...fields, expectedUpdatedAt?} |
+| `orgCrud(table, schema)` | same + `addEditor?`, `removeEditor?`, `setEditors?`, `editors?`, `restore?` | same but all args include `orgId` |
+| `singletonCrud(table, schema)` | `get`, `upsert` | get: none; upsert: partial schema fields |
+| `childCrud(table, schema)` | `create`, `list`, `update` + `pub.list?`, `pub.get?` | create: schema fields; list: {parentId, paginationOpts} |
+| `cacheCrud(table, schema)` | `load`, `get`, `all`, `search?`, `refresh?` | load: {key}; get: {id} |
+| custom `pq`/`q`/`m` | manually declared | manually declared args |
+
+### Generated Output Structure
+
+The script outputs a single file: `swift-core/Sources/ConvexCore/Generated.swift`
+
+This file contains:
+- All model structs (replacing hand-written Models.swift)
+- All enum types extracted from Zod schemas
+- Typed API enums per module (e.g. `BlogAPI`, `ChatAPI`, `MovieAPI`)
+- `PaginatedResult<T>` generic
+- Shared types (`Author`, `PaginationOpts`)
+
+### Generated Swift API Example
+
+```swift
+public enum BlogCategory: String, Codable, Sendable {
+    case tech, life, tutorial
+}
+
+public struct Blog: Codable, Identifiable, Sendable {
+    public let _id: String
+    public let _creationTime: Double
+    public let title: String
+    public let content: String
+    public let category: BlogCategory
+    public let published: Bool
+    public let coverImage: String?
+    public let coverImageUrl: String?
+    public let tags: [String]?
+    public let userId: String
+    public let updatedAt: Double
+    public let author: Author?
+    public var id: String { _id }
+}
+
+public enum BlogAPI {
+    public static func create(
+        client: ConvexClientProtocol,
+        title: String,
+        content: String,
+        category: BlogCategory,
+        published: Bool,
+        coverImage: String? = nil,
+        tags: [String]? = nil,
+        attachments: [String]? = nil
+    ) async throws -> String {
+        try await client.mutation("blog:create", args: [
+            "title": title,
+            "content": content,
+            "category": category.rawValue,
+            "published": published,
+        ])
+    }
+}
+```
+
+### How Desktop/Mobile Consume It
+
+- `swift-core/Sources/ConvexCore/Generated.swift` is the canonical source
+- Mobile: symlink `mobile/convex-shared/Sources/ConvexShared/Generated.swift` -> `swift-core/Sources/ConvexCore/Generated.swift`
+- Desktop: imports `ConvexCore` module directly (already a dependency)
+- Old hand-written `Models.swift` is deleted after migration
+
+### ConvexClientProtocol
+
+Both desktop (`ConvexClient`) and mobile (`ConvexService`) must conform to a shared protocol so generated API wrappers work on both platforms:
+
+```swift
+public protocol ConvexClientProtocol: Sendable {
+    func query<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T
+    func mutation<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T
+    func mutation(_ name: String, args: [String: Any]) async throws
+    func action<T: Decodable & Sendable>(_ name: String, args: [String: Any]) async throws -> T
+    func action(_ name: String, args: [String: Any]) async throws
+}
+```
+
+### Running the Codegen
+
+```bash
+bun codegen:swift
+```
+
+Run after any change to `packages/be/t.ts` or `packages/be/convex/*.ts`.
+
+### Migration Steps
+
+1. Create `packages/be/codegen-swift.ts`
+2. Add `ConvexClientProtocol` to `swift-core/Sources/ConvexCore/`
+3. Run codegen -> generates `Generated.swift`
+4. Conform `desktop/shared` `ConvexClient` to `ConvexClientProtocol`
+5. Conform `mobile/convex-shared` `ConvexService` to `ConvexClientProtocol`
+6. Migrate desktop app code: replace string-based calls with typed API calls
+7. Migrate mobile app code: replace string-based calls with typed API calls
+8. Delete old hand-written `Models.swift` (replaced by Generated.swift)
+9. Update symlink: `mobile/convex-shared/.../Models.swift` -> `Generated.swift`
+10. Verify all builds pass: `swift build` for desktop, `swift build` for mobile
+11. Verify all tests pass: `bun test:desktop`, `swift test --package-path swift-core`
+12. Add `codegen:swift` script to `package.json`
+13. Run `bun fix` to verify lint passes
+
+### Verification
+
+- [ ] `bun codegen:swift` generates valid Swift
+- [ ] Generated models match all fields from Zod schemas (no drift)
+- [ ] Generated enums match all Zod enum values
+- [ ] Generated API wrappers cover all exported Convex functions
+- [ ] `swift build --package-path swift-core` passes
+- [ ] `swift test --package-path swift-core` passes
+- [ ] `swift build --package-path desktop/shared` passes
+- [ ] All 4 desktop apps build: `swift build --package-path desktop/{blog,chat,movie,org}`
+- [ ] `swift build --package-path mobile/convex-shared` passes
+- [ ] `bun test:desktop` passes
+- [ ] `bun fix` passes
+- [ ] Typo in API call arg -> Swift compile error (the whole point)

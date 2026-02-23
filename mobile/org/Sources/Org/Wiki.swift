@@ -45,7 +45,7 @@ internal final class WikiListViewModel: Performing {
 internal struct WikiListView: View {
     let orgID: String
 
-    let role: String
+    let role: OrgRole
 
     @State private var viewModel = WikiListViewModel()
 
@@ -176,7 +176,7 @@ internal struct WikiEditView: View {
 
     let wikiID: String
 
-    let role: String
+    let role: OrgRole
 
     @State private var title = ""
 
@@ -226,7 +226,7 @@ internal struct WikiEditView: View {
                         }
                     }
 
-                    if role == "owner" || role == "admin" {
+                    if role.isAdmin {
                         Section("Danger Zone") {
                             Button("Delete Page", role: .destructive) {
                                 deleteWiki()

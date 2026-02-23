@@ -56,7 +56,7 @@ internal final class MembersViewModel: Performing {
 internal struct MembersView: View {
     let orgID: String
 
-    let role: String
+    let role: OrgRole
 
     @State private var viewModel = MembersViewModel()
 
@@ -99,7 +99,7 @@ internal struct MembersView: View {
                                 HStack {
                                     Text(invite.email)
                                     Spacer()
-                                    if role == "owner" || role == "admin" {
+                                    if role.isAdmin {
                                         Button("Revoke", role: .destructive) {
                                             viewModel.revokeInvite(inviteID: invite._id)
                                         }
@@ -114,7 +114,7 @@ internal struct MembersView: View {
             }
         }
         .toolbar {
-            if role == "owner" || role == "admin" {
+            if role.isAdmin {
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { showInviteSheet = true }) {
                         Image(systemName: "person.badge.plus")

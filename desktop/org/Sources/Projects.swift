@@ -52,7 +52,7 @@ internal final class ProjectsViewModel: SwiftCrossUI.ObservableObject {
 
 internal struct ProjectsView: View {
     let orgID: String
-    let role: String
+    let role: OrgRole
     var path: Binding<NavigationPath>
     @State private var viewModel = ProjectsViewModel()
     @State private var showCreateForm = false
@@ -178,7 +178,7 @@ internal final class TasksViewModel: SwiftCrossUI.ObservableObject {
 internal struct TasksView: View {
     let orgID: String
     let projectID: String
-    let role: String
+    let role: OrgRole
     @State private var viewModel = TasksViewModel()
     @State private var newTaskTitle = ""
 

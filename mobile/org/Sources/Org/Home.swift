@@ -13,7 +13,7 @@ internal struct HomeView: View {
 
     let orgName: String
 
-    let role: String
+    let role: OrgRole
 
     let onSwitchOrg: () -> Void
 

@@ -6,7 +6,7 @@ internal struct SettingsView: View {
 
     let orgName: String
 
-    let role: String
+    let role: OrgRole
 
     let onSwitchOrg: () -> Void
 
@@ -30,7 +30,7 @@ internal struct SettingsView: View {
                 TextField("Name", text: $editedName)
                 TextField("Slug", text: $editedSlug)
 
-                if role == "owner" || role == "admin" {
+                if role.isAdmin {
                     Button("Save Changes") {
                         saveOrg()
                     }
@@ -47,7 +47,7 @@ internal struct SettingsView: View {
                 }
             }
 
-            if role != "owner" {
+            if !role.isOwner {
                 Section("Danger Zone") {
                     Button("Leave Organization", role: .destructive) {
                         leaveOrg()
@@ -55,7 +55,7 @@ internal struct SettingsView: View {
                 }
             }
 
-            if role == "owner" {
+            if role.isOwner {
                 Section("Danger Zone") {
                     Button("Delete Organization", role: .destructive) {
                         showDeleteConfirm = true

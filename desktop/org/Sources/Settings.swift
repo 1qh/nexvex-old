@@ -6,7 +6,7 @@ import SwiftCrossUI
 internal struct SettingsView: View {
     let orgID: String
     let orgName: String
-    let role: String
+    let role: OrgRole
     var onSwitchOrg: () -> Void
     var onSignOut: () -> Void
     @State private var editedName = ""
@@ -22,7 +22,7 @@ internal struct SettingsView: View {
             TextField("Organization Name", text: $editedName)
             TextField("Slug", text: $editedSlug)
 
-            if role == "owner" || role == "admin" {
+            if role.isAdmin {
                 Button("Save Changes") {
                     Task { await saveOrg() }
                 }
@@ -44,14 +44,14 @@ internal struct SettingsView: View {
             }
             .padding(.top, 8)
 
-            if role != "owner" {
+            if !role.isOwner {
                 Button("Leave Organization") {
                     Task { await leaveOrg() }
                 }
                 .padding(.top, 4)
             }
 
-            if role == "owner" {
+            if role.isOwner {
                 Button("Delete Organization") {
                     Task { await deleteOrg() }
                 }

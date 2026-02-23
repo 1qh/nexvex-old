@@ -35,23 +35,23 @@ internal final class SwitcherViewModel: Performing {
 }
 
 internal struct RoleBadge: View {
-    let role: String
+    let role: OrgRole
 
     private var badgeColor: Color {
         switch role {
-        case "owner":
+        case .owner:
             .orange
 
-        case "admin":
+        case .admin:
             .blue
 
-        default:
+        case .member:
             .green
         }
     }
 
     var body: some View {
-        Text(role.capitalized)
+        Text(role.rawValue.capitalized)
             .font(.caption2)
             .fontWeight(.medium)
             .padding(.horizontal, 8)
@@ -63,7 +63,7 @@ internal struct RoleBadge: View {
 }
 
 internal struct SwitcherView: View {
-    let onSelectOrg: (String, String, String) -> Void
+    let onSelectOrg: (String, String, OrgRole) -> Void
 
     let onSignOut: () -> Void
 

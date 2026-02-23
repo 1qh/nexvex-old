@@ -289,10 +289,24 @@ public struct OrgMember: Codable, Identifiable, Sendable {
     }
 }
 
+public enum OrgRole: String, Codable, Sendable {
+    case owner
+    case admin
+    case member
+
+    public var isOwner: Bool {
+        self == .owner
+    }
+
+    public var isAdmin: Bool {
+        self == .owner || self == .admin
+    }
+}
+
 public struct OrgMemberEntry: Codable, Identifiable, Sendable {
     public let memberId: String?
     public let userId: String
-    public let role: String
+    public let role: OrgRole
     public let name: String?
     public let email: String?
     public let imageUrl: String?
@@ -304,7 +318,7 @@ public struct OrgMemberEntry: Codable, Identifiable, Sendable {
 
 public struct OrgWithRole: Codable, Identifiable, Sendable {
     public let org: Org
-    public let role: String
+    public let role: OrgRole
 
     public var id: String {
         org._id
@@ -316,7 +330,7 @@ public struct OrgMembership: Codable, Sendable {
     public let orgId: String?
     public let userId: String?
     public let isAdmin: Bool?
-    public let role: String?
+    public let role: OrgRole?
 }
 
 public struct OrgInvite: Codable, Identifiable, Sendable {

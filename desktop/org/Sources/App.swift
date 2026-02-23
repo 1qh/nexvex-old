@@ -18,7 +18,7 @@ internal struct OrgApp: App {
     @State private var isAuthenticated = false
     @State private var activeOrgID: String?
     @State private var activeOrgName = ""
-    @State private var activeRole = ""
+    @State private var activeRole = OrgRole.member
     @State private var showOnboarding = false
 
     var body: some Scene {
@@ -132,7 +132,7 @@ internal struct AuthView: View {
 }
 
 internal struct SwitcherView: View {
-    var onSelectOrg: (String, String, String) -> Void
+    var onSelectOrg: (String, String, OrgRole) -> Void
     var onSignOut: () -> Void
     var onShowOnboarding: () -> Void
     @State private var orgs = [OrgWithRole]()
@@ -183,7 +183,7 @@ internal struct SwitcherView: View {
                                 Text(entry.org.name)
                                 Text(entry.org.slug)
                             }
-                            Text(entry.role.capitalized)
+                            Text(entry.role.rawValue.capitalized)
                             Button("Select") {
                                 onSelectOrg(entry.org._id, entry.org.name, entry.role)
                             }
@@ -319,7 +319,7 @@ internal struct OnboardingView: View {
 internal struct HomeView: View {
     let orgID: String
     let orgName: String
-    let role: String
+    let role: OrgRole
     var onSwitchOrg: () -> Void
     var onSignOut: () -> Void
     @State private var section = OrgSection.projects

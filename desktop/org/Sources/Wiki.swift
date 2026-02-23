@@ -80,7 +80,7 @@ internal final class WikiListViewModel: SwiftCrossUI.ObservableObject {
 
 internal struct WikiListView: View {
     let orgID: String
-    let role: String
+    let role: OrgRole
     var path: Binding<NavigationPath>
     @State private var viewModel = WikiListViewModel()
     @State private var showCreateForm = false
@@ -215,7 +215,7 @@ internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject {
 internal struct WikiEditView: View {
     let orgID: String
     let wikiID: String
-    let role: String
+    let role: OrgRole
     @State private var viewModel = WikiEditViewModel()
 
     var body: some View {
@@ -237,7 +237,7 @@ internal struct WikiEditView: View {
                     Button("Save") {
                         Task { await viewModel.save(orgID: orgID, wikiID: wikiID) }
                     }
-                    if role == "owner" || role == "admin" {
+                    if role.isAdmin {
                         Button("Delete") {
                             Task { await viewModel.deleteWiki(orgID: orgID, wikiID: wikiID) }
                         }

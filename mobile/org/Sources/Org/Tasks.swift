@@ -72,7 +72,7 @@ internal struct PriorityBadge: View {
 internal struct TasksView: View {
     let orgID: String
     let projectID: String
-    let role: String
+    let role: OrgRole
 
     @State private var viewModel = TasksViewModel()
     @State private var newTaskTitle = ""

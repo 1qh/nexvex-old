@@ -41,7 +41,7 @@ internal final class ProjectsViewModel: Performing {
 internal struct ProjectsView: View {
     let orgID: String
 
-    let role: String
+    let role: OrgRole
 
     @State private var viewModel = ProjectsViewModel()
 

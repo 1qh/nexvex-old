@@ -65,7 +65,7 @@ internal final class MembersViewModel: SwiftCrossUI.ObservableObject {
 
 internal struct MembersView: View {
     let orgID: String
-    let role: String
+    let role: OrgRole
     @State private var viewModel = MembersViewModel()
     @State private var showInviteForm = false
     @State private var inviteEmail = ""
@@ -74,7 +74,7 @@ internal struct MembersView: View {
         VStack {
             HStack {
                 Text("Members")
-                if role == "owner" || role == "admin" {
+                if role.isAdmin {
                     Button("Invite") { showInviteForm = true }
                 }
             }
@@ -110,8 +110,8 @@ internal struct MembersView: View {
                                     Text(email)
                                 }
                             }
-                            Text(member.role.capitalized)
-                            if role == "owner" || role == "admin" {
+                            Text(member.role.rawValue.capitalized)
+                            if role.isAdmin {
                                 Button("Remove") {
                                     if let mid = member.memberId {
                                         Task { await viewModel.removeMember(orgID: orgID, memberId: mid) }
@@ -128,7 +128,7 @@ internal struct MembersView: View {
                         ForEach(viewModel.invites) { invite in
                             HStack {
                                 Text(invite.email)
-                                if role == "owner" || role == "admin" {
+                                if role.isAdmin {
                                     Button("Revoke") {
                                         Task { await viewModel.revokeInvite(orgID: orgID, inviteID: invite._id) }
                                     }

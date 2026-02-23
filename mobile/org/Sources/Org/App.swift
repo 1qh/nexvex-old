@@ -12,7 +12,7 @@ internal struct ContentView: View {
 
     @State private var activeOrgName = ""
 
-    @State private var activeRole = ""
+    @State private var activeRole = OrgRole.member
 
     var body: some View {
         AuthenticatedView { signOut in

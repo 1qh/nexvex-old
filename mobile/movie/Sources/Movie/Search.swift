@@ -113,10 +113,8 @@ internal struct SearchView: View {
         VStack(spacing: 0) {
             HStack {
                 TextField("Search movies...", text: $viewModel.query)
-                #if !SKIP
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                #endif
+                    .roundedBorderTextField()
+                    .noAutocorrection()
                     .onSubmit { viewModel.search() }
 
                 Button(action: { viewModel.search() }) {

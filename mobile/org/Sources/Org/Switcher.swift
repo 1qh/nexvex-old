@@ -131,9 +131,7 @@ internal struct SwitcherView: View {
                             }
                             .padding(.vertical, 4)
                         }
-                        #if !SKIP
-                        .foregroundStyle(.primary)
-                        #endif
+                        .primaryForeground()
                     }
                     .listStyle(.plain)
                 }

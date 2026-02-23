@@ -166,10 +166,8 @@ internal struct ListView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
                 TextField("Search blogs...", text: $viewModel.searchQuery)
-                #if !SKIP
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                #endif
+                    .roundedBorderTextField()
+                    .noAutocorrection()
             }
             .padding()
 

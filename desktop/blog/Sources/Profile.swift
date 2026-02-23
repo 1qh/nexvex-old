@@ -16,7 +16,7 @@ internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
     func load() async {
         isLoading = true
         do {
-            guard let profile: BlogProfile = try await BlogProfileAPI.get(client) else {
+            guard let profile = try await BlogProfileAPI.get(client) else {
                 isLoading = false
                 return
             }

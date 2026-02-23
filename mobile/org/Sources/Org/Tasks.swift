@@ -142,9 +142,7 @@ internal struct TasksView: View {
 
             HStack(spacing: 8) {
                 TextField("New task...", text: $newTaskTitle)
-                #if !SKIP
-                    .textFieldStyle(.roundedBorder)
-                #endif
+                    .roundedBorderTextField()
                     .onSubmit { addTask() }
                 Button(action: addTask) {
                     Image(systemName: "plus.circle.fill")

@@ -13,7 +13,7 @@ internal final class BlogDetailViewModel: SwiftCrossUI.ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let loaded: Blog = try await BlogAPI.read(client, id: blogID)
+            let loaded = try await BlogAPI.read(client, id: blogID)
             blog = loaded
         } catch {
             errorMessage = error.localizedDescription

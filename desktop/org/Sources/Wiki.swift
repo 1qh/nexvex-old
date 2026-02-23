@@ -171,7 +171,7 @@ internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject {
     func load(orgID: String, wikiID: String) async {
         isLoading = true
         do {
-            let wiki: Wiki = try await WikiAPI.read(client, orgId: orgID, id: wikiID)
+            let wiki = try await WikiAPI.read(client, orgId: orgID, id: wikiID)
             title = wiki.title
             slug = wiki.slug
             content = wiki.content ?? ""

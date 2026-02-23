@@ -42,9 +42,7 @@ internal struct FetchByIDView: View {
         VStack(spacing: 16) {
             HStack {
                 TextField("TMDB ID (e.g. 27205)", text: $idText)
-                #if !SKIP
-                    .textFieldStyle(.roundedBorder)
-                #endif
+                    .roundedBorderTextField()
 
                 Button("Fetch") {
                     Task { await viewModel.fetchByID(idText) }

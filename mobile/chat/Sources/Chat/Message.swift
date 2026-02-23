@@ -136,9 +136,7 @@ internal struct MessageView: View {
 
                 HStack(spacing: 8) {
                     TextField("Message...", text: $viewModel.messageText)
-                    #if !SKIP
-                        .textFieldStyle(.roundedBorder)
-                    #endif
+                        .roundedBorderTextField()
                         .onSubmit { viewModel.sendMessage(chatID: chatID) }
 
                     Button(action: { viewModel.sendMessage(chatID: chatID) }) {

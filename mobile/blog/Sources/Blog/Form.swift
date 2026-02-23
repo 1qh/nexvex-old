@@ -11,36 +11,26 @@ internal enum FormMode {
 
 @MainActor
 @Observable
-internal final class FormViewModel {
+internal final class FormViewModel: Performing {
     var title = ""
-
     var content = ""
-
     var category = "tech"
-
     var published = false
-
     var tags = [String]()
-
     var newTag = ""
-
     var isSaving = false
-
     var isUploadingCover = false
-
     var coverImageID: String?
-
     var selectedCoverURL: URL?
-
     let categories = ["tech", "life", "tutorial"]
-
     let mode: FormMode
-
     private var lastSavedTitle = ""
-
     private var lastSavedContent = ""
-
     var errorMessage: String?
+    var mutationError: String? {
+        get { errorMessage }
+        set { errorMessage = newValue }
+    }
 
     var autoSaveMessage: String?
 
@@ -70,15 +60,8 @@ internal final class FormViewModel {
             return
         }
 
-        isUploadingCover = true
-        errorMessage = nil
-        Task {
-            do {
-                coverImageID = try await FileService.shared.uploadImage(url: url)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-            isUploadingCover = false
+        performLoading({ self.isUploadingCover = $0 }) {
+            self.coverImageID = try await FileService.shared.uploadImage(url: url)
         }
     }
 
@@ -104,43 +87,35 @@ internal final class FormViewModel {
             return
         }
 
-        isSaving = true
-        errorMessage = nil
-
-        Task {
-            do {
-                switch mode {
-                case .create:
-                    guard let cat = BlogCategory(rawValue: category) else {
-                        return
-                    }
-
-                    try await BlogAPI.create(
-                        category: cat,
-                        content: content.trimmingCharacters(in: .whitespacesAndNewlines),
-                        coverImage: coverImageID,
-                        published: published,
-                        tags: tags.isEmpty ? nil : tags,
-                        title: title.trimmingCharacters(in: .whitespacesAndNewlines)
-                    )
-
-                case let .edit(blog):
-                    try await BlogAPI.update(
-                        id: blog._id,
-                        category: BlogCategory(rawValue: category),
-                        content: content.trimmingCharacters(in: .whitespacesAndNewlines),
-                        coverImage: coverImageID,
-                        published: published,
-                        tags: tags.isEmpty ? nil : tags,
-                        title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                        expectedUpdatedAt: blog.updatedAt
-                    )
+        performLoading({ self.isSaving = $0 }) {
+            switch self.mode {
+            case .create:
+                guard let cat = BlogCategory(rawValue: self.category) else {
+                    return
                 }
-                onDone()
-            } catch {
-                errorMessage = error.localizedDescription
+
+                try await BlogAPI.create(
+                    category: cat,
+                    content: self.content.trimmingCharacters(in: .whitespacesAndNewlines),
+                    coverImage: self.coverImageID,
+                    published: self.published,
+                    tags: self.tags.isEmpty ? nil : self.tags,
+                    title: self.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+
+            case let .edit(blog):
+                try await BlogAPI.update(
+                    id: blog._id,
+                    category: BlogCategory(rawValue: self.category),
+                    content: self.content.trimmingCharacters(in: .whitespacesAndNewlines),
+                    coverImage: self.coverImageID,
+                    published: self.published,
+                    tags: self.tags.isEmpty ? nil : self.tags,
+                    title: self.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                    expectedUpdatedAt: blog.updatedAt
+                )
             }
-            isSaving = false
+            onDone()
         }
     }
 
@@ -178,9 +153,7 @@ internal final class FormViewModel {
 
 internal struct FormView: View {
     let onDone: () -> Void
-
     @State private var viewModel: FormViewModel
-
     @State private var showCoverPicker = false
 
     @Environment(\.dismiss)

@@ -6,30 +6,23 @@ import SwiftUI
 
 @MainActor
 @Observable
-internal final class ProfileViewModel {
+internal final class ProfileViewModel: Performing {
     var displayName = ""
-
     var bio = ""
-
     var theme = "system"
-
     var notifications = true
-
     var isLoading = true
-
     var isSaving = false
-
     var isUploadingAvatar = false
-
     var avatarID: String?
-
     var selectedAvatarURL: URL?
-
     let themes = ["light", "dark", "system"]
-
     var profile: ProfileData?
-
     var errorMessage: String?
+    var mutationError: String? {
+        get { errorMessage }
+        set { errorMessage = newValue }
+    }
 
     private var subscriptionID: String?
 
@@ -70,15 +63,8 @@ internal final class ProfileViewModel {
             return
         }
 
-        isUploadingAvatar = true
-        errorMessage = nil
-        Task {
-            do {
-                avatarID = try await FileService.shared.uploadImage(url: url)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-            isUploadingAvatar = false
+        performLoading({ self.isUploadingAvatar = $0 }) {
+            self.avatarID = try await FileService.shared.uploadImage(url: url)
         }
     }
 
@@ -93,30 +79,21 @@ internal final class ProfileViewModel {
             return
         }
 
-        isSaving = true
-        errorMessage = nil
-
-        Task {
-            do {
-                try await BlogProfileAPI.upsert(
-                    avatar: avatarID,
-                    bio: bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : bio
-                        .trimmingCharacters(in: .whitespacesAndNewlines),
-                    displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                    notifications: notifications,
-                    theme: BlogProfileTheme(rawValue: theme)
-                )
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-            isSaving = false
+        performLoading({ self.isSaving = $0 }) {
+            try await BlogProfileAPI.upsert(
+                avatar: self.avatarID,
+                bio: self.bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self.bio
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                displayName: self.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                notifications: self.notifications,
+                theme: BlogProfileTheme(rawValue: self.theme)
+            )
         }
     }
 }
 
 internal struct ProfileView: View {
     @State private var viewModel = ProfileViewModel()
-
     @State private var showAvatarPicker = false
 
     var body: some View {

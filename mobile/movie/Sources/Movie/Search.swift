@@ -5,11 +5,16 @@ import SwiftUI
 
 @MainActor
 @Observable
-internal final class SearchViewModel {
+internal final class SearchViewModel: Performing {
     var query = ""
     var results = [SearchResult]()
     var isLoading = false
     var errorMessage: String?
+    var mutationError: String? {
+        get { errorMessage }
+        set { errorMessage = newValue }
+    }
+
     private var searchTask: Task<Void, Never>?
 
     func search() {

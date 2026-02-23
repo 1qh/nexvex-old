@@ -5,32 +5,28 @@ import SwiftUI
 
 @MainActor
 @Observable
-internal final class DetailViewModel {
+internal final class DetailViewModel: Performing {
     var isLoading = false
-
     var movie: Movie?
-
     var errorMessage: String?
-
-    func loadMovie(tmdbID: Int) async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            let loaded = try await MovieAPI.load(tmdbId: tmdbID)
-            movie = loaded
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
+    var mutationError: String? {
+        get { errorMessage }
+        set { errorMessage = newValue }
     }
 
-    func fetchByID(_ idText: String) async {
+    func loadMovie(tmdbID: Int) {
+        performLoading({ self.isLoading = $0 }) {
+            self.movie = try await MovieAPI.load(tmdbId: tmdbID)
+        }
+    }
+
+    func fetchByID(_ idText: String) {
         guard let tmdbID = Int(idText), tmdbID > 0 else {
             errorMessage = "Enter a valid TMDB ID"
             return
         }
 
-        await loadMovie(tmdbID: tmdbID)
+        loadMovie(tmdbID: tmdbID)
     }
 }
 
@@ -45,7 +41,7 @@ internal struct FetchByIDView: View {
                     .roundedBorderTextField()
 
                 Button("Fetch") {
-                    Task { await viewModel.fetchByID(idText) }
+                    viewModel.fetchByID(idText)
                 }
                 .disabled(idText.isEmpty || viewModel.isLoading)
             }
@@ -209,7 +205,7 @@ internal struct DetailView: View {
                     Text(errorMessage)
                         .foregroundStyle(.red)
                     Button("Retry") {
-                        Task { await viewModel.loadMovie(tmdbID: tmdbID) }
+                        viewModel.loadMovie(tmdbID: tmdbID)
                     }
                 }
             } else if let movie = viewModel.movie {
@@ -217,7 +213,7 @@ internal struct DetailView: View {
             }
         }
         .task {
-            await viewModel.loadMovie(tmdbID: tmdbID)
+            viewModel.loadMovie(tmdbID: tmdbID)
         }
     }
 }

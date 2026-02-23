@@ -42,6 +42,32 @@ public final class Sub<T> {
         )
     }
 
+    @preconcurrency
+    public func bindNullable(
+        _ subscribe: (
+            _ onUpdate: @escaping @Sendable @MainActor (T) -> Void,
+            _ onError: @escaping @Sendable @MainActor (Error) -> Void,
+            _ onNull: @escaping @Sendable @MainActor () -> Void
+        ) -> String
+    ) {
+        cancel()
+        isLoading = true
+        error = nil
+        subID = subscribe(
+            { [weak self] result in
+                self?.data = result
+                self?.isLoading = false
+            },
+            { [weak self] err in
+                self?.error = err.localizedDescription
+                self?.isLoading = false
+            },
+            { [weak self] in
+                self?.isLoading = false
+            }
+        )
+    }
+
     public func cancel() {
         if let id = subID {
             ConvexService.shared.cancelSubscription(id)
@@ -59,6 +85,22 @@ public protocol Performing: AnyObject {
 extension Performing {
     public func perform(_ action: @escaping () async throws -> Void) {
         Task { [weak self] in
+            do {
+                try await action()
+            } catch {
+                self?.mutationError = error.localizedDescription
+            }
+        }
+    }
+
+    public func performLoading(
+        _ setLoading: @escaping (Bool) -> Void,
+        _ action: @escaping () async throws -> Void
+    ) {
+        setLoading(true)
+        mutationError = nil
+        Task { [weak self] in
+            defer { setLoading(false) }
             do {
                 try await action()
             } catch {

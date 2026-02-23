@@ -290,9 +290,9 @@ public struct OrgMember: Codable, Identifiable, Sendable {
 }
 
 public enum OrgRole: String, Codable, Sendable {
-    case owner
     case admin
     case member
+    case owner
 
     public var isOwner: Bool {
         self == .owner

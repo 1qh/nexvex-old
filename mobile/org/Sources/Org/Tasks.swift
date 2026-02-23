@@ -55,11 +55,11 @@ internal final class TasksViewModel {
     func createTask(orgID: String, projectID: String, title: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate(TaskAPI.create, args: [
-                    "orgId": orgID,
-                    "projectId": projectID,
-                    "title": title,
-                ])
+                try await TaskAPI.create(
+                    orgId: orgID,
+                    projectId: projectID,
+                    title: title
+                )
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -82,10 +82,7 @@ internal final class TasksViewModel {
     func deleteTask(orgID: String, id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate(TaskAPI.rm, args: [
-                    "orgId": orgID,
-                    "id": id,
-                ])
+                try await TaskAPI.rm(orgId: orgID, id: id)
             } catch {
                 errorMessage = error.localizedDescription
             }

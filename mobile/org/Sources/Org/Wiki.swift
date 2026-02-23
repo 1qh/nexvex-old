@@ -18,10 +18,7 @@ internal final class WikiListViewModel {
         stopSubscription()
         isLoading = true
 
-        let args: [String: Any] = [
-            "orgId": orgID,
-            "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
-        ]
+        let args = WikiAPI.listArgs(orgId: orgID)
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
@@ -60,13 +57,13 @@ internal final class WikiListViewModel {
     func createWiki(orgID: String, title: String, slug: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate(WikiAPI.create, args: [
-                    "orgId": orgID,
-                    "title": title,
-                    "slug": slug,
-                    "status": "draft",
-                    "content": "",
-                ])
+                try await WikiAPI.create(
+                    orgId: orgID,
+                    content: "",
+                    slug: slug,
+                    status: .draft,
+                    title: title
+                )
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -76,10 +73,7 @@ internal final class WikiListViewModel {
     func deleteWiki(orgID: String, id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate(WikiAPI.rm, args: [
-                    "orgId": orgID,
-                    "id": id,
-                ])
+                try await WikiAPI.rm(orgId: orgID, id: id)
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -314,14 +308,14 @@ internal struct WikiEditView: View {
     private func saveWiki() async {
         saveStatus = "Saving..."
         do {
-            try await ConvexService.shared.mutate(WikiAPI.update, args: [
-                "orgId": orgID,
-                "id": wikiID,
-                "title": title,
-                "slug": slug,
-                "content": content,
-                "status": status,
-            ])
+            try await WikiAPI.update(
+                orgId: orgID,
+                id: wikiID,
+                content: content,
+                slug: slug,
+                status: WikiStatus(rawValue: status),
+                title: title
+            )
             saveStatus = "Saved"
         } catch {
             saveStatus = "Error saving"
@@ -336,10 +330,7 @@ internal struct WikiEditView: View {
     private func deleteWiki() {
         Task {
             do {
-                try await ConvexService.shared.mutate(WikiAPI.rm, args: [
-                    "orgId": orgID,
-                    "id": wikiID,
-                ])
+                try await WikiAPI.rm(orgId: orgID, id: wikiID)
             } catch {
                 errorMessage = error.localizedDescription
             }

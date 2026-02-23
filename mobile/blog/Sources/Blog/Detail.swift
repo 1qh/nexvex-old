@@ -60,7 +60,7 @@ internal final class DetailViewModel {
 
         Task {
             do {
-                try await ConvexService.shared.mutate(BlogAPI.rm, args: ["id": blog._id])
+                try await BlogAPI.rm(id: blog._id)
             } catch {
                 errorMessage = error.localizedDescription
             }

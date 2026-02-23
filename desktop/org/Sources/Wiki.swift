@@ -29,12 +29,9 @@ internal final class WikiListViewModel: SwiftCrossUI.ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let result: PaginatedResult<Wiki> = try await client.query(
-                WikiAPI.list,
-                args: [
-                    "orgId": orgID,
-                    "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
-                ]
+            let result = try await WikiAPI.list(
+                client,
+                orgId: orgID
             )
             wikis = result.page
         } catch {

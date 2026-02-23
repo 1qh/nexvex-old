@@ -13,12 +13,9 @@ internal final class ProjectsViewModel: SwiftCrossUI.ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let result: PaginatedResult<Project> = try await client.query(
-                ProjectAPI.list,
-                args: [
-                    "orgId": orgID,
-                    "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
-                ]
+            let result = try await ProjectAPI.list(
+                client,
+                orgId: orgID
             )
             projects = result.page
         } catch {

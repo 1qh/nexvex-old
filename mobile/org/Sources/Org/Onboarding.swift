@@ -176,16 +176,13 @@ internal struct OnboardingView: View {
         errorMessage = nil
         Task {
             do {
-                var profileArgs: [String: Any] = [
-                    "displayName": displayName,
-                    "bio": bio,
-                    "theme": theme,
-                    "notifications": notifications,
-                ]
-                if let aid = avatarID {
-                    profileArgs["avatar"] = aid
-                }
-                try await ConvexService.shared.mutate(OrgProfileAPI.upsert, args: profileArgs)
+                try await OrgProfileAPI.upsert(
+                    avatar: avatarID,
+                    bio: bio.isEmpty ? nil : bio,
+                    displayName: displayName,
+                    notifications: notifications,
+                    theme: OrgProfileTheme(rawValue: theme)
+                )
                 try await ConvexService.shared.mutate(OrgAPI.create, args: [
                     "data": [
                         "name": orgName,

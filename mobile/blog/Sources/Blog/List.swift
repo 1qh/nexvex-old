@@ -44,10 +44,9 @@ internal final class ListViewModel {
         isLoading = true
         errorMessage = nil
 
-        let args: [String: Any] = [
-            "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
-            "where": ["or": [["published": true], ["own": true]] as [[String: Any]]] as [String: Any],
-        ]
+        let args = BlogAPI.listArgs(
+            where: BlogWhere(or: [.init(published: true), .init(own: true)])
+        )
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
@@ -90,7 +89,7 @@ internal final class ListViewModel {
     func deleteBlog(id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate(BlogAPI.rm, args: ["id": id])
+                try await BlogAPI.rm(id: id)
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -100,10 +99,7 @@ internal final class ListViewModel {
     func togglePublished(id: String, published: Bool) {
         Task {
             do {
-                try await ConvexService.shared.mutate(BlogAPI.update, args: [
-                    "id": id,
-                    "published": !published,
-                ])
+                try await BlogAPI.update(id: id, published: !published)
             } catch {
                 errorMessage = error.localizedDescription
             }

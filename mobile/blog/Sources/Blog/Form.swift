@@ -111,36 +111,26 @@ internal final class FormViewModel {
             do {
                 switch mode {
                 case .create:
-                    var args: [String: Any] = [
-                        "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
-                        "content": content.trimmingCharacters(in: .whitespacesAndNewlines),
-                        "category": category,
-                        "published": published,
-                    ]
-                    if !tags.isEmpty {
-                        args["tags"] = tags
-                    }
-                    if let coverID = coverImageID {
-                        args["coverImage"] = coverID
-                    }
-                    try await ConvexService.shared.mutate(BlogAPI.create, args: args)
+                    try await BlogAPI.create(
+                        category: BlogCategory(rawValue: category),
+                        content: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                        coverImage: coverImageID,
+                        published: published,
+                        tags: tags.isEmpty ? nil : tags,
+                        title: title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    )
 
                 case let .edit(blog):
-                    var args: [String: Any] = [
-                        "id": blog._id,
-                        "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
-                        "content": content.trimmingCharacters(in: .whitespacesAndNewlines),
-                        "category": category,
-                        "published": published,
-                    ]
-                    if !tags.isEmpty {
-                        args["tags"] = tags
-                    }
-                    if let coverID = coverImageID {
-                        args["coverImage"] = coverID
-                    }
-                    args["expectedUpdatedAt"] = blog.updatedAt
-                    try await ConvexService.shared.mutate(BlogAPI.update, args: args)
+                    try await BlogAPI.update(
+                        id: blog._id,
+                        category: BlogCategory(rawValue: category),
+                        content: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                        coverImage: coverImageID,
+                        published: published,
+                        tags: tags.isEmpty ? nil : tags,
+                        title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                        expectedUpdatedAt: blog.updatedAt
+                    )
                 }
                 onDone()
             } catch {
@@ -164,17 +154,14 @@ internal final class FormViewModel {
             }
 
             do {
-                var args: [String: Any] = [
-                    "id": blog._id,
-                    "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "content": content.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "category": category,
-                    "published": published,
-                ]
-                if !tags.isEmpty {
-                    args["tags"] = tags
-                }
-                try await ConvexService.shared.mutate(BlogAPI.update, args: args)
+                try await BlogAPI.update(
+                    id: blog._id,
+                    category: BlogCategory(rawValue: category),
+                    content: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                    published: published,
+                    tags: tags.isEmpty ? nil : tags,
+                    title: title.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
                 lastSavedTitle = title
                 lastSavedContent = content
                 autoSaveMessage = "Saved"

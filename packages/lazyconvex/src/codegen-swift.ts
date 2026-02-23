@@ -28,22 +28,30 @@ interface ZodDef {
   values?: string[]
 }
 
-const parseArgs = (): { convex: string; output: string; schema: string } => {
+const parseArgs = (): { convex: string; mobileOutput: string; output: string; schema: string } => {
     const args = process.argv.slice(2),
-      r = { convex: '', output: '', schema: '' }
+      r = { convex: '', mobileOutput: '', output: '', schema: '' }
     for (let i = 0; i < args.length; i += 1) {
       const arg = args[i] ?? ''
       if (arg === '--schema' && args[i + 1]) r.schema = args[(i += 1)] ?? ''
       else if (arg === '--convex' && args[i + 1]) r.convex = args[(i += 1)] ?? ''
       else if (arg === '--output' && args[i + 1]) r.output = args[(i += 1)] ?? ''
+      else if (arg === '--mobile-output' && args[i + 1]) r.mobileOutput = args[(i += 1)] ?? ''
     }
     if (!(r.schema && r.convex && r.output)) {
-      process.stderr.write('Usage: lazyconvex-codegen-swift --schema <path> --convex <path> --output <path>\n')
+      process.stderr.write(
+        'Usage: lazyconvex-codegen-swift --schema <path> --convex <path> --output <path> [--mobile-output <path>]\n'
+      )
       process.exit(1)
     }
-    return { convex: resolve(r.convex), output: resolve(r.output), schema: resolve(r.schema) }
+    return {
+      convex: resolve(r.convex),
+      mobileOutput: r.mobileOutput ? resolve(r.mobileOutput) : '',
+      output: resolve(r.output),
+      schema: resolve(r.schema)
+    }
   },
-  { convex: CONVEX_DIR, output: OUTPUT_PATH, schema: SCHEMA_PATH } = parseArgs(),
+  { convex: CONVEX_DIR, mobileOutput: MOBILE_OUTPUT_PATH, output: OUTPUT_PATH, schema: SCHEMA_PATH } = parseArgs(),
   mod = (await import(SCHEMA_PATH)) as SchemaModule,
   owned = mod.owned ?? {},
   orgScoped = mod.orgScoped ?? {},
@@ -482,6 +490,41 @@ for (const [childName, childDef] of Object.entries(children)) {
   }
 }
 
+const isFilterableDef = (def: ZodDef): boolean => {
+    const { type } = def
+    if (type === 'optional' || type === 'nullable') return isFilterableDef(def.innerType?._zod.def ?? def)
+    return (
+      type === 'string' || type === 'boolean' || type === 'number' || type === 'float' || type === 'int' || type === 'enum'
+    )
+  },
+  whereFieldsMap: Record<string, Map<string, FieldEntry>> = {},
+  extractFilterableFields = (
+    shape: Record<string, ZodType>,
+    uFields: Map<string, FieldEntry>
+  ): Map<string, FieldEntry> => {
+    const fields = new Map<string, FieldEntry>()
+    for (const [fieldName, fieldSchema] of Object.entries(shape))
+      if (isFilterableDef(fieldSchema._zod.def)) {
+        const entry = uFields.get(fieldName)
+        if (entry) fields.set(fieldName, { isOptional: true, swiftType: entry.swiftType })
+      }
+    return fields
+  },
+  collectWhereFieldsFromSchema = (schemas: Record<string, ZodType>) => {
+    for (const [tableName, schema] of Object.entries(schemas)) {
+      const def = getDef(schema),
+        shape = def.shape ?? def.properties,
+        uFields = shape ? userSchemaFields[tableName] : undefined
+      if (shape && uFields) {
+        const fields = extractFilterableFields(shape as Record<string, ZodType>, uFields)
+        if (fields.size > 0) whereFieldsMap[tableName] = fields
+      }
+    }
+  }
+
+collectWhereFieldsFromSchema(owned)
+collectWhereFieldsFromSchema(orgScoped)
+
 const lines: string[] = [],
   emit = (s: string) => lines.push(s)
 
@@ -640,6 +683,49 @@ emit(`${indent(1)}public var id: String { _id }`)
 emit('}')
 emit('')
 
+// eslint-disable-next-line max-statements
+const emitWhereStruct = (tableName: string, fields: Map<string, FieldEntry>, factoryType: string) => {
+  const structName = `${pascalCase(tableName)}Where`
+  emit(`public struct ${structName}: Sendable {`)
+  for (const [fname, field] of fields) emit(`${indent(1)}public var ${fname}: ${field.swiftType}?`)
+  if (factoryType === 'owned') emit(`${indent(1)}public var own: Bool?`)
+  emit(`${indent(1)}public var or: [${structName}]?`)
+  emit('')
+  const initParams: string[] = []
+  for (const [fname, field] of fields) initParams.push(`${fname}: ${field.swiftType}? = nil`)
+  if (factoryType === 'owned') initParams.push('own: Bool? = nil')
+  initParams.push(`or: [${structName}]? = nil`)
+  emit(`${indent(1)}public init(`)
+  emit(`${indent(2)}${initParams.join(`,\n${indent(2)}`)}`)
+  emit(`${indent(1)}) {`)
+  for (const [fname] of fields) emit(`${indent(2)}self.${fname} = ${fname}`)
+  if (factoryType === 'owned') emit(`${indent(2)}self.own = own`)
+  emit(`${indent(2)}self.or = or`)
+  emit(`${indent(1)}}`)
+  emit('')
+  emit(`${indent(1)}public func toDict() -> [String: Any] {`)
+  emit(`${indent(2)}var d = [String: Any]()`)
+  for (const [fname, field] of fields) {
+    const value = enumRegistry.has(field.swiftType) ? `${fname}.rawValue` : fname
+    emit(`${indent(2)}if let ${fname} { d["${fname}"] = ${value} }`)
+  }
+  if (factoryType === 'owned') emit(`${indent(2)}if let own { d["own"] = own }`)
+  emit(`${indent(2)}if let or {`)
+  emit(`${indent(3)}var arr = [[String: Any]]()`)
+  emit(`${indent(3)}for w in or { arr.append(w.toDict()) }`)
+  emit(`${indent(3)}d["or"] = arr`)
+  emit(`${indent(2)}}`)
+  emit(`${indent(2)}return d`)
+  emit(`${indent(1)}}`)
+  emit('}')
+  emit('')
+}
+
+for (const [tableName, fields] of Object.entries(whereFieldsMap)) {
+  const factoryType = tableFactoryType[tableName] ?? ''
+  emitWhereStruct(tableName, fields, factoryType)
+}
+
 const SAFE_ARG_TYPES = new Set(['[Bool]', '[Double]', '[String]', 'Bool', 'Double', 'String']),
   modules = collectModules(),
   isArgSafe = (field: FieldEntry): boolean => {
@@ -789,6 +875,69 @@ const SAFE_ARG_TYPES = new Set(['[Bool]', '[Double]', '[String]', 'Bool', 'Doubl
     }
     emit(`${indent(2)}try await client.mutation("${modName}:create", args: args)`)
     emit(`${indent(1)}}`)
+  },
+  // eslint-disable-next-line max-statements
+  emitListArgs = (_modName: string, tableName: string, factoryType: string) => {
+    const whereStructName = `${pascalCase(tableName)}Where`,
+      params: string[] = []
+    if (factoryType === 'orgScoped') params.push('orgId: String')
+    params.push('numItems: Int = 50')
+    params.push('cursor: String? = nil')
+    params.push(`\`where\`: ${whereStructName}? = nil`)
+    emit(`${indent(1)}public static func listArgs(`)
+    emit(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+    emit(`${indent(1)}) -> [String: Any] {`)
+    emit(`${indent(2)}var paginationOpts: [String: Any] = ["numItems": numItems]`)
+    emit(`${indent(2)}if let cursor { paginationOpts["cursor"] = cursor } else { paginationOpts["cursor"] = NSNull() }`)
+    if (factoryType === 'orgScoped')
+      emit(`${indent(2)}var args: [String: Any] = ["orgId": orgId, "paginationOpts": paginationOpts]`)
+    else emit(`${indent(2)}var args: [String: Any] = ["paginationOpts": paginationOpts]`)
+    emit(`${indent(2)}if let w = \`where\` { args["where"] = w.toDict() }`)
+    emit(`${indent(2)}return args`)
+    emit(`${indent(1)}}`)
+  },
+  // eslint-disable-next-line max-statements, @typescript-eslint/max-params
+  emitListWrapper = (modName: string, tableName: string, structName: string, factoryType: string) => {
+    const whereStructName = `${pascalCase(tableName)}Where`,
+      params: string[] = ['_ client: ConvexClientProtocol'],
+      callParams: string[] = []
+    if (factoryType === 'orgScoped') {
+      params.push('orgId: String')
+      callParams.push('orgId: orgId')
+    }
+    params.push('numItems: Int = 50')
+    params.push('cursor: String? = nil')
+    params.push(`\`where\`: ${whereStructName}? = nil`)
+    callParams.push('numItems: numItems')
+    callParams.push('cursor: cursor')
+    callParams.push('where: `where`')
+    emit(`${indent(1)}public static func list(`)
+    emit(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+    emit(`${indent(1)}) async throws -> PaginatedResult<${structName}> {`)
+    emit(`${indent(2)}try await client.query("${modName}:list", args: listArgs(${callParams.join(', ')}))`)
+    emit(`${indent(1)}}`)
+  },
+  // eslint-disable-next-line max-statements
+  emitSearchWrapper = (modName: string, structName: string, factoryType: string) => {
+    const params: string[] = ['_ client: ConvexClientProtocol']
+    if (factoryType === 'orgScoped') params.push('orgId: String')
+    params.push('query searchQuery: String')
+    params.push('numItems: Int = 20')
+    params.push('cursor: String? = nil')
+    emit(`${indent(1)}public static func search(`)
+    emit(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+    emit(`${indent(1)}) async throws -> PaginatedResult<${structName}> {`)
+    emit(`${indent(2)}var paginationOpts: [String: Any] = ["numItems": numItems]`)
+    emit(`${indent(2)}if let cursor { paginationOpts["cursor"] = cursor } else { paginationOpts["cursor"] = NSNull() }`)
+    if (factoryType === 'orgScoped')
+      emit(
+        `${indent(2)}return try await client.query("${modName}:search", args: ["orgId": orgId, "paginationOpts": paginationOpts, "query": searchQuery])`
+      )
+    else
+      emit(
+        `${indent(2)}return try await client.query("${modName}:search", args: ["paginationOpts": paginationOpts, "query": searchQuery])`
+      )
+    emit(`${indent(1)}}`)
   }
 
 for (const [modName, fns] of Object.entries(modules)) {
@@ -797,15 +946,24 @@ for (const [modName, fns] of Object.entries(modules)) {
     factoryType = tableFactoryType[tableName],
     fields = userSchemaFields[tableName],
     structName = safeSwiftName(pascalCase(tableName)),
-    fnSet = new Set(fns)
+    fnSet = new Set(fns),
+    hasWhereFields = whereFieldsMap[tableName] !== undefined,
+    isStandardList = (factoryType === 'owned' || factoryType === 'orgScoped') && fnSet.has('list') && hasWhereFields
 
   emit(`public enum ${apiName} {`)
   for (const fn of fns) emit(`${indent(1)}public static let ${fn} = "${modName}:${fn}"`)
+
+  if (isStandardList) {
+    emit('')
+    emitListArgs(modName, tableName, factoryType)
+  }
 
   if (factoryType && fields) {
     emit('')
     emit(`${indent(1)}#if !SKIP`)
     if (factoryType === 'owned' || factoryType === 'orgScoped') {
+      if (isStandardList) emitListWrapper(modName, tableName, structName, factoryType)
+      if (fnSet.has('search')) emitSearchWrapper(modName, structName, factoryType)
       if (fnSet.has('create')) emitCreateWrapper(modName, fields, factoryType)
       if (fnSet.has('update')) emitUpdateWrapper(modName, fields, factoryType)
       if (fnSet.has('rm')) emitRmWrapper(modName, factoryType)
@@ -829,7 +987,8 @@ writeFileSync(OUTPUT_PATH, output)
 
 const structCount = emittedStructs.size + nestedEmitted.size,
   enumCount = enumRegistry.size,
-  moduleCount = Object.keys(modules).length
+  moduleCount = Object.keys(modules).length,
+  whereCount = Object.keys(whereFieldsMap).length
 let fnCount = 0
 for (const fns of Object.values(modules)) fnCount += fns.length
 let wrapperCount = 0
@@ -839,5 +998,138 @@ for (const [modName] of Object.entries(modules)) {
 }
 
 process.stdout.write(
-  `Generated ${OUTPUT_PATH}\n  ${String(structCount)} structs, ${String(enumCount)} enums, ${String(moduleCount)} modules, ${String(fnCount)} API constants, ${String(wrapperCount)} typed wrappers\n`
+  `Generated ${OUTPUT_PATH}\n  ${String(structCount)} structs, ${String(enumCount)} enums, ${String(moduleCount)} modules, ${String(fnCount)} API constants, ${String(wrapperCount)} typed wrappers, ${String(whereCount)} Where structs\n`
 )
+
+if (MOBILE_OUTPUT_PATH) {
+  const mLines: string[] = [],
+    me = (s: string) => mLines.push(s),
+    // eslint-disable-next-line max-statements
+    emitMobileCreateWrapper = (modName: string, fields: Map<string, FieldEntry>, factoryType: string) => {
+      const params: string[] = [],
+        required: string[] = [],
+        optional: string[] = []
+      if (factoryType === 'orgScoped') params.push('orgId: String')
+      for (const [fname, field] of fields) {
+        const t = field.isOptional ? `${field.swiftType}?` : field.swiftType,
+          defaultVal = field.isOptional ? ' = nil' : ''
+        params.push(`${fname}: ${t}${defaultVal}`)
+        const value = isEnumField(field.swiftType) ? `${fname}.rawValue` : fname
+        if (field.isOptional) optional.push(fname)
+        else required.push(`"${fname}": ${value}`)
+      }
+      if (factoryType === 'orgScoped') required.unshift('"orgId": orgId')
+      me(`${indent(1)}static func create(`)
+      me(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+      me(`${indent(1)}) async throws {`)
+      const binding = optional.length > 0 ? 'var' : 'let'
+      me(`${indent(2)}${binding} args: [String: Any] = [${required.join(', ')}]`)
+      for (const fname of optional) {
+        const field = fields.get(fname)
+        if (field) {
+          const value = isEnumField(field.swiftType) ? `${fname}.rawValue` : fname
+          me(`${indent(2)}if let ${fname} { args["${fname}"] = ${value} }`)
+        }
+      }
+      me(`${indent(2)}try await ConvexService.shared.mutate("${modName}:create", args: args)`)
+      me(`${indent(1)}}`)
+    },
+    // eslint-disable-next-line max-statements
+    emitMobileUpdateWrapper = (modName: string, fields: Map<string, FieldEntry>, factoryType: string) => {
+      const params: string[] = [],
+        required: string[] = ['"id": id'],
+        optional: string[] = []
+      if (factoryType === 'orgScoped') {
+        params.push('orgId: String')
+        required.push('"orgId": orgId')
+      }
+      params.push('id: String')
+      for (const [fname, field] of fields) {
+        params.push(`${fname}: ${field.swiftType}? = nil`)
+        optional.push(fname)
+      }
+      params.push('expectedUpdatedAt: Double? = nil')
+      optional.push('expectedUpdatedAt')
+      me(`${indent(1)}static func update(`)
+      me(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+      me(`${indent(1)}) async throws {`)
+      me(`${indent(2)}var args: [String: Any] = [${required.join(', ')}]`)
+      for (const fname of optional) {
+        const field =
+          fname === 'expectedUpdatedAt' ? ({ isOptional: true, swiftType: 'Double' } as FieldEntry) : fields.get(fname)
+        if (field) {
+          const value = isEnumField(field.swiftType) ? `${fname}.rawValue` : fname
+          me(`${indent(2)}if let ${fname} { args["${fname}"] = ${value} }`)
+        }
+      }
+      me(`${indent(2)}try await ConvexService.shared.mutate("${modName}:update", args: args)`)
+      me(`${indent(1)}}`)
+    },
+    emitMobileRmWrapper = (modName: string, factoryType: string) => {
+      const params: string[] = [],
+        argParts = ['"id": id']
+      if (factoryType === 'orgScoped') {
+        params.push('orgId: String')
+        argParts.push('"orgId": orgId')
+      }
+      params.push('id: String')
+      me(`${indent(1)}static func rm(${params.join(', ')}) async throws {`)
+      me(`${indent(2)}try await ConvexService.shared.mutate("${modName}:rm", args: [${argParts.join(', ')}])`)
+      me(`${indent(1)}}`)
+    },
+    // eslint-disable-next-line max-statements
+    emitMobileUpsertWrapper = (modName: string, fields: Map<string, FieldEntry>) => {
+      const params: string[] = [],
+        optional: string[] = []
+      for (const [fname, field] of fields) {
+        params.push(`${fname}: ${field.swiftType}? = nil`)
+        optional.push(fname)
+      }
+      me(`${indent(1)}static func upsert(`)
+      me(`${indent(2)}${params.join(`,\n${indent(2)}`)}`)
+      me(`${indent(1)}) async throws {`)
+      me(`${indent(2)}var args: [String: Any] = [:]`)
+      for (const fname of optional) {
+        const field = fields.get(fname)
+        if (field) {
+          const value = isEnumField(field.swiftType) ? `${fname}.rawValue` : fname
+          me(`${indent(2)}if let ${fname} { args["${fname}"] = ${value} }`)
+        }
+      }
+      me(`${indent(2)}try await ConvexService.shared.mutate("${modName}:upsert", args: args)`)
+      me(`${indent(1)}}`)
+    }
+
+  me('import Foundation')
+  me('')
+
+  for (const [modName, fns] of Object.entries(modules)) {
+    const tableName = modName.replace(/^(?<ch>[a-z])/u, (_, c: string) => c.toLowerCase()),
+      factoryType = tableFactoryType[tableName],
+      fields = userSchemaFields[tableName],
+      apiName = `${pascalCase(modName)}API`,
+      fnSet = new Set(fns)
+
+    if (factoryType && fields) {
+      const prevLen = mLines.length
+
+      if (factoryType === 'owned' || factoryType === 'orgScoped') {
+        if (fnSet.has('create')) emitMobileCreateWrapper(modName, fields, factoryType)
+        if (fnSet.has('update')) emitMobileUpdateWrapper(modName, fields, factoryType)
+        if (fnSet.has('rm')) emitMobileRmWrapper(modName, factoryType)
+      } else if (factoryType === 'singleton' && fnSet.has('upsert')) emitMobileUpsertWrapper(modName, fields)
+
+      if (mLines.length > prevLen) {
+        const wrappedLines = mLines.splice(prevLen)
+        me('')
+        me(`extension ${apiName} {`)
+        for (const line of wrappedLines) me(line)
+        me('}')
+      }
+    }
+  }
+
+  const mobileOutput = `${mLines.join('\n')}\n`
+  writeFileSync(MOBILE_OUTPUT_PATH, mobileOutput)
+  process.stdout.write(`Generated ${MOBILE_OUTPUT_PATH}\n`)
+}

@@ -19,10 +19,9 @@ internal final class ListViewModel {
         isLoading = true
         errorMessage = nil
 
-        let args: [String: Any] = [
-            "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
-            "where": ["own": true] as [String: Any],
-        ]
+        let args = ChatAPI.listArgs(
+            where: ChatWhere(own: true)
+        )
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
@@ -65,10 +64,7 @@ internal final class ListViewModel {
     func createChat() {
         Task {
             do {
-                try await ConvexService.shared.mutate(ChatAPI.create, args: [
-                    "title": "New Chat",
-                    "isPublic": false,
-                ])
+                try await ChatAPI.create(isPublic: false, title: "New Chat")
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -78,7 +74,7 @@ internal final class ListViewModel {
     func deleteChat(id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate(ChatAPI.rm, args: ["id": id])
+                try await ChatAPI.rm(id: id)
             } catch {
                 errorMessage = error.localizedDescription
             }

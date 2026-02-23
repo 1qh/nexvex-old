@@ -18,10 +18,7 @@ internal final class ProjectsViewModel {
         stopSubscription()
         isLoading = true
 
-        let args: [String: Any] = [
-            "orgId": orgID,
-            "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
-        ]
+        let args = ProjectAPI.listArgs(orgId: orgID)
 
         #if !SKIP
         subscriptionID = ConvexService.shared.subscribe(
@@ -60,11 +57,11 @@ internal final class ProjectsViewModel {
     func createProject(orgID: String, name: String, description: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate(ProjectAPI.create, args: [
-                    "orgId": orgID,
-                    "name": name,
-                    "description": description,
-                ])
+                try await ProjectAPI.create(
+                    orgId: orgID,
+                    description: description.isEmpty ? nil : description,
+                    name: name
+                )
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -74,10 +71,7 @@ internal final class ProjectsViewModel {
     func deleteProject(orgID: String, id: String) {
         Task {
             do {
-                try await ConvexService.shared.mutate(ProjectAPI.rm, args: [
-                    "orgId": orgID,
-                    "id": id,
-                ])
+                try await ProjectAPI.rm(orgId: orgID, id: id)
             } catch {
                 errorMessage = error.localizedDescription
             }

@@ -28,12 +28,9 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let result: PaginatedResult<Blog> = try await client.query(
-                BlogAPI.list,
-                args: [
-                    "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
-                    "where": ["or": [["published": true], ["own": true]] as [[String: Any]]] as [String: Any],
-                ]
+            let result = try await BlogAPI.list(
+                client,
+                where: BlogWhere(or: [.init(published: true), .init(own: true)])
             )
             blogs = result.page
         } catch {

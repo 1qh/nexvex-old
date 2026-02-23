@@ -121,18 +121,14 @@ internal final class ProfileViewModel {
 
         Task {
             do {
-                var args: [String: Any] = [
-                    "displayName": displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "theme": theme,
-                    "notifications": notifications,
-                ]
-                if !bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    args["bio"] = bio.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                if let aid = avatarID {
-                    args["avatar"] = aid
-                }
-                try await ConvexService.shared.mutate(BlogProfileAPI.upsert, args: args)
+                try await BlogProfileAPI.upsert(
+                    avatar: avatarID,
+                    bio: bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : bio
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                    displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    notifications: notifications,
+                    theme: BlogProfileTheme(rawValue: theme)
+                )
             } catch {
                 errorMessage = error.localizedDescription
             }

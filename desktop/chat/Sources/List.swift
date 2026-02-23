@@ -13,12 +13,9 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let result: PaginatedResult<Chat> = try await client.query(
-                ChatAPI.list,
-                args: [
-                    "paginationOpts": ["cursor": NSNull(), "numItems": 50] as [String: Any],
-                    "where": ["own": true] as [String: Any],
-                ]
+            let result = try await ChatAPI.list(
+                client,
+                where: ChatWhere(own: true)
             )
             chats = result.page
         } catch {

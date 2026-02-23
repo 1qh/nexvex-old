@@ -326,6 +326,230 @@ public struct OrgJoinRequest: Codable, Identifiable, Sendable {
     }
 }
 
+public struct BlogWhere: Sendable {
+    public var category: BlogCategory?
+    public var content: String?
+    public var published: Bool?
+    public var title: String?
+    public var own: Bool?
+    public var or: [BlogWhere]?
+
+    public init(
+        category: BlogCategory? = nil,
+        content: String? = nil,
+        published: Bool? = nil,
+        title: String? = nil,
+        own: Bool? = nil,
+        or: [BlogWhere]? = nil
+    ) {
+        self.category = category
+        self.content = content
+        self.published = published
+        self.title = title
+        self.own = own
+        self.or = or
+    }
+
+    public func toDict() -> [String: Any] {
+        var d = [String: Any]()
+        if let category {
+            d["category"] = category.rawValue
+        }
+        if let content {
+            d["content"] = content
+        }
+        if let published {
+            d["published"] = published
+        }
+        if let title {
+            d["title"] = title
+        }
+        if let own {
+            d["own"] = own
+        }
+        if let or {
+            var arr = [[String: Any]]()
+            for w in or {
+                arr.append(w.toDict())
+            }
+            d["or"] = arr
+        }
+        return d
+    }
+}
+
+public struct ChatWhere: Sendable {
+    public var isPublic: Bool?
+    public var title: String?
+    public var own: Bool?
+    public var or: [ChatWhere]?
+
+    public init(
+        isPublic: Bool? = nil,
+        title: String? = nil,
+        own: Bool? = nil,
+        or: [ChatWhere]? = nil
+    ) {
+        self.isPublic = isPublic
+        self.title = title
+        self.own = own
+        self.or = or
+    }
+
+    public func toDict() -> [String: Any] {
+        var d = [String: Any]()
+        if let isPublic {
+            d["isPublic"] = isPublic
+        }
+        if let title {
+            d["title"] = title
+        }
+        if let own {
+            d["own"] = own
+        }
+        if let or {
+            var arr = [[String: Any]]()
+            for w in or {
+                arr.append(w.toDict())
+            }
+            d["or"] = arr
+        }
+        return d
+    }
+}
+
+public struct ProjectWhere: Sendable {
+    public var description: String?
+    public var name: String?
+    public var status: ProjectStatus?
+    public var or: [ProjectWhere]?
+
+    public init(
+        description: String? = nil,
+        name: String? = nil,
+        status: ProjectStatus? = nil,
+        or: [ProjectWhere]? = nil
+    ) {
+        self.description = description
+        self.name = name
+        self.status = status
+        self.or = or
+    }
+
+    public func toDict() -> [String: Any] {
+        var d = [String: Any]()
+        if let description {
+            d["description"] = description
+        }
+        if let name {
+            d["name"] = name
+        }
+        if let status {
+            d["status"] = status.rawValue
+        }
+        if let or {
+            var arr = [[String: Any]]()
+            for w in or {
+                arr.append(w.toDict())
+            }
+            d["or"] = arr
+        }
+        return d
+    }
+}
+
+public struct TaskWhere: Sendable {
+    public var completed: Bool?
+    public var priority: TaskPriority?
+    public var title: String?
+    public var or: [TaskWhere]?
+
+    public init(
+        completed: Bool? = nil,
+        priority: TaskPriority? = nil,
+        title: String? = nil,
+        or: [TaskWhere]? = nil
+    ) {
+        self.completed = completed
+        self.priority = priority
+        self.title = title
+        self.or = or
+    }
+
+    public func toDict() -> [String: Any] {
+        var d = [String: Any]()
+        if let completed {
+            d["completed"] = completed
+        }
+        if let priority {
+            d["priority"] = priority.rawValue
+        }
+        if let title {
+            d["title"] = title
+        }
+        if let or {
+            var arr = [[String: Any]]()
+            for w in or {
+                arr.append(w.toDict())
+            }
+            d["or"] = arr
+        }
+        return d
+    }
+}
+
+public struct WikiWhere: Sendable {
+    public var content: String?
+    public var deletedAt: Double?
+    public var slug: String?
+    public var status: WikiStatus?
+    public var title: String?
+    public var or: [WikiWhere]?
+
+    public init(
+        content: String? = nil,
+        deletedAt: Double? = nil,
+        slug: String? = nil,
+        status: WikiStatus? = nil,
+        title: String? = nil,
+        or: [WikiWhere]? = nil
+    ) {
+        self.content = content
+        self.deletedAt = deletedAt
+        self.slug = slug
+        self.status = status
+        self.title = title
+        self.or = or
+    }
+
+    public func toDict() -> [String: Any] {
+        var d = [String: Any]()
+        if let content {
+            d["content"] = content
+        }
+        if let deletedAt {
+            d["deletedAt"] = deletedAt
+        }
+        if let slug {
+            d["slug"] = slug
+        }
+        if let status {
+            d["status"] = status.rawValue
+        }
+        if let title {
+            d["title"] = title
+        }
+        if let or {
+            var arr = [[String: Any]]()
+            for w in or {
+                arr.append(w.toDict())
+            }
+            d["or"] = arr
+        }
+        return d
+    }
+}
+
 public enum BlogProfileAPI {
     public static let get = "blogProfile:get"
     public static let upsert = "blogProfile:upsert"
@@ -376,7 +600,36 @@ public enum ProjectAPI {
     public static let setEditors = "project:setEditors"
     public static let update = "project:update"
 
+    public static func listArgs(
+        orgId: String,
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: ProjectWhere? = nil
+    ) -> [String: Any] {
+        var paginationOpts: [String: Any] = ["numItems": numItems]
+        if let cursor {
+            paginationOpts["cursor"] = cursor
+        } else {
+            paginationOpts["cursor"] = NSNull()
+        }
+        var args: [String: Any] = ["orgId": orgId, "paginationOpts": paginationOpts]
+        if let w = `where` {
+            args["where"] = w.toDict()
+        }
+        return args
+    }
+
     #if !SKIP
+    public static func list(
+        _ client: ConvexClientProtocol,
+        orgId: String,
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: ProjectWhere? = nil
+    ) async throws -> PaginatedResult<Project> {
+        try await client.query("project:list", args: listArgs(orgId: orgId, numItems: numItems, cursor: cursor, where: `where`))
+    }
+
     public static func create(
         _ client: ConvexClientProtocol,
         orgId: String,
@@ -451,7 +704,36 @@ public enum WikiAPI {
     public static let setEditors = "wiki:setEditors"
     public static let update = "wiki:update"
 
+    public static func listArgs(
+        orgId: String,
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: WikiWhere? = nil
+    ) -> [String: Any] {
+        var paginationOpts: [String: Any] = ["numItems": numItems]
+        if let cursor {
+            paginationOpts["cursor"] = cursor
+        } else {
+            paginationOpts["cursor"] = NSNull()
+        }
+        var args: [String: Any] = ["orgId": orgId, "paginationOpts": paginationOpts]
+        if let w = `where` {
+            args["where"] = w.toDict()
+        }
+        return args
+    }
+
     #if !SKIP
+    public static func list(
+        _ client: ConvexClientProtocol,
+        orgId: String,
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: WikiWhere? = nil
+    ) async throws -> PaginatedResult<Wiki> {
+        try await client.query("wiki:list", args: listArgs(orgId: orgId, numItems: numItems, cursor: cursor, where: `where`))
+    }
+
     public static func create(
         _ client: ConvexClientProtocol,
         orgId: String,
@@ -536,7 +818,49 @@ public enum BlogAPI {
     public static let rm = "blog:rm"
     public static let update = "blog:update"
 
+    public static func listArgs(
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: BlogWhere? = nil
+    ) -> [String: Any] {
+        var paginationOpts: [String: Any] = ["numItems": numItems]
+        if let cursor {
+            paginationOpts["cursor"] = cursor
+        } else {
+            paginationOpts["cursor"] = NSNull()
+        }
+        var args: [String: Any] = ["paginationOpts": paginationOpts]
+        if let w = `where` {
+            args["where"] = w.toDict()
+        }
+        return args
+    }
+
     #if !SKIP
+    public static func list(
+        _ client: ConvexClientProtocol,
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: BlogWhere? = nil
+    ) async throws -> PaginatedResult<Blog> {
+        try await client.query("blog:list", args: listArgs(numItems: numItems, cursor: cursor, where: `where`))
+    }
+
+    public static func search(
+        _ client: ConvexClientProtocol,
+        query searchQuery: String,
+        numItems: Int = 20,
+        cursor: String? = nil
+    ) async throws -> PaginatedResult<Blog> {
+        var paginationOpts: [String: Any] = ["numItems": numItems]
+        if let cursor {
+            paginationOpts["cursor"] = cursor
+        } else {
+            paginationOpts["cursor"] = NSNull()
+        }
+        return try await client.query("blog:search", args: ["paginationOpts": paginationOpts, "query": searchQuery])
+    }
+
     public static func create(
         _ client: ConvexClientProtocol,
         attachments: [String]? = nil,
@@ -654,7 +978,34 @@ public enum ChatAPI {
     public static let rm = "chat:rm"
     public static let update = "chat:update"
 
+    public static func listArgs(
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: ChatWhere? = nil
+    ) -> [String: Any] {
+        var paginationOpts: [String: Any] = ["numItems": numItems]
+        if let cursor {
+            paginationOpts["cursor"] = cursor
+        } else {
+            paginationOpts["cursor"] = NSNull()
+        }
+        var args: [String: Any] = ["paginationOpts": paginationOpts]
+        if let w = `where` {
+            args["where"] = w.toDict()
+        }
+        return args
+    }
+
     #if !SKIP
+    public static func list(
+        _ client: ConvexClientProtocol,
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: ChatWhere? = nil
+    ) async throws -> PaginatedResult<Chat> {
+        try await client.query("chat:list", args: listArgs(numItems: numItems, cursor: cursor, where: `where`))
+    }
+
     public static func create(
         _ client: ConvexClientProtocol,
         isPublic: Bool,
@@ -787,7 +1138,36 @@ public enum TaskAPI {
     public static let toggle = "task:toggle"
     public static let update = "task:update"
 
+    public static func listArgs(
+        orgId: String,
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: TaskWhere? = nil
+    ) -> [String: Any] {
+        var paginationOpts: [String: Any] = ["numItems": numItems]
+        if let cursor {
+            paginationOpts["cursor"] = cursor
+        } else {
+            paginationOpts["cursor"] = NSNull()
+        }
+        var args: [String: Any] = ["orgId": orgId, "paginationOpts": paginationOpts]
+        if let w = `where` {
+            args["where"] = w.toDict()
+        }
+        return args
+    }
+
     #if !SKIP
+    public static func list(
+        _ client: ConvexClientProtocol,
+        orgId: String,
+        numItems: Int = 50,
+        cursor: String? = nil,
+        where: TaskWhere? = nil
+    ) async throws -> PaginatedResult<TaskItem> {
+        try await client.query("task:list", args: listArgs(orgId: orgId, numItems: numItems, cursor: cursor, where: `where`))
+    }
+
     public static func create(
         _ client: ConvexClientProtocol,
         orgId: String,

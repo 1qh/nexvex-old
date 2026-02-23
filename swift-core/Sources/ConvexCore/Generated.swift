@@ -332,7 +332,7 @@ public struct BlogWhere: Sendable {
     public var published: Bool?
     public var title: String?
     public var own: Bool?
-    public var or: [BlogWhere]?
+    public var or: [Self]?
 
     public init(
         category: BlogCategory? = nil,
@@ -340,7 +340,7 @@ public struct BlogWhere: Sendable {
         published: Bool? = nil,
         title: String? = nil,
         own: Bool? = nil,
-        or: [BlogWhere]? = nil
+        or: [Self]? = nil
     ) {
         self.category = category
         self.content = content
@@ -382,13 +382,13 @@ public struct ChatWhere: Sendable {
     public var isPublic: Bool?
     public var title: String?
     public var own: Bool?
-    public var or: [ChatWhere]?
+    public var or: [Self]?
 
     public init(
         isPublic: Bool? = nil,
         title: String? = nil,
         own: Bool? = nil,
-        or: [ChatWhere]? = nil
+        or: [Self]? = nil
     ) {
         self.isPublic = isPublic
         self.title = title
@@ -422,13 +422,13 @@ public struct ProjectWhere: Sendable {
     public var description: String?
     public var name: String?
     public var status: ProjectStatus?
-    public var or: [ProjectWhere]?
+    public var or: [Self]?
 
     public init(
         description: String? = nil,
         name: String? = nil,
         status: ProjectStatus? = nil,
-        or: [ProjectWhere]? = nil
+        or: [Self]? = nil
     ) {
         self.description = description
         self.name = name
@@ -462,13 +462,13 @@ public struct TaskWhere: Sendable {
     public var completed: Bool?
     public var priority: TaskPriority?
     public var title: String?
-    public var or: [TaskWhere]?
+    public var or: [Self]?
 
     public init(
         completed: Bool? = nil,
         priority: TaskPriority? = nil,
         title: String? = nil,
-        or: [TaskWhere]? = nil
+        or: [Self]? = nil
     ) {
         self.completed = completed
         self.priority = priority
@@ -504,7 +504,7 @@ public struct WikiWhere: Sendable {
     public var slug: String?
     public var status: WikiStatus?
     public var title: String?
-    public var or: [WikiWhere]?
+    public var or: [Self]?
 
     public init(
         content: String? = nil,
@@ -512,7 +512,7 @@ public struct WikiWhere: Sendable {
         slug: String? = nil,
         status: WikiStatus? = nil,
         title: String? = nil,
-        or: [WikiWhere]? = nil
+        or: [Self]? = nil
     ) {
         self.content = content
         self.deletedAt = deletedAt

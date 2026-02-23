@@ -14,10 +14,7 @@ internal final class DetailViewModel: SwiftCrossUI.ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let loaded: Movie = try await client.action(
-                MovieAPI.load,
-                args: ["tmdb_id": Double(tmdbID)]
-            )
+            let loaded = try await MovieAPI.load(client, tmdbId: tmdbID)
             movie = loaded
             if let poster = loaded.poster_path {
                 Task {

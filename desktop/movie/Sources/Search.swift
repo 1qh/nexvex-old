@@ -24,10 +24,7 @@ internal final class SearchViewModel: SwiftCrossUI.ObservableObject {
             isLoading = true
             errorMessage = nil
             do {
-                let found: [SearchResult] = try await client.action(
-                    MovieAPI.search,
-                    args: ["query": trimmed]
-                )
+                let found = try await MovieAPI.search(client, query: trimmed)
                 if !Task.isCancelled {
                     results = found
                     loadPosters(found)

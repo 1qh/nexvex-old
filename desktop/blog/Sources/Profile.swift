@@ -16,7 +16,11 @@ internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
     func load() async {
         isLoading = true
         do {
-            let profile: ProfileData = try await client.query(BlogProfileAPI.get)
+            guard let profile: BlogProfile = try await BlogProfileAPI.get(client) else {
+                isLoading = false
+                return
+            }
+
             displayName = profile.displayName
             bio = profile.bio ?? ""
             theme = profile.theme.rawValue

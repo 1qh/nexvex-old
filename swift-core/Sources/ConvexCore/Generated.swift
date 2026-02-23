@@ -828,6 +828,12 @@ public enum WikiAPI {
 
 public enum MobileAiAPI {
     public static let chat = "mobileAi:chat"
+
+    #if DESKTOP
+    public static func chat(_ client: ConvexClientProtocol, chatId: String) async throws {
+        let _: [String: String] = try await client.action("mobileAi:chat", args: ["chatId": chatId])
+    }
+    #endif
 }
 
 public enum BlogAPI {
@@ -979,6 +985,16 @@ public enum MovieAPI {
 
     #if DESKTOP
     #endif
+
+    #if DESKTOP
+    public static func search(_ client: ConvexClientProtocol, query: String) async throws -> [SearchResult] {
+        try await client.action("movie:search", args: ["query": query])
+    }
+
+    public static func load(_ client: ConvexClientProtocol, tmdbId: Int) async throws -> Movie {
+        try await client.action("movie:load", args: ["tmdb_id": Double(tmdbId)])
+    }
+    #endif
 }
 
 public enum FileAPI {
@@ -994,6 +1010,12 @@ public enum FileAPI {
     public static let upload = "file:upload"
     public static let uploadChunk = "file:uploadChunk"
     public static let validate = "file:validate"
+
+    #if DESKTOP
+    public static func upload(_ client: ConvexClientProtocol) async throws -> String {
+        try await client.mutation("file:upload", args: [:])
+    }
+    #endif
 }
 
 public enum ChatAPI {
@@ -1079,6 +1101,16 @@ public enum MessageAPI {
     public static let pubList = "message:pubList"
 
     #if DESKTOP
+    #endif
+
+    #if DESKTOP
+    public static func list(_ client: ConvexClientProtocol, chatId: String) async throws -> [Message] {
+        try await client.query("message:list", args: ["chatId": chatId])
+    }
+
+    public static func create(_ client: ConvexClientProtocol, chatId: String, parts: [[String: Any]], role: String) async throws {
+        try await client.mutation("message:create", args: ["chatId": chatId, "parts": parts, "role": role])
+    }
     #endif
 }
 

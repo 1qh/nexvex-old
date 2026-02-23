@@ -15,10 +15,7 @@ internal final class MessageViewModel: SwiftCrossUI.ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let loaded: [Message] = try await client.query(
-                MessageAPI.list,
-                args: ["chatId": chatID]
-            )
+            let loaded = try await MessageAPI.list(client, chatId: chatID)
             messages = loaded
         } catch {
             errorMessage = error.localizedDescription
@@ -38,14 +35,10 @@ internal final class MessageViewModel: SwiftCrossUI.ObservableObject {
 
         do {
             let parts: [[String: Any]] = [["type": "text", "text": text]]
-            try await client.mutation(MessageAPI.create, args: [
-                "chatId": chatID,
-                "parts": parts,
-                "role": "user",
-            ])
+            try await MessageAPI.create(client, chatId: chatID, parts: parts, role: "user")
 
             isAiLoading = true
-            try await client.action(MobileAiAPI.chat, args: ["chatId": chatID])
+            try await MobileAiAPI.chat(client, chatId: chatID)
             isAiLoading = false
             await load(chatID: chatID)
         } catch {

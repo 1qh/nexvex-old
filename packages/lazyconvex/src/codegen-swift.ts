@@ -1136,6 +1136,52 @@ const SAFE_ARG_TYPES = new Set(['[Bool]', '[Double]', '[String]', 'Bool', 'Doubl
     )
     emit(`${indent(2)}try await client.query("org:myJoinRequest", args: ["orgId": orgId])`)
     emit(`${indent(1)}}`)
+  },
+  emitMovieDesktopWrappers = (fns: Set<string>) => {
+    if (fns.has('search')) {
+      emit(
+        `${indent(1)}public static func search(_ client: ConvexClientProtocol, query: String) async throws -> [SearchResult] {`
+      )
+      emit(`${indent(2)}try await client.action("movie:search", args: ["query": query])`)
+      emit(`${indent(1)}}`)
+    }
+    if (fns.has('load')) {
+      emit(`${indent(1)}public static func load(_ client: ConvexClientProtocol, tmdbId: Int) async throws -> Movie {`)
+      emit(`${indent(2)}try await client.action("movie:load", args: ["tmdb_id": Double(tmdbId)])`)
+      emit(`${indent(1)}}`)
+    }
+  },
+  emitMessageDesktopWrappers = (fns: Set<string>) => {
+    if (fns.has('list')) {
+      emit(
+        `${indent(1)}public static func list(_ client: ConvexClientProtocol, chatId: String) async throws -> [Message] {`
+      )
+      emit(`${indent(2)}try await client.query("message:list", args: ["chatId": chatId])`)
+      emit(`${indent(1)}}`)
+    }
+    if (fns.has('create')) {
+      emit(
+        `${indent(1)}public static func create(_ client: ConvexClientProtocol, chatId: String, parts: [[String: Any]], role: String) async throws {`
+      )
+      emit(
+        `${indent(2)}try await client.mutation("message:create", args: ["chatId": chatId, "parts": parts, "role": role])`
+      )
+      emit(`${indent(1)}}`)
+    }
+  },
+  emitMobileAiDesktopWrappers = (fns: Set<string>) => {
+    if (fns.has('chat')) {
+      emit(`${indent(1)}public static func chat(_ client: ConvexClientProtocol, chatId: String) async throws {`)
+      emit(`${indent(2)}let _: [String: String] = try await client.action("mobileAi:chat", args: ["chatId": chatId])`)
+      emit(`${indent(1)}}`)
+    }
+  },
+  emitFileDesktopWrappers = (fns: Set<string>) => {
+    if (fns.has('upload')) {
+      emit(`${indent(1)}public static func upload(_ client: ConvexClientProtocol) async throws -> String {`)
+      emit(`${indent(2)}try await client.mutation("file:upload", args: [:])`)
+      emit(`${indent(1)}}`)
+    }
   }
 
 for (const [modName, fns] of Object.entries(modules)) {
@@ -1181,6 +1227,34 @@ for (const [modName, fns] of Object.entries(modules)) {
     emit('')
     emit(`${indent(1)}#if DESKTOP`)
     emitOrgDesktopWrappers()
+    emit(`${indent(1)}#endif`)
+  }
+
+  if (modName === 'movie') {
+    emit('')
+    emit(`${indent(1)}#if DESKTOP`)
+    emitMovieDesktopWrappers(fnSet)
+    emit(`${indent(1)}#endif`)
+  }
+
+  if (modName === 'message') {
+    emit('')
+    emit(`${indent(1)}#if DESKTOP`)
+    emitMessageDesktopWrappers(fnSet)
+    emit(`${indent(1)}#endif`)
+  }
+
+  if (modName === 'mobileAi') {
+    emit('')
+    emit(`${indent(1)}#if DESKTOP`)
+    emitMobileAiDesktopWrappers(fnSet)
+    emit(`${indent(1)}#endif`)
+  }
+
+  if (modName === 'file') {
+    emit('')
+    emit(`${indent(1)}#if DESKTOP`)
+    emitFileDesktopWrappers(fnSet)
     emit(`${indent(1)}#endif`)
   }
 

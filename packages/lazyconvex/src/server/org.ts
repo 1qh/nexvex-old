@@ -115,8 +115,7 @@ const makeOrg = <DM extends GenericDataModel, S extends ZodRawShape>({
         if (data.avatarId !== undefined) {
           const org = await db.get(orgId),
             oldAvatarId = org?.avatarId as string | undefined
-          if (data.avatarId === null) patchData.avatarId = undefined
-          else patchData.avatarId = data.avatarId
+          patchData.avatarId = data.avatarId ?? undefined
           if (oldAvatarId && oldAvatarId !== data.avatarId) {
             const storage = c.storage as undefined | { delete: (id: string) => Promise<void> }
             if (storage)

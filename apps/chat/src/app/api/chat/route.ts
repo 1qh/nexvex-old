@@ -143,18 +143,17 @@ const filterSupportedParts = (parts: Record<string, unknown>[]) =>
           if (isToolApprovalFlow)
             for (const msg of finishedMessages) {
               const existingMsg = uiMessages.find(m => m.id === msg.id)
-              if (existingMsg)
-                await fetchMutation(
-                  api.message.update,
-                  { id: msg.id as Id<'message'>, parts: filterSupportedParts(msg.parts) },
-                  opts
-                )
-              else
-                await fetchMutation(
-                  api.message.create,
-                  { chatId, parts: filterSupportedParts(msg.parts), role: msg.role },
-                  opts
-                )
+              await (existingMsg
+                ? fetchMutation(
+                    api.message.update,
+                    { id: msg.id as Id<'message'>, parts: filterSupportedParts(msg.parts) },
+                    opts
+                  )
+                : fetchMutation(
+                    api.message.create,
+                    { chatId, parts: filterSupportedParts(msg.parts), role: msg.role },
+                    opts
+                  ))
             }
           else if (finishedMessages.length > 0)
             for (const msg of finishedMessages)

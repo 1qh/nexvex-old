@@ -921,20 +921,31 @@ Generate typed Swift models, enums, and API wrappers from your Zod schemas:
 
 ```bash
 bun add lazyconvex
-bunx lazyconvex-codegen-swift --schema packages/be/t.ts --convex packages/be/convex --output swift-core/Sources/ConvexCore/Generated.swift
+bunx lazyconvex-codegen-swift --schema packages/be/t.ts --convex packages/be/convex --output swift-core/Sources/ConvexCore/Generated.swift --mobile-output mobile/convex-shared/Sources/ConvexShared/MobileAPI.swift
 ```
 
 Output includes:
 - **Structs** matching all fields from Zod schemas (`Blog`, `Chat`, `Wiki`, `Movie`, etc.)
 - **Enums** for Zod enum fields (`BlogCategory`, `WikiStatus`, `TaskPriority`, etc.)
 - **API constants** for every exported Convex function (`BlogAPI.list`, `OrgAPI.create`, etc.)
-- **Typed wrappers** with `ConvexClientProtocol` — compile-time checked arguments:
+- **Where structs** for typed filtering (`BlogWhere`, `WikiWhere`, etc.)
+- **Desktop wrappers** (Generated.swift) — typed CRUD, search, list with `ConvexClientProtocol`:
 
 ```swift
 try await BlogAPI.create(client, category: .tech, content: "Hello", published: true, title: "Post")
 try await WikiAPI.update(client, orgId: orgId, id: wikiId, status: .published)
 let profile: BlogProfile? = try await BlogProfileAPI.get(client)
 ```
+
+- **Mobile wrappers** (MobileAPI.swift) — typed mutations, actions, and subscriptions for Skip cross-platform apps:
+
+```swift
+try await MessageAPI.create(chatId: chatID, parts: [MessagePart(type: .text, text: text)], role: "user")
+let results = try await MovieAPI.search(query: "inception")
+let subID = BlogAPI.subscribePaginated(onUpdate: { result in ... }, onError: { error in ... })
+```
+
+Zero raw `ConvexService.shared` calls or `[String: Any]` dictionaries in consumer code. All platform branching (`#if !SKIP`) for Convex calls is hidden inside generated wrappers.
 
 A typo in a field name or wrong enum value is a Swift compile error.
 

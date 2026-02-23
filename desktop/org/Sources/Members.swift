@@ -3,7 +3,7 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class MembersViewModel: SwiftCrossUI.ObservableObject {
+internal final class MembersViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var members = [OrgMemberEntry]()
     @SwiftCrossUI.Published var invites = [OrgInvite]()
     @SwiftCrossUI.Published var isLoading = true
@@ -11,54 +11,41 @@ internal final class MembersViewModel: SwiftCrossUI.ObservableObject {
 
     @MainActor
     func load(orgID: String) async {
-        isLoading = true
-        errorMessage = nil
-        do {
+        await performLoading({ isLoading = $0 }) {
             members = try await OrgAPI.members(client, orgId: orgID)
             invites = try await OrgAPI.pendingInvites(client, orgId: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 
     @MainActor
     func inviteMember(orgID: String, email: String) async {
-        do {
+        await perform {
             try await OrgAPI.invite(client, email: email, isAdmin: false, orgId: orgID)
-            await load(orgID: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID)
         }
     }
 
     @MainActor
     func revokeInvite(orgID: String, inviteID: String) async {
-        do {
+        await perform {
             try await OrgAPI.revokeInvite(client, inviteId: inviteID)
-            await load(orgID: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID)
         }
     }
 
     @MainActor
     func setAdmin(orgID: String, memberId: String, isAdmin: Bool) async {
-        do {
+        await perform {
             try await OrgAPI.setAdmin(client, isAdmin: isAdmin, memberId: memberId)
-            await load(orgID: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID)
         }
     }
 
     @MainActor
     func removeMember(orgID: String, memberId: String) async {
-        do {
+        await perform {
             try await OrgAPI.removeMember(client, memberId: memberId)
-            await load(orgID: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID)
         }
     }
 }

@@ -3,7 +3,7 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class MessageViewModel: SwiftCrossUI.ObservableObject {
+internal final class MessageViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var messages = [Message]()
     @SwiftCrossUI.Published var isLoading = true
     @SwiftCrossUI.Published var isAiLoading = false
@@ -12,15 +12,9 @@ internal final class MessageViewModel: SwiftCrossUI.ObservableObject {
 
     @MainActor
     func load(chatID: String) async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            let loaded = try await MessageAPI.list(client, chatId: chatID)
-            messages = loaded
-        } catch {
-            errorMessage = error.localizedDescription
+        await performLoading({ isLoading = $0 }) {
+            messages = try await MessageAPI.list(client, chatId: chatID)
         }
-        isLoading = false
     }
 
     @MainActor
@@ -33,18 +27,16 @@ internal final class MessageViewModel: SwiftCrossUI.ObservableObject {
         messageText = ""
         errorMessage = nil
 
-        do {
+        await perform {
             let parts = [MessagePart(type: .text, text: text, image: nil, file: nil, name: nil)]
             try await MessageAPI.create(client, chatId: chatID, parts: parts, role: "user")
 
             isAiLoading = true
             try await MobileAiAPI.chat(client, chatId: chatID)
             isAiLoading = false
-            await load(chatID: chatID)
-        } catch {
-            errorMessage = error.localizedDescription
-            isAiLoading = false
+            await self.load(chatID: chatID)
         }
+        isAiLoading = false
     }
 }
 

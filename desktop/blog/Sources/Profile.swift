@@ -3,7 +3,7 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
+internal final class ProfileViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var displayName = ""
     @SwiftCrossUI.Published var bio = ""
     @SwiftCrossUI.Published var theme = "system"
@@ -14,10 +14,8 @@ internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
 
     @MainActor
     func load() async {
-        isLoading = true
-        do {
+        await performLoading({ isLoading = $0 }) {
             guard let profile = try await BlogProfileAPI.get(client) else {
-                isLoading = false
                 return
             }
 
@@ -25,10 +23,7 @@ internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
             bio = profile.bio ?? ""
             theme = profile.theme.rawValue
             notifications = profile.notifications
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 
     @MainActor
@@ -38,9 +33,7 @@ internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
             return
         }
 
-        isSaving = true
-        errorMessage = nil
-        do {
+        await performLoading({ isSaving = $0 }) {
             try await BlogProfileAPI.upsert(
                 client,
                 bio: bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : bio
@@ -49,10 +42,7 @@ internal final class ProfileViewModel: SwiftCrossUI.ObservableObject {
                 notifications: notifications,
                 theme: BlogProfileTheme(rawValue: theme)
             )
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isSaving = false
     }
 }
 

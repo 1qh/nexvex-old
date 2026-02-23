@@ -3,7 +3,7 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class SearchViewModel: SwiftCrossUI.ObservableObject {
+internal final class SearchViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var query = ""
     @SwiftCrossUI.Published var results = [SearchResult]()
     @SwiftCrossUI.Published var isLoading = false

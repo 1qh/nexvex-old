@@ -3,22 +3,16 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class BlogDetailViewModel: SwiftCrossUI.ObservableObject {
+internal final class BlogDetailViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var blog: Blog?
     @SwiftCrossUI.Published var isLoading = true
     @SwiftCrossUI.Published var errorMessage: String?
 
     @MainActor
     func load(blogID: String) async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            let loaded = try await BlogAPI.read(client, id: blogID)
-            blog = loaded
-        } catch {
-            errorMessage = error.localizedDescription
+        await performLoading({ isLoading = $0 }) {
+            blog = try await BlogAPI.read(client, id: blogID)
         }
-        isLoading = false
     }
 
     @MainActor
@@ -27,11 +21,9 @@ internal final class BlogDetailViewModel: SwiftCrossUI.ObservableObject {
             return
         }
 
-        do {
+        await perform {
             try await BlogAPI.rm(client, id: blog._id)
             path.wrappedValue.removeLast()
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 }

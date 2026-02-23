@@ -8,7 +8,7 @@ internal enum FormMode {
     case edit(Blog)
 }
 
-internal final class FormViewModel: SwiftCrossUI.ObservableObject {
+internal final class FormViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var title = ""
     @SwiftCrossUI.Published var content = ""
     @SwiftCrossUI.Published var category = "tech"
@@ -39,10 +39,7 @@ internal final class FormViewModel: SwiftCrossUI.ObservableObject {
             return
         }
 
-        isSaving = true
-        errorMessage = nil
-
-        do {
+        await performLoading({ isSaving = $0 }) {
             switch mode {
             case .create:
                 try await BlogAPI.create(
@@ -65,10 +62,7 @@ internal final class FormViewModel: SwiftCrossUI.ObservableObject {
                 )
             }
             onDone()
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isSaving = false
     }
 }
 

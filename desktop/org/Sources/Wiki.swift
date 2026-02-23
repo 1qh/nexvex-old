@@ -3,7 +3,7 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class WikiListViewModel: SwiftCrossUI.ObservableObject {
+internal final class WikiListViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var wikis = [Wiki]()
     @SwiftCrossUI.Published var isLoading = true
     @SwiftCrossUI.Published var errorMessage: String?
@@ -26,23 +26,18 @@ internal final class WikiListViewModel: SwiftCrossUI.ObservableObject {
 
     @MainActor
     func load(orgID: String) async {
-        isLoading = true
-        errorMessage = nil
-        do {
+        await performLoading({ isLoading = $0 }) {
             let result = try await WikiAPI.list(
                 client,
                 orgId: orgID
             )
             wikis = result.page
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 
     @MainActor
     func createWiki(orgID: String, title: String, slug: String) async {
-        do {
+        await perform {
             try await WikiAPI.create(
                 client,
                 orgId: orgID,
@@ -51,29 +46,23 @@ internal final class WikiListViewModel: SwiftCrossUI.ObservableObject {
                 status: .draft,
                 title: title
             )
-            await load(orgID: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID)
         }
     }
 
     @MainActor
     func deleteWiki(orgID: String, id: String) async {
-        do {
+        await perform {
             try await WikiAPI.rm(client, orgId: orgID, id: id)
-            await load(orgID: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID)
         }
     }
 
     @MainActor
     func restoreWiki(orgID: String, id: String) async {
-        do {
+        await perform {
             try await WikiAPI.restore(client, orgId: orgID, id: id)
-            await load(orgID: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID)
         }
     }
 }
@@ -158,7 +147,7 @@ internal struct WikiListView: View {
     }
 }
 
-internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject {
+internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var title = ""
     @SwiftCrossUI.Published var slug = ""
     @SwiftCrossUI.Published var content = ""
@@ -169,23 +158,19 @@ internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject {
 
     @MainActor
     func load(orgID: String, wikiID: String) async {
-        isLoading = true
-        do {
+        await performLoading({ isLoading = $0 }) {
             let wiki = try await WikiAPI.read(client, orgId: orgID, id: wikiID)
             title = wiki.title
             slug = wiki.slug
             content = wiki.content ?? ""
             status = wiki.status.rawValue
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 
     @MainActor
     func save(orgID: String, wikiID: String) async {
         saveStatus = "Saving..."
-        do {
+        await perform {
             try await WikiAPI.update(
                 client,
                 orgId: orgID,
@@ -196,18 +181,16 @@ internal final class WikiEditViewModel: SwiftCrossUI.ObservableObject {
                 title: title
             )
             saveStatus = "Saved"
-        } catch {
+        }
+        if errorMessage != nil {
             saveStatus = "Error saving"
-            errorMessage = error.localizedDescription
         }
     }
 
     @MainActor
     func deleteWiki(orgID: String, wikiID: String) async {
-        do {
+        await perform {
             try await WikiAPI.rm(client, orgId: orgID, id: wikiID)
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 }

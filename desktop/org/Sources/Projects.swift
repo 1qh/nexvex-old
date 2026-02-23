@@ -3,49 +3,40 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class ProjectsViewModel: SwiftCrossUI.ObservableObject {
+internal final class ProjectsViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var projects = [Project]()
     @SwiftCrossUI.Published var isLoading = true
     @SwiftCrossUI.Published var errorMessage: String?
 
     @MainActor
     func load(orgID: String) async {
-        isLoading = true
-        errorMessage = nil
-        do {
+        await performLoading({ isLoading = $0 }) {
             let result = try await ProjectAPI.list(
                 client,
                 orgId: orgID
             )
             projects = result.page
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 
     @MainActor
     func createProject(orgID: String, name: String, description: String) async {
-        do {
+        await perform {
             try await ProjectAPI.create(
                 client,
                 orgId: orgID,
                 description: description.isEmpty ? nil : description,
                 name: name
             )
-            await load(orgID: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID)
         }
     }
 
     @MainActor
     func deleteProject(orgID: String, id: String) async {
-        do {
+        await perform {
             try await ProjectAPI.rm(client, orgId: orgID, id: id)
-            await load(orgID: orgID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID)
         }
     }
 }
@@ -122,55 +113,44 @@ internal struct ProjectsView: View {
     }
 }
 
-internal final class TasksViewModel: SwiftCrossUI.ObservableObject {
+internal final class TasksViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var tasks = [TaskItem]()
     @SwiftCrossUI.Published var isLoading = true
     @SwiftCrossUI.Published var errorMessage: String?
 
     @MainActor
     func load(orgID: String, projectID: String) async {
-        isLoading = true
-        errorMessage = nil
-        do {
+        await performLoading({ isLoading = $0 }) {
             tasks = try await TaskAPI.byProject(client, orgId: orgID, projectId: projectID)
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 
     @MainActor
     func createTask(orgID: String, projectID: String, title: String) async {
-        do {
+        await perform {
             try await TaskAPI.create(
                 client,
                 orgId: orgID,
                 projectId: projectID,
                 title: title
             )
-            await load(orgID: orgID, projectID: projectID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID, projectID: projectID)
         }
     }
 
     @MainActor
     func toggleTask(orgID: String, projectID: String, taskID: String) async {
-        do {
+        await perform {
             try await TaskAPI.toggle(client, orgId: orgID, id: taskID)
-            await load(orgID: orgID, projectID: projectID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID, projectID: projectID)
         }
     }
 
     @MainActor
     func deleteTask(orgID: String, projectID: String, id: String) async {
-        do {
+        await perform {
             try await TaskAPI.rm(client, orgId: orgID, id: id)
-            await load(orgID: orgID, projectID: projectID)
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load(orgID: orgID, projectID: projectID)
         }
     }
 }

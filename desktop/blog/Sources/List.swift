@@ -3,7 +3,7 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class ListViewModel: SwiftCrossUI.ObservableObject {
+internal final class ListViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var blogs = [Blog]()
     @SwiftCrossUI.Published var isLoading = false
     @SwiftCrossUI.Published var searchQuery = ""
@@ -25,27 +25,20 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject {
 
     @MainActor
     func load() async {
-        isLoading = true
-        errorMessage = nil
-        do {
+        await performLoading({ isLoading = $0 }) {
             let result = try await BlogAPI.list(
                 client,
                 where: BlogWhere(or: [.init(published: true), .init(own: true)])
             )
             blogs = result.page
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 
     @MainActor
     func deleteBlog(id: String) async {
-        do {
+        await perform {
             try await BlogAPI.rm(client, id: id)
-            await load()
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load()
         }
     }
 }

@@ -3,7 +3,7 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class DetailViewModel: SwiftCrossUI.ObservableObject {
+internal final class DetailViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var movie: Movie?
     @SwiftCrossUI.Published var isLoading = false
     @SwiftCrossUI.Published var errorMessage: String?
@@ -11,9 +11,7 @@ internal final class DetailViewModel: SwiftCrossUI.ObservableObject {
 
     @MainActor
     func loadMovie(tmdbID: Int) async {
-        isLoading = true
-        errorMessage = nil
-        do {
+        await performLoading({ isLoading = $0 }) {
             let loaded = try await MovieAPI.load(client, tmdbId: tmdbID)
             movie = loaded
             if let poster = loaded.poster_path {
@@ -21,10 +19,7 @@ internal final class DetailViewModel: SwiftCrossUI.ObservableObject {
                     posterURL = await ImageCache.shared.download(poster, size: "w500")
                 }
             }
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 }
 

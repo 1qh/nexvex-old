@@ -3,44 +3,35 @@ import DesktopShared
 import Foundation
 import SwiftCrossUI
 
-internal final class ListViewModel: SwiftCrossUI.ObservableObject {
+internal final class ListViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var chats = [Chat]()
     @SwiftCrossUI.Published var isLoading = false
     @SwiftCrossUI.Published var errorMessage: String?
 
     @MainActor
     func load() async {
-        isLoading = true
-        errorMessage = nil
-        do {
+        await performLoading({ isLoading = $0 }) {
             let result = try await ChatAPI.list(
                 client,
                 where: ChatWhere(own: true)
             )
             chats = result.page
-        } catch {
-            errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 
     @MainActor
     func createChat() async {
-        do {
+        await perform {
             try await ChatAPI.create(client, isPublic: false, title: "New Chat")
-            await load()
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load()
         }
     }
 
     @MainActor
     func deleteChat(id: String) async {
-        do {
+        await perform {
             try await ChatAPI.rm(client, id: id)
-            await load()
-        } catch {
-            errorMessage = error.localizedDescription
+            await self.load()
         }
     }
 }

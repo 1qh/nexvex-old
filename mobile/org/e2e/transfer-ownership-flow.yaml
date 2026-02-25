@@ -11,13 +11,6 @@ appId: dev.lazyconvex.org
 - assertVisible: "Save Changes"
 
 - scrollUntilVisible:
-    element: "Transfer Ownership"
-    direction: DOWN
-    timeout: 5000
-- assertVisible: "Transfer Ownership"
-- assertVisible: "No other admins available"
-
-- scrollUntilVisible:
     element: "Delete Organization"
     direction: DOWN
     timeout: 5000

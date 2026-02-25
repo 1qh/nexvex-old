@@ -5,10 +5,10 @@ import SwiftCrossUI
 
 internal final class SearchViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var query = ""
-    @SwiftCrossUI.Published var results = [SearchResult]()
+    @SwiftCrossUI.Published var results = [Movie]()
     @SwiftCrossUI.Published var isLoading = false
     @SwiftCrossUI.Published var errorMessage: String?
-    @SwiftCrossUI.Published var posterURLs = [Int: URL]()
+    @SwiftCrossUI.Published var posterURLs = [String: URL]()
     private var searchTask: Task<Void, Never>?
 
     @MainActor
@@ -41,7 +41,7 @@ internal final class SearchViewModel: SwiftCrossUI.ObservableObject, Performing 
     }
 
     @MainActor
-    private func loadPosters(_ items: [SearchResult]) {
+    private func loadPosters(_ items: [Movie]) {
         for item in items {
             guard let poster = item.poster_path else {
                 continue
@@ -108,14 +108,12 @@ internal struct SearchView: View {
                             VStack {
                                 Text(result.title)
                                 HStack {
-                                    if let date = result.release_date {
-                                        Text(String(date.prefix(4)))
-                                    }
+                                    Text(String(result.release_date.prefix(4)))
                                     Text(String(format: "%.1f", result.vote_average))
                                 }
                                 Text(result.overview)
                             }
-                            NavigationLink("View", value: result.id, path: path)
+                            NavigationLink("View", value: Int(result.tmdb_id), path: path)
                         }
                         .padding(.bottom, 4)
                     }

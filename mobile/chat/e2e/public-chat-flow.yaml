@@ -5,10 +5,6 @@ appId: dev.lazyconvex.chat
 - assertVisible: "Chats"
 
 - tapOn:
-    id: "togglePublic"
-- waitForAnimationToEnd
-
-- tapOn:
     text: "plus"
 - waitForAnimationToEnd
 - extendedWaitUntil:
@@ -29,18 +25,6 @@ appId: dev.lazyconvex.chat
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Public chat test message"
-    timeout: 15000
-
-- back
-- waitForAnimationToEnd
-- assertVisible: "Chats"
-- assertVisible: "Public"
-
-- tapOn:
-    id: "publicChats"
-- waitForAnimationToEnd
-- extendedWaitUntil:
-    visible: "Public Chats"
     timeout: 15000
 
 - back

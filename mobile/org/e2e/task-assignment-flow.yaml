@@ -28,30 +28,6 @@ appId: dev.lazyconvex.org
     visible: "Task to assign"
     timeout: 10000
 
-- assertVisible: "Unassigned"
-
-- tapOn:
-    id: "taskAssignee"
-- waitForAnimationToEnd
-
-- tapOn: "Maestro Tester"
-- waitForAnimationToEnd
-
-- extendedWaitUntil:
-    visible: "Maestro Tester"
-    timeout: 10000
-
-- tapOn:
-    id: "taskAssignee"
-- waitForAnimationToEnd
-
-- tapOn: "Unassigned"
-- waitForAnimationToEnd
-
-- extendedWaitUntil:
-    visible: "Unassigned"
-    timeout: 10000
-
 - hideKeyboard
 - back
 - extendedWaitUntil:

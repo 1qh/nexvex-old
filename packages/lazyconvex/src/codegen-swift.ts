@@ -13,7 +13,7 @@ interface FieldEntry {
 
 interface SchemaModule {
   base?: Record<string, ZodType>
-  children?: Record<string, { schema: ZodType }>
+  children?: Record<string, { foreignKey?: string; schema: ZodType }>
   orgScoped?: Record<string, ZodType>
   owned?: Record<string, ZodType>
   singleton?: Record<string, ZodType>
@@ -30,45 +30,36 @@ interface ZodDef {
   values?: string[]
 }
 
-// eslint-disable-next-line complexity
-const parseArgs = (): { convex: string; custom: string; mobileOutput: string; output: string; schema: string } => {
+const parseArgs = (): { convex: string; mobileOutput: string; output: string; schema: string } => {
     const args = process.argv.slice(2),
-      r = { convex: '', custom: '', mobileOutput: '', output: '', schema: '' }
+      r = { convex: '', mobileOutput: '', output: '', schema: '' }
     for (let i = 0; i < args.length; i += 1) {
       const arg = args[i] ?? ''
       if (arg === '--schema' && args[i + 1]) r.schema = args[(i += 1)] ?? ''
       else if (arg === '--convex' && args[i + 1]) r.convex = args[(i += 1)] ?? ''
       else if (arg === '--output' && args[i + 1]) r.output = args[(i += 1)] ?? ''
       else if (arg === '--mobile-output' && args[i + 1]) r.mobileOutput = args[(i += 1)] ?? ''
-      else if (arg === '--custom' && args[i + 1]) r.custom = args[(i += 1)] ?? ''
     }
     if (!(r.schema && r.convex && r.output)) {
       process.stderr.write(
-        'Usage: lazyconvex-codegen-swift --schema <path> --convex <path> --output <path> [--mobile-output <path>] [--custom <path.json>]\n'
+        'Usage: lazyconvex-codegen-swift --schema <path> --convex <path> --output <path> [--mobile-output <path>]\n'
       )
       process.exit(1)
     }
     return {
       convex: resolve(r.convex),
-      custom: r.custom ? resolve(r.custom) : '',
       mobileOutput: r.mobileOutput ? resolve(r.mobileOutput) : '',
       output: resolve(r.output),
       schema: resolve(r.schema)
     }
   },
-  {
-    convex: CONVEX_DIR,
-    custom: CUSTOM_CONFIG_PATH,
-    mobileOutput: MOBILE_OUTPUT_PATH,
-    output: OUTPUT_PATH,
-    schema: SCHEMA_PATH
-  } = parseArgs(),
+  { convex: CONVEX_DIR, mobileOutput: MOBILE_OUTPUT_PATH, output: OUTPUT_PATH, schema: SCHEMA_PATH } = parseArgs(),
   mod = (await import(SCHEMA_PATH)) as SchemaModule,
   owned = mod.owned ?? {},
   orgScoped = mod.orgScoped ?? {},
   base = mod.base ?? {},
   singleton = mod.singleton ?? {},
-  children = (mod.children ?? {}) as Record<string, { schema: ZodType }>,
+  children = (mod.children ?? {}) as Record<string, { foreignKey?: string; schema: ZodType }>,
   getDef = (schema: ZodType): ZodDef => (schema as unknown as { _zod: { def: ZodDef } })._zod.def,
   indent = (n: number) => '    '.repeat(n),
   capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1),
@@ -87,7 +78,9 @@ const parseArgs = (): { convex: string; custom: string; mobileOutput: string; ou
   enumRegistry = new Map<string, string[]>(),
   pendingLines: string[][] = [],
   nestedEmitted = new Set<string>(),
+  unionStructFieldsMap: Record<string, Map<string, { isOptional: boolean; swiftType: string }>> = {},
   unionDiscriminantEnums = new Set<string>(),
+  childForeignKeys: Record<string, string> = {},
   detectFileKind = (def: ZodDef): 'file' | 'files' | null => {
     const { type } = def
     if (type === 'optional' || type === 'nullable') return detectFileKind(def.innerType?._zod.def ?? def)
@@ -236,6 +229,7 @@ const parseArgs = (): { convex: string; custom: string; mobileOutput: string; ou
       typEnumName = `${name}Type`
     registerUnionEnum(typEnumName, typeValues)
     const fieldTypes = collectUnionFieldTypes(options, name, typEnumName)
+    unionStructFieldsMap[name] = fieldTypes
     emitUnionBlock(fieldTypes, name)
   },
   factoryFields: Record<string, Map<string, FieldEntry>> = {},
@@ -500,6 +494,7 @@ for (const [childName, childDef] of Object.entries(children)) {
   const def = getDef(childDef.schema),
     shape = def.shape ?? def.properties
   if (shape) {
+    childForeignKeys[childName] = childDef.foreignKey ?? `${childName}Id`
     factoryFields[childName] = resolveSchemaFields(shape, childName, childExtra)
     tableFactoryType[childName] = 'child'
     const uFields = new Map<string, FieldEntry>()
@@ -511,7 +506,242 @@ for (const [childName, childDef] of Object.entries(children)) {
   }
 }
 
-const isFilterableDef = (def: ZodDef): boolean => {
+interface ParsedArg {
+  isNullable: boolean
+  isOptional: boolean
+  name: string
+  swiftType: string
+}
+
+interface ParsedCustomFn {
+  args: ParsedArg[]
+  callKind: 'action' | 'mutation' | 'query'
+  kind: 'action' | 'm' | 'mutation' | 'pq' | 'q' | 'query'
+  source: string
+}
+
+// eslint-disable-next-line complexity, max-statements
+const splitTopLevel = (input: string, delimiter: string): string[] => {
+    const parts: string[] = []
+    let cur = '',
+      depthBrace = 0,
+      depthBracket = 0,
+      depthParen = 0,
+      quote: "'" | '"' | '' | '`' = '',
+      escaped = false
+    for (const ch of input)
+      if (quote) {
+        cur += ch
+        if (escaped) escaped = false
+        else if (ch === '\\') escaped = true
+        else if (ch === quote) quote = ''
+      } else if (ch === '"' || ch === "'" || ch === '`') {
+        quote = ch
+        cur += ch
+      } else {
+        if (ch === '{') depthBrace += 1
+        else if (ch === '}') depthBrace -= 1
+        else if (ch === '(') depthParen += 1
+        else if (ch === ')') depthParen -= 1
+        else if (ch === '[') depthBracket += 1
+        else if (ch === ']') depthBracket -= 1
+        if (ch === delimiter && depthBrace === 0 && depthBracket === 0 && depthParen === 0) {
+          const t = cur.trim()
+          if (t) parts.push(t)
+          cur = ''
+        } else cur += ch
+      }
+
+    const t = cur.trim()
+    if (t) parts.push(t)
+    return parts
+  },
+  unwrapCall = (expr: string, fnName: string): null | string => {
+    const prefix = `${fnName}(`
+    if (!expr.startsWith(prefix)) return null
+    const body = extractBalancedBlock(expr, fnName.length)
+    if (body === null) return null
+    return body.trim()
+  },
+  /* eslint-disable complexity */
+  // oxlint-disable-next-line eslint/complexity
+  // eslint-disable-next-line max-statements
+  parseValidatorExpr = (
+    rawExpr: string,
+    ctx: { filePath: string; fnName: string; paramName: string }
+  ): { isNullable: boolean; isOptional: boolean; swiftType: string } => {
+    let expr = rawExpr.trim(),
+      isOptional = false,
+      isNullable = false
+    while (true)
+      if (expr.endsWith('.optional()')) {
+        expr = expr.slice(0, -'.optional()'.length).trim()
+        isOptional = true
+      } else if (expr.endsWith('.nullable()')) {
+        expr = expr.slice(0, -'.nullable()'.length).trim()
+        isNullable = true
+        isOptional = true
+      } else break
+
+    const convexOptional = unwrapCall(expr, 'v.optional'),
+      convexNullable = unwrapCall(expr, 'v.nullable'),
+      zodOptional = unwrapCall(expr, 'z.optional'),
+      zodNullable = unwrapCall(expr, 'z.nullable')
+    if (convexOptional !== null)
+      return {
+        ...parseValidatorExpr(convexOptional, ctx),
+        isOptional: true
+      }
+    if (convexNullable !== null)
+      return {
+        ...parseValidatorExpr(convexNullable, ctx),
+        isNullable: true,
+        isOptional: true
+      }
+    if (zodOptional !== null)
+      return {
+        ...parseValidatorExpr(zodOptional, ctx),
+        isOptional: true
+      }
+    if (zodNullable !== null)
+      return {
+        ...parseValidatorExpr(zodNullable, ctx),
+        isNullable: true,
+        isOptional: true
+      }
+
+    const convexArray = unwrapCall(expr, 'v.array'),
+      zodArray = unwrapCall(expr, 'z.array')
+    if (convexArray !== null) {
+      const inner = parseValidatorExpr(convexArray, ctx)
+      return { isNullable, isOptional, swiftType: `[${inner.swiftType}]` }
+    }
+    if (zodArray !== null) {
+      const inner = parseValidatorExpr(zodArray, ctx)
+      return { isNullable, isOptional, swiftType: `[${inner.swiftType}]` }
+    }
+
+    if (expr.startsWith('v.id(') || expr.startsWith('zid(')) return { isNullable, isOptional, swiftType: 'String' }
+    if (expr.startsWith('v.string(') || expr.includes('z.string(')) return { isNullable, isOptional, swiftType: 'String' }
+    if (
+      expr.startsWith('v.number(') ||
+      expr.startsWith('v.float64(') ||
+      expr.startsWith('v.int64(') ||
+      expr.includes('z.number(') ||
+      expr.includes('z.int(') ||
+      expr.includes('z.float(')
+    )
+      return { isNullable, isOptional, swiftType: 'Double' }
+    if (expr.startsWith('v.boolean(') || expr.includes('z.boolean(')) return { isNullable, isOptional, swiftType: 'Bool' }
+    if (expr.startsWith('v.literal(') || expr.startsWith('v.union(') || expr.includes('z.enum('))
+      return { isNullable, isOptional, swiftType: 'String' }
+
+    throw new Error(`codegen-swift: unsupported validator '${expr}' at ${ctx.filePath} ${ctx.fnName}.${ctx.paramName}`)
+  },
+  /* eslint-enable complexity */
+  findTopLevelColon = (entry: string): number => {
+    let depthBrace = 0,
+      depthBracket = 0,
+      depthParen = 0,
+      quote: "'" | '"' | '' | '`' = '',
+      escaped = false
+    for (let i = 0; i < entry.length; i += 1) {
+      const ch = entry[i] ?? ''
+      if (quote) {
+        if (escaped) escaped = false
+        else if (ch === '\\') escaped = true
+        else if (ch === quote) quote = ''
+      } else if (ch === '"' || ch === "'" || ch === '`') quote = ch
+      else if (ch === '{') depthBrace += 1
+      else if (ch === '}') depthBrace -= 1
+      else if (ch === '(') depthParen += 1
+      else if (ch === ')') depthParen -= 1
+      else if (ch === '[') depthBracket += 1
+      else if (ch === ']') depthBracket -= 1
+      else if (ch === ':' && depthBrace === 0 && depthBracket === 0 && depthParen === 0) return i
+    }
+    return -1
+  },
+  parseSourceArgsBlock = (argsBlock: string, ctx: { filePath: string; fnName: string }): ParsedArg[] => {
+    const parsed: ParsedArg[] = []
+    for (const entry of splitTopLevel(argsBlock, ',')) {
+      const idx = findTopLevelColon(entry)
+      if (idx !== -1) {
+        const name = entry.slice(0, idx).trim(),
+          rawExpr = entry.slice(idx + 1).trim()
+        if (name && rawExpr) {
+          const resolved = parseValidatorExpr(rawExpr, { filePath: ctx.filePath, fnName: ctx.fnName, paramName: name })
+          parsed.push({
+            isNullable: resolved.isNullable,
+            isOptional: resolved.isOptional,
+            name,
+            swiftType: resolved.swiftType
+          })
+        }
+      }
+    }
+    return parsed
+  },
+  CUSTOM_FN_RE = /(?<name>\w+)\s*=\s*(?<kind>pq|q|m|action|mutation|query)\s*\(\s*\{/gu,
+  UNIQUE_CHECK_RE = /(?<name>\w+)\s*=\s*uniqueCheck\s*\(/gu,
+  ARGS_BLOCK_RE = /args\s*:\s*\{/u,
+  CACHE_KEY_RE = /key\s*:\s*['"`](?<key>\w+)['"`]/u,
+  extractParsedArgsFromBlock = (block: string, filePath: string, fnName: string): ParsedArg[] => {
+    const argsStartMatch = ARGS_BLOCK_RE.exec(block)
+    if (!argsStartMatch) return []
+    const start = argsStartMatch.index + argsStartMatch[0].length - 1,
+      argsBlock = extractBalancedBlock(block, start)
+    if (argsBlock === null) return []
+    return parseSourceArgsBlock(argsBlock, { filePath, fnName })
+  },
+  // eslint-disable-next-line complexity, max-statements
+  parseCustomFnsFromFile = (filePath: string): { cacheCrudKey: null | string; fns: Record<string, ParsedCustomFn> } => {
+    const content = readFileSync(filePath, 'utf8'),
+      parsed: Record<string, ParsedCustomFn> = {}
+    let cacheCrudKey: null | string = null
+    const cacheIdx = content.indexOf('cacheCrud(')
+    if (cacheIdx !== -1) {
+      const openIdx = content.indexOf('{', cacheIdx),
+        block = openIdx === -1 ? null : extractBalancedBlock(content, openIdx)
+      if (block) {
+        const km = CACHE_KEY_RE.exec(block),
+          key = km?.groups?.key
+        if (key) cacheCrudKey = key
+      }
+    }
+    for (const m of content.matchAll(CUSTOM_FN_RE)) {
+      const { groups, index: matchIndex } = m,
+        [full] = m,
+        fnName = groups?.name,
+        kind = groups?.kind as 'action' | 'm' | 'mutation' | 'pq' | 'q' | 'query' | undefined
+      if (fnName && kind) {
+        const openIdx = matchIndex + full.length - 1,
+          block = extractBalancedBlock(content, openIdx)
+        if (block) {
+          const args = extractParsedArgsFromBlock(block, filePath, fnName),
+            callKind =
+              kind === 'pq' || kind === 'q' || kind === 'query' ? 'query' : kind === 'action' ? 'action' : 'mutation'
+          parsed[fnName] = { args, callKind, kind, source: block }
+        }
+      }
+    }
+    for (const m of content.matchAll(UNIQUE_CHECK_RE)) {
+      const [, fnNameRaw] = m,
+        fnName = fnNameRaw ?? ''
+      if (fnName && !parsed[fnName])
+        parsed[fnName] = {
+          args: [
+            { isNullable: false, isOptional: false, name: 'value', swiftType: 'String' },
+            { isNullable: false, isOptional: true, name: 'exclude', swiftType: 'String' }
+          ],
+          callKind: 'query',
+          kind: 'query',
+          source: ''
+        }
+    }
+    return { cacheCrudKey, fns: parsed }
+  },
+  isFilterableDef = (def: ZodDef): boolean => {
     const { type } = def
     if (type === 'optional' || type === 'nullable') return isFilterableDef(def.innerType?._zod.def ?? def)
     return (
@@ -1218,13 +1448,6 @@ const SAFE_ARG_TYPES = new Set(['[Bool]', '[Double]', '[String]', 'Bool', 'Doubl
     e(`${indent(1)}}`)
   }
 
-interface CustomConfig {
-  desktop?: Record<string, Record<string, CustomFnDescriptor>>
-  mobile?: Record<string, Record<string, CustomFnDescriptor>>
-  subscriptions?: Record<string, MobileSubscriptionDescriptor[]>
-  version?: number
-}
-
 interface CustomFnArg {
   argName: string
   value: string
@@ -1289,17 +1512,92 @@ interface StructArrayField {
   value: string
 }
 
-const loadCustomConfig = (configPath: string): CustomConfig => {
-    if (!configPath) return {}
-    try {
-      const raw = readFileSync(configPath, 'utf8')
-      return JSON.parse(raw) as CustomConfig
-    } catch (error) {
-      process.stderr.write(`Failed to load custom config from ${configPath}: ${String(error)}\n`)
-      process.exit(1)
+const parsedSourceFns: Record<string, Record<string, ParsedCustomFn>> = {},
+  parsedCacheKeys: Record<string, null | string> = {}
+for (const modName of Object.keys(modules)) {
+  const filePath = join(CONVEX_DIR, `${modName}.ts`)
+  try {
+    const parsed = parseCustomFnsFromFile(filePath)
+    parsedSourceFns[modName] = parsed.fns
+    parsedCacheKeys[modName] = parsed.cacheCrudKey
+  } catch {
+    parsedSourceFns[modName] = {}
+    parsedCacheKeys[modName] = null
+  }
+}
+
+const inferParsedReturnType = (parsed: ParsedCustomFn, fnName: string, tableName: string): string | undefined => {
+    const { callKind, source } = parsed,
+      structName = safeSwiftName(pascalCase(tableName))
+    if (callKind === 'query') {
+      if (source.includes('.paginate(')) return `PaginatedResult<${structName}>`
+      if (source.includes('.collect(') || source.includes('.filter(')) return `[${structName}]`
+      if (source.includes('.unique(') || source.includes('.first(') || source.includes('db.get(')) return `${structName}?`
+      if (fnName.startsWith('list') || fnName.startsWith('by')) return `[${structName}]`
+      if (fnName.startsWith('get') || fnName.startsWith('read')) return `${structName}?`
+      if (fnName.startsWith('is')) return 'Bool'
     }
+    if (callKind === 'action' && source.includes('.map(')) return `[${structName}]`
   },
-  customConfig = loadCustomConfig(CUSTOM_CONFIG_PATH),
+  argOrderWeight = (name: string): number => {
+    if (name === 'orgId') return 0
+    if (name === 'id') return 1
+    return 2
+  },
+  // eslint-disable-next-line max-statements
+  buildDescriptorFromParsed = (
+    ctx: { isMobile: boolean; tableName: string },
+    fnName: string,
+    parsed: ParsedCustomFn
+  ): CustomFnDescriptor | null => {
+    const { isMobile, tableName } = ctx,
+      requiredParams: CustomFnParam[] = [],
+      optionalParams: CustomFnParam[] = [],
+      requiredArgs: CustomFnArg[] = [],
+      optionalArgsData: CustomFnArg[] = [],
+      optionalArgs: string[] = [],
+      nullableArgs: string[] = []
+    for (const a of parsed.args) {
+      const type = a.isOptional ? `${a.swiftType}?` : a.swiftType
+      if (a.isOptional) {
+        optionalParams.push({ default: 'nil', name: a.name, type })
+        optionalArgsData.push({ argName: a.name, value: a.name })
+        optionalArgs.push(a.name)
+      } else {
+        requiredParams.push({ name: a.name, type })
+        requiredArgs.push({ argName: a.name, value: a.name })
+      }
+      if (a.isNullable) nullableArgs.push(a.name)
+    }
+    const orderedRequiredParams = [...requiredParams].toSorted((a, b) => argOrderWeight(a.name) - argOrderWeight(b.name)),
+      orderedRequiredArgs = [...requiredArgs].toSorted((a, b) => argOrderWeight(a.argName) - argOrderWeight(b.argName)),
+      params = [...orderedRequiredParams, ...optionalParams],
+      args = [...orderedRequiredArgs, ...optionalArgsData],
+      inferred = inferParsedReturnType(parsed, fnName, tableName)
+    if (parsed.callKind === 'query' && !inferred) return null
+    const desc: CustomFnDescriptor = {
+      args,
+      callKind: isMobile && parsed.callKind === 'mutation' ? 'mutate' : parsed.callKind,
+      nullableArgs: nullableArgs.length > 0 ? nullableArgs : undefined,
+      optionalArgs: optionalArgs.length > 0 ? optionalArgs : undefined,
+      params,
+      returnType: inferred
+    }
+    if (parsed.callKind === 'action')
+      if (inferred) {
+        const isArray = inferred.startsWith('[')
+        desc.mobileAction = {
+          notSkipReturnType: inferred,
+          skipArrayCast: isArray,
+          skipMethod: isArray ? `action${inferred.slice(1, -1)}` : `action${inferred}`
+        }
+      } else {
+        desc.voidDummy = true
+        desc.mobileAction = { notSkipReturnType: '[String: String]', skipMethod: 'action', voidAction: true }
+      }
+
+    return desc
+  },
   buildDesktopAclDescriptors = (tableName: string): Record<string, CustomFnDescriptor> => {
     const tableIdName = `${tableName}Id`
     return {
@@ -1403,16 +1701,22 @@ const loadCustomConfig = (configPath: string): CustomConfig => {
         { default: 'nil', name: 'isAdmin', type: 'Bool?' }
       ]
     },
+    cancelJoinRequest: {
+      args: [{ argName: 'requestId', value: 'requestId' }],
+      callKind: 'mutation',
+      params: [{ name: 'requestId', type: 'String' }]
+    },
     create: {
       args: [],
       callKind: 'mutation',
       nestedData: {
-        optional: [],
+        optional: ['avatarId'],
         required: ['name', 'slug']
       },
       params: [
         { name: 'name', type: 'String' },
-        { name: 'slug', type: 'String' }
+        { name: 'slug', type: 'String' },
+        { default: 'nil', name: 'avatarId', type: 'String?' }
       ]
     },
     get: {
@@ -1422,6 +1726,12 @@ const loadCustomConfig = (configPath: string): CustomConfig => {
       returnType: 'Org'
     },
     getBySlug: {
+      args: [{ argName: 'slug', value: 'slug' }],
+      callKind: 'query',
+      params: [{ name: 'slug', type: 'String' }],
+      returnType: 'Org?'
+    },
+    getPublic: {
       args: [{ argName: 'slug', value: 'slug' }],
       callKind: 'query',
       params: [{ name: 'slug', type: 'String' }],
@@ -1440,6 +1750,12 @@ const loadCustomConfig = (configPath: string): CustomConfig => {
         { name: 'orgId', type: 'String' }
       ]
     },
+    isSlugAvailable: {
+      args: [{ argName: 'slug', value: 'slug' }],
+      callKind: 'query',
+      params: [{ name: 'slug', type: 'String' }],
+      returnType: 'SlugAvailability'
+    },
     leave: {
       args: [{ argName: 'orgId', value: 'orgId' }],
       callKind: 'mutation',
@@ -1456,6 +1772,12 @@ const loadCustomConfig = (configPath: string): CustomConfig => {
       callKind: 'query',
       params: [{ name: 'orgId', type: 'String' }],
       returnType: 'OrgMembership'
+    },
+    myJoinRequest: {
+      args: [{ argName: 'orgId', value: 'orgId' }],
+      callKind: 'query',
+      params: [{ name: 'orgId', type: 'String' }],
+      returnType: 'OrgJoinRequest?'
     },
     myOrgs: {
       args: [],
@@ -1533,187 +1855,528 @@ const loadCustomConfig = (configPath: string): CustomConfig => {
       args: [],
       callKind: 'mutation',
       nestedData: {
-        optional: ['name', 'slug'],
+        optional: ['name', 'slug', 'avatarId'],
         outerArgs: ['orgId'],
         required: []
       },
       params: [
         { name: 'orgId', type: 'String' },
         { default: 'nil', name: 'name', type: 'String?' },
-        { default: 'nil', name: 'slug', type: 'String?' }
+        { default: 'nil', name: 'slug', type: 'String?' },
+        { default: 'nil', name: 'avatarId', type: 'String?' }
       ]
     }
   },
-  MOBILE_ORG_FN_DESCRIPTORS: Record<string, CustomFnDescriptor> = {
-    acceptInvite: {
-      args: [{ argName: 'token', value: 'token' }],
-      params: [{ name: 'token', type: 'String' }]
-    },
-    approveJoinRequest: {
-      args: [
-        { argName: 'requestId', value: 'requestId' },
-        { argName: 'isAdmin', value: 'isAdmin' }
-      ],
-      optionalArgs: ['isAdmin'],
-      params: [
-        { name: 'requestId', type: 'String' },
-        { default: 'nil', name: 'isAdmin', type: 'Bool?' }
-      ]
-    },
-    create: {
-      args: [],
-      nestedData: {
-        optional: [],
-        required: ['name', 'slug']
-      },
-      params: [
-        { name: 'name', type: 'String' },
-        { name: 'slug', type: 'String' }
-      ]
-    },
-    invite: {
-      args: [
-        { argName: 'email', value: 'email' },
-        { argName: 'isAdmin', value: 'isAdmin' },
-        { argName: 'orgId', value: 'orgId' }
-      ],
-      params: [
-        { name: 'email', type: 'String' },
-        { name: 'isAdmin', type: 'Bool' },
-        { name: 'orgId', type: 'String' }
-      ]
-    },
-    leave: {
-      args: [{ argName: 'orgId', value: 'orgId' }],
-      params: [{ name: 'orgId', type: 'String' }]
-    },
-    rejectJoinRequest: {
-      args: [{ argName: 'requestId', value: 'requestId' }],
-      params: [{ name: 'requestId', type: 'String' }]
-    },
-    remove: {
-      args: [{ argName: 'orgId', value: 'orgId' }],
-      params: [{ name: 'orgId', type: 'String' }]
-    },
-    removeMember: {
-      args: [{ argName: 'memberId', value: 'memberId' }],
-      params: [{ name: 'memberId', type: 'String' }]
-    },
-    requestJoin: {
-      args: [
-        { argName: 'orgId', value: 'orgId' },
-        { argName: 'message', value: 'message' }
-      ],
-      optionalArgs: ['message'],
-      params: [
-        { name: 'orgId', type: 'String' },
-        { default: 'nil', name: 'message', type: 'String?' }
-      ]
-    },
-    revokeInvite: {
-      args: [{ argName: 'inviteId', value: 'inviteId' }],
-      params: [{ name: 'inviteId', type: 'String' }]
-    },
-    setAdmin: {
-      args: [
-        { argName: 'isAdmin', value: 'isAdmin' },
-        { argName: 'memberId', value: 'memberId' }
-      ],
-      params: [
-        { name: 'isAdmin', type: 'Bool' },
-        { name: 'memberId', type: 'String' }
-      ]
-    },
-    transferOwnership: {
-      args: [
-        { argName: 'newOwnerId', value: 'newOwnerId' },
-        { argName: 'orgId', value: 'orgId' }
-      ],
-      params: [
-        { name: 'newOwnerId', type: 'String' },
-        { name: 'orgId', type: 'String' }
-      ]
-    },
-    update: {
-      args: [],
-      nestedData: {
-        optional: ['name', 'slug'],
-        outerArgs: ['orgId'],
-        required: []
-      },
-      params: [
-        { name: 'orgId', type: 'String' },
-        { default: 'nil', name: 'name', type: 'String?' },
-        { default: 'nil', name: 'slug', type: 'String?' }
-      ]
-    }
-  },
+  MOBILE_ORG_FN_DESCRIPTORS: Record<string, CustomFnDescriptor> = DESKTOP_ORG_FN_DESCRIPTORS,
   isOrgModule = (fnSet: Set<string>): boolean => fnSet.has('myOrgs') && fnSet.has('membership') && fnSet.has('members'),
   hasAcl = (fnSet: Set<string>): boolean =>
     fnSet.has('addEditor') && fnSet.has('removeEditor') && fnSet.has('setEditors') && fnSet.has('editors'),
   hasMobileAcl = (fnSet: Set<string>): boolean => fnSet.has('addEditor') && fnSet.has('removeEditor'),
   // eslint-disable-next-line max-statements
-  mergeOrgCreateUpdate = (
-    baseDescs: Record<string, CustomFnDescriptor>,
-    configOverrides: Record<string, CustomFnDescriptor> | undefined
+  mergeOrgSchemaCreateUpdate = (
+    descs: Record<string, CustomFnDescriptor>,
+    tableName: string
   ): Record<string, CustomFnDescriptor> => {
-    const result = { ...baseDescs }
-    if (!configOverrides) return result
-    for (const [fnName, desc] of Object.entries(configOverrides)) {
-      const existing = result[fnName]
-      if (existing?.nestedData && desc.nestedData) {
-        const mergedOptional = [...existing.nestedData.optional]
-        for (const o of desc.nestedData.optional) if (!mergedOptional.includes(o)) mergedOptional.push(o)
-        const mergedRequired = [...existing.nestedData.required]
-        for (const r of desc.nestedData.required) if (!mergedRequired.includes(r)) mergedRequired.push(r)
-        result[fnName] = {
-          ...existing,
-          nestedData: {
-            ...existing.nestedData,
-            optional: mergedOptional,
-            required: mergedRequired
-          },
-          params: [...existing.params, ...desc.params.filter(p => !existing.params.some(ep => ep.name === p.name))]
+    const schemaFields = userSchemaFields[tableName]
+    if (!schemaFields) return descs
+    const reserved = new Set(['_creationTime', '_id', 'updatedAt', 'userId'])
+    let result = { ...descs }
+    const createDesc = result.create
+    if (createDesc?.nestedData) {
+      const required = new Set(createDesc.nestedData.required),
+        optional = [...createDesc.nestedData.optional],
+        params = [...createDesc.params]
+      for (const [name, field] of schemaFields)
+        if (!(reserved.has(name) || required.has(name))) {
+          if (!optional.includes(name)) optional.push(name)
+          if (!params.some(p => p.name === name)) params.push({ default: 'nil', name, type: `${field.swiftType}?` })
         }
-      } else result[fnName] = desc
+      result = {
+        ...result,
+        create: {
+          ...createDesc,
+          nestedData: { ...createDesc.nestedData, optional },
+          params
+        }
+      }
+    }
+    const updateDesc = result.update
+    if (updateDesc?.nestedData) {
+      const optional = [...updateDesc.nestedData.optional],
+        params = [...updateDesc.params]
+      for (const [name, field] of schemaFields)
+        if (!reserved.has(name)) {
+          if (!optional.includes(name)) optional.push(name)
+          if (!params.some(p => p.name === name)) params.push({ default: 'nil', name, type: `${field.swiftType}?` })
+        }
+      result = {
+        ...result,
+        update: {
+          ...updateDesc,
+          nestedData: { ...updateDesc.nestedData, optional },
+          params
+        }
+      }
     }
     return result
+  },
+  snakeToCamel = (s: string): string => s.replaceAll(/_(?<ch>[a-z])/gu, (_, c: string) => c.toUpperCase()),
+  maybeAddPubReadAutoDescriptor = (ctx: {
+    auto: Record<string, CustomFnDescriptor>
+    factoryType: 'base' | 'child' | 'orgScoped' | 'owned' | 'singleton' | undefined
+    fnSet: Set<string>
+    structName: string
+  }): void => {
+    const { auto, factoryType, fnSet, structName } = ctx
+    if (factoryType === 'owned' && fnSet.has('pubRead'))
+      auto.pubRead = {
+        args: [{ argName: 'id', value: 'id' }],
+        callKind: 'query',
+        params: [{ name: 'id', type: 'String' }],
+        returnType: structName
+      }
+  },
+  maybeAddChildReadAutoDescriptors = (ctx: {
+    auto: Record<string, CustomFnDescriptor>
+    fnSet: Set<string>
+    structName: string
+    tableName: string
+  }): void => {
+    const { auto, fnSet, structName, tableName } = ctx,
+      fk = childForeignKeys[tableName] ?? `${tableName}Id`
+    if (fnSet.has('list'))
+      auto.list = {
+        args: [{ argName: fk, value: fk }],
+        callKind: 'query',
+        params: [{ name: fk, type: 'String' }],
+        returnType: `[${structName}]`
+      }
+    if (fnSet.has('pubList'))
+      auto.pubList = {
+        args: [{ argName: fk, value: fk }],
+        callKind: 'query',
+        params: [{ name: fk, type: 'String' }],
+        returnType: `[${structName}]`
+      }
+    if (fnSet.has('pubGet'))
+      auto.pubGet = {
+        args: [{ argName: 'id', value: 'id' }],
+        callKind: 'query',
+        params: [{ name: 'id', type: 'String' }],
+        returnType: structName
+      }
+  },
+  findUnionArrayField = (fields: Map<string, FieldEntry>): null | { unionFieldName: string; unionStructName: string } => {
+    for (const [fieldName, field] of fields)
+      if (field.swiftType.startsWith('[') && field.swiftType.endsWith(']')) {
+        const inner = field.swiftType.slice(1, -1)
+        if (unionStructFieldsMap[inner]) return { unionFieldName: fieldName, unionStructName: inner }
+      }
+    return null
+  },
+  buildStructArrayCreateDescriptor = (
+    fields: Map<string, FieldEntry>,
+    unionFieldName: string,
+    unionStructName: string
+  ): CustomFnDescriptor | null => {
+    const buildParamsAndExtraArgs = (): { extraArgs: CustomFnArg[]; params: CustomFnParam[] } => {
+        const builtParams: CustomFnParam[] = [],
+          builtExtraArgs: CustomFnArg[] = []
+        for (const [fieldName, field] of fields) {
+          const t = field.isOptional ? `${field.swiftType}?` : field.swiftType
+          builtParams.push({ default: field.isOptional ? 'nil' : undefined, name: fieldName, type: t })
+          if (fieldName !== unionFieldName) {
+            const value = enumRegistry.has(field.swiftType) ? `${fieldName}.rawValue` : fieldName
+            builtExtraArgs.push({ argName: fieldName, value })
+          }
+        }
+        return { extraArgs: builtExtraArgs, params: builtParams }
+      },
+      buildUnionFields = (): null | { optionalFields: StructArrayField[]; requiredFields: StructArrayField[] } => {
+        const unionFields = unionStructFieldsMap[unionStructName]
+        if (!unionFields) return null
+        const requiredFields: StructArrayField[] = [],
+          optionalFields: StructArrayField[] = []
+        for (const [fieldName, field] of unionFields)
+          if (field.isOptional) optionalFields.push({ localBinding: fieldName, name: fieldName, value: fieldName })
+          else {
+            const value = enumRegistry.has(field.swiftType) ? `p.${fieldName}.rawValue` : `p.${fieldName}`
+            requiredFields.push({ name: fieldName, value })
+          }
+        return { optionalFields, requiredFields }
+      },
+      { extraArgs, params } = buildParamsAndExtraArgs(),
+      unionData = buildUnionFields()
+    if (!unionData) return null
+    return {
+      args: [],
+      callKind: 'mutation',
+      params,
+      structArraySerialization: {
+        extraArgs,
+        optionalFields: unionData.optionalFields,
+        paramName: unionFieldName,
+        requiredFields: unionData.requiredFields
+      }
+    }
+  },
+  maybeAddChildCreateStructArrayDescriptor = (
+    auto: Record<string, CustomFnDescriptor>,
+    fnSet: Set<string>,
+    fields: Map<string, FieldEntry> | undefined
+  ): void => {
+    if (!(fields && fnSet.has('create') && !allFieldsArgSafe(fields))) return
+    const unionMeta = findUnionArrayField(fields)
+    if (!unionMeta) return
+    const createDesc = buildStructArrayCreateDescriptor(fields, unionMeta.unionFieldName, unionMeta.unionStructName)
+    if (createDesc) auto.create = createDesc
+  },
+  maybeAddCacheLoadDescriptor = (ctx: {
+    auto: Record<string, CustomFnDescriptor>
+    fields: Map<string, FieldEntry> | undefined
+    fnSet: Set<string>
+    isMobile: boolean
+    modName: string
+    structName: string
+  }): void => {
+    const { auto, fields, fnSet, isMobile, modName, structName } = ctx
+    if (!fields) return
+    const cacheKey = parsedCacheKeys[modName]
+    if (!(cacheKey && fnSet.has('load'))) return
+    const keyField = fields.get(cacheKey),
+      keyType = keyField?.swiftType ?? 'String',
+      paramName = cacheKey.includes('_') ? snakeToCamel(cacheKey) : cacheKey,
+      mobileAction = isMobile
+        ? {
+            notSkipReturnType: structName,
+            skipMethod: `action${structName}`
+          }
+        : undefined
+    auto.load = {
+      args: [{ argName: cacheKey, value: paramName }],
+      callKind: 'action',
+      mobileAction,
+      params: [{ name: paramName, type: keyType }],
+      returnType: structName
+    }
+  },
+  maybeAddFileUploadDescriptor = (auto: Record<string, CustomFnDescriptor>, modName: string, fnSet: Set<string>): void => {
+    if (modName === 'file' && fnSet.has('upload'))
+      auto.upload = {
+        args: [],
+        callKind: 'mutation',
+        params: [],
+        returnType: 'String'
+      }
+  },
+  mergeParsedFnDescriptors = (ctx: {
+    auto: Record<string, CustomFnDescriptor>
+    fnSet: Set<string>
+    isMobile: boolean
+    modName: string
+    tableName: string
+  }): Record<string, CustomFnDescriptor> => {
+    const { auto, fnSet, isMobile, modName, tableName } = ctx,
+      merged: Record<string, CustomFnDescriptor> = { ...auto },
+      parsedFns = parsedSourceFns[modName] ?? {}
+    for (const [fnName, parsed] of Object.entries(parsedFns))
+      if (fnSet.has(fnName) && !merged[fnName]) {
+        const desc = buildDescriptorFromParsed({ isMobile, tableName }, fnName, parsed)
+        if (desc) merged[fnName] = desc
+      }
+    return merged
+  },
+  sortDescriptors = (descs: Record<string, CustomFnDescriptor>): Record<string, CustomFnDescriptor> => {
+    const sorted: Record<string, CustomFnDescriptor> = {}
+    for (const k of Object.keys(descs).toSorted()) {
+      const desc = descs[k]
+      if (desc) sorted[k] = desc
+    }
+    return sorted
+  },
+  buildBaseAutoDescriptors = (ctx: {
+    fnSet: Set<string>
+    isMobile: boolean
+    modName: string
+    tableName: string
+  }): Record<string, CustomFnDescriptor> => {
+    const { fnSet, isMobile, modName, tableName } = ctx,
+      factoryType = tableFactoryType[tableName],
+      structName = safeSwiftName(pascalCase(tableName)),
+      fields = userSchemaFields[tableName],
+      auto: Record<string, CustomFnDescriptor> = {}
+    maybeAddPubReadAutoDescriptor({ auto, factoryType, fnSet, structName })
+    if (factoryType === 'child') {
+      maybeAddChildReadAutoDescriptors({ auto, fnSet, structName, tableName })
+      if (!isMobile) maybeAddChildCreateStructArrayDescriptor(auto, fnSet, fields)
+    }
+    if (factoryType === 'base') maybeAddCacheLoadDescriptor({ auto, fields, fnSet, isMobile, modName, structName })
+    maybeAddFileUploadDescriptor(auto, modName, fnSet)
+    return auto
   },
   buildDesktopDescriptors = (
     modName: string,
     tableName: string,
     fnSet: Set<string>
   ): Record<string, CustomFnDescriptor> => {
-    let auto: Record<string, CustomFnDescriptor> = {}
-    if (isOrgModule(fnSet)) auto = mergeOrgCreateUpdate(DESKTOP_ORG_FN_DESCRIPTORS, customConfig.desktop?.[modName])
-    else if (hasAcl(fnSet)) auto = buildDesktopAclDescriptors(tableName)
-    const configFns = customConfig.desktop?.[modName] ?? {},
-      merged: Record<string, CustomFnDescriptor> = { ...auto }
-    for (const [k, v] of Object.entries(configFns)) merged[k] ??= v
-    const sorted: Record<string, CustomFnDescriptor> = {}
-    for (const k of Object.keys(merged).toSorted()) {
-      const desc = merged[k]
-      if (desc) sorted[k] = desc
-    }
-    return sorted
+    const orgOrAclAuto = isOrgModule(fnSet)
+        ? mergeOrgSchemaCreateUpdate(DESKTOP_ORG_FN_DESCRIPTORS, tableName)
+        : hasAcl(fnSet)
+          ? buildDesktopAclDescriptors(tableName)
+          : {},
+      auto = { ...orgOrAclAuto, ...buildBaseAutoDescriptors({ fnSet, isMobile: false, modName, tableName }) },
+      merged = mergeParsedFnDescriptors({ auto, fnSet, isMobile: false, modName, tableName })
+    return sortDescriptors(merged)
   },
   buildMobileDescriptors = (
     modName: string,
     tableName: string,
     fnSet: Set<string>
   ): Record<string, CustomFnDescriptor> => {
-    let auto: Record<string, CustomFnDescriptor> = {}
-    if (isOrgModule(fnSet)) auto = mergeOrgCreateUpdate(MOBILE_ORG_FN_DESCRIPTORS, customConfig.mobile?.[modName])
-    else if (hasMobileAcl(fnSet)) auto = buildMobileAclDescriptors(tableName)
-    const configFns = customConfig.mobile?.[modName] ?? {},
-      merged: Record<string, CustomFnDescriptor> = { ...auto }
-    for (const [k, v] of Object.entries(configFns)) merged[k] ??= v
-    const sorted: Record<string, CustomFnDescriptor> = {}
-    for (const k of Object.keys(merged).toSorted()) {
-      const desc = merged[k]
-      if (desc) sorted[k] = desc
+    const orgOrAclAuto = isOrgModule(fnSet)
+        ? mergeOrgSchemaCreateUpdate(MOBILE_ORG_FN_DESCRIPTORS, tableName)
+        : hasMobileAcl(fnSet)
+          ? buildMobileAclDescriptors(tableName)
+          : {},
+      auto = { ...orgOrAclAuto, ...buildBaseAutoDescriptors({ fnSet, isMobile: true, modName, tableName }) },
+      merged = mergeParsedFnDescriptors({ auto, fnSet, isMobile: true, modName, tableName })
+    return sortDescriptors(merged)
+  },
+  // eslint-disable-next-line max-statements
+  subscriptionSkipMethod = (fnName: string, resultType: string): string => {
+    if (fnName === 'myOrgs') return 'subscribeOrgsWithRole'
+    if (fnName === 'members') return 'subscribeOrgMembers'
+    if (fnName === 'pendingInvites') return 'subscribeInvites'
+    if (fnName === 'pendingJoinRequests') return 'subscribeJoinRequests'
+    if (fnName === 'editors') return 'subscribeEditors'
+    if (resultType.startsWith('PaginatedResult<') && resultType.endsWith('>')) {
+      const inner = resultType.slice('PaginatedResult<'.length, -1)
+      return `subscribePaginated${inner}s`
     }
-    return sorted
+    if (resultType.startsWith('[') && resultType.endsWith(']')) {
+      const inner = resultType.slice(1, -1)
+      return `subscribe${inner}s`
+    }
+    return `subscribe${resultType}`
+  },
+  hasSubscriptionMethod = (subs: MobileSubscriptionDescriptor[], methodName: string): boolean => {
+    for (const s of subs) if (s.methodName === methodName) return true
+    return false
+  },
+  hasSubscriptionApiRef = (subs: MobileSubscriptionDescriptor[], apiRef: string): boolean => {
+    for (const s of subs) if (s.apiRef === apiRef) return true
+    return false
+  },
+  addOwnedListSubscription = (ctx: {
+    factoryType: 'orgScoped' | 'owned'
+    structName: string
+    subs: MobileSubscriptionDescriptor[]
+    tableName: string
+  }): void => {
+    const { factoryType, structName, subs, tableName } = ctx,
+      params: CustomFnParam[] = []
+    if (factoryType === 'orgScoped') params.push({ name: 'orgId', type: 'String' })
+    if (whereFieldsMap[tableName])
+      params.push({ default: 'nil', name: 'where filterWhere', type: `${pascalCase(tableName)}Where?` })
+    subs.push({
+      apiRef: 'list',
+      args: [],
+      listArgsParam: factoryType === 'orgScoped' ? 'orgId: orgId, where: filterWhere' : undefined,
+      methodName: 'subscribeList',
+      notSkipType: `PaginatedResult<${structName}>`,
+      params,
+      resultType: `PaginatedResult<${structName}>`,
+      skipMethod: `subscribePaginated${structName}s`,
+      usesListArgs: true
+    })
+  },
+  addOwnedReadSubscription = (
+    subs: MobileSubscriptionDescriptor[],
+    structName: string,
+    factoryType: 'orgScoped' | 'owned'
+  ): void => {
+    const args: CustomFnArg[] = [{ argName: 'id', value: 'id' }],
+      params: CustomFnParam[] = [{ name: 'id', type: 'String' }]
+    if (factoryType === 'orgScoped') {
+      args.push({ argName: 'orgId', value: 'orgId' })
+      params.unshift({ name: 'orgId', type: 'String' })
+    }
+    subs.push({
+      apiRef: 'read',
+      args,
+      methodName: 'subscribeRead',
+      notSkipType: structName,
+      params,
+      resultType: structName,
+      skipMethod: `subscribe${structName}`
+    })
+  },
+  addOwnedEditorsSubscription = (subs: MobileSubscriptionDescriptor[], tableName: string): void => {
+    const tableIdName = `${tableName}Id`
+    subs.push({
+      apiRef: 'editors',
+      args: [
+        { argName: 'orgId', value: 'orgId' },
+        { argName: tableIdName, value: tableIdName }
+      ],
+      methodName: 'subscribeEditors',
+      notSkipType: '[EditorEntry]',
+      params: [
+        { name: 'orgId', type: 'String' },
+        { name: tableIdName, type: 'String' }
+      ],
+      resultType: '[EditorEntry]',
+      skipArrayCast: true,
+      skipMethod: 'subscribeEditors'
+    })
+  },
+  addOwnedOrOrgScopedSubscriptions = (ctx: {
+    factoryType: 'orgScoped' | 'owned'
+    fnSet: Set<string>
+    structName: string
+    subs: MobileSubscriptionDescriptor[]
+    tableName: string
+  }): void => {
+    const { factoryType, fnSet, structName, subs, tableName } = ctx
+    if (fnSet.has('list')) addOwnedListSubscription({ factoryType, structName, subs, tableName })
+    if (fnSet.has('read')) addOwnedReadSubscription(subs, structName, factoryType)
+    if (fnSet.has('editors')) addOwnedEditorsSubscription(subs, tableName)
+  },
+  addSingletonSubscriptions = (subs: MobileSubscriptionDescriptor[], structName: string, fnSet: Set<string>): void => {
+    if (fnSet.has('get'))
+      subs.push({
+        apiRef: 'get',
+        args: [],
+        methodName: 'subscribeGet',
+        notSkipType: structName,
+        onNull: true,
+        params: [],
+        resultType: structName,
+        skipMethod: `subscribe${structName}`
+      })
+  },
+  addChildSubscriptions = (ctx: {
+    fnSet: Set<string>
+    structName: string
+    subs: MobileSubscriptionDescriptor[]
+    tableName: string
+  }): void => {
+    const { fnSet, structName, subs, tableName } = ctx,
+      fk = childForeignKeys[tableName] ?? `${tableName}Id`
+    if (fnSet.has('list'))
+      subs.push({
+        apiRef: 'list',
+        args: [{ argName: fk, value: fk }],
+        methodName: 'subscribeList',
+        notSkipType: `[${structName}]`,
+        params: [{ name: fk, type: 'String' }],
+        resultType: `[${structName}]`,
+        skipArrayCast: true,
+        skipMethod: `subscribe${structName}s`
+      })
+    if (fnSet.has('pubList'))
+      subs.push({
+        apiRef: 'pubList',
+        args: [{ argName: fk, value: fk }],
+        methodName: 'subscribePubList',
+        notSkipType: `[${structName}]`,
+        params: [{ name: fk, type: 'String' }],
+        resultType: `[${structName}]`,
+        skipArrayCast: true,
+        skipMethod: `subscribe${structName}s`
+      })
+  },
+  ORG_SUBSCRIPTIONS: MobileSubscriptionDescriptor[] = [
+    {
+      apiRef: 'myOrgs',
+      args: [],
+      methodName: 'subscribeMyOrgs',
+      notSkipType: '[OrgWithRole]',
+      params: [],
+      resultType: '[OrgWithRole]',
+      skipArrayCast: true,
+      skipMethod: 'subscribeOrgsWithRole'
+    },
+    {
+      apiRef: 'members',
+      args: [{ argName: 'orgId', value: 'orgId' }],
+      methodName: 'subscribeMembers',
+      notSkipType: '[OrgMemberEntry]',
+      params: [{ name: 'orgId', type: 'String' }],
+      resultType: '[OrgMemberEntry]',
+      skipArrayCast: true,
+      skipMethod: 'subscribeOrgMembers'
+    },
+    {
+      apiRef: 'pendingInvites',
+      args: [{ argName: 'orgId', value: 'orgId' }],
+      methodName: 'subscribePendingInvites',
+      notSkipType: '[OrgInvite]',
+      params: [{ name: 'orgId', type: 'String' }],
+      resultType: '[OrgInvite]',
+      skipArrayCast: true,
+      skipMethod: 'subscribeInvites'
+    },
+    {
+      apiRef: 'pendingJoinRequests',
+      args: [{ argName: 'orgId', value: 'orgId' }],
+      methodName: 'subscribePendingJoinRequests',
+      notSkipType: '[JoinRequestEntry]',
+      params: [{ name: 'orgId', type: 'String' }],
+      resultType: '[JoinRequestEntry]',
+      skipArrayCast: true,
+      skipMethod: 'subscribeJoinRequests'
+    }
+  ],
+  addOrgSubscriptions = (subs: MobileSubscriptionDescriptor[], fnSet: Set<string>): void => {
+    for (const s of ORG_SUBSCRIPTIONS) if (fnSet.has(s.apiRef) && !hasSubscriptionMethod(subs, s.methodName)) subs.push(s)
+  },
+  addParsedQuerySubscriptions = (ctx: {
+    fnSet: Set<string>
+    modName: string
+    subs: MobileSubscriptionDescriptor[]
+    tableName: string
+  }): void => {
+    const { fnSet, modName, subs, tableName } = ctx,
+      parsedDescriptors = buildMobileDescriptors(modName, tableName, fnSet)
+    for (const [fnName, desc] of Object.entries(parsedDescriptors))
+      if (
+        fnSet.has(fnName) &&
+        (desc.callKind === 'query' || desc.callKind === undefined) &&
+        desc.returnType &&
+        !hasSubscriptionApiRef(subs, fnName)
+      ) {
+        const isArray = desc.returnType.startsWith('['),
+          isPaginated = desc.returnType.startsWith('PaginatedResult<')
+        subs.push({
+          apiRef: fnName,
+          args: desc.args,
+          methodName: `subscribe${capitalize(fnName)}`,
+          notSkipType: desc.returnType,
+          params: desc.params,
+          resultType: desc.returnType,
+          skipArrayCast: isArray,
+          skipMethod: subscriptionSkipMethod(fnName, desc.returnType),
+          usesListArgs: isPaginated
+        })
+      }
+  },
+  buildMobileSubscriptions = (ctx: {
+    factoryType: 'base' | 'child' | 'orgScoped' | 'owned' | 'singleton' | undefined
+    fnSet: Set<string>
+    modName: string
+    tableName: string
+  }): MobileSubscriptionDescriptor[] => {
+    const { factoryType, fnSet, modName, tableName } = ctx,
+      subs: MobileSubscriptionDescriptor[] = [],
+      structName = safeSwiftName(pascalCase(tableName))
+    if (factoryType === 'owned' || factoryType === 'orgScoped')
+      addOwnedOrOrgScopedSubscriptions({ factoryType, fnSet, structName, subs, tableName })
+    if (factoryType === 'singleton') addSingletonSubscriptions(subs, structName, fnSet)
+    if (factoryType === 'child') addChildSubscriptions({ fnSet, structName, subs, tableName })
+    if (isOrgModule(fnSet)) addOrgSubscriptions(subs, fnSet)
+    addParsedQuerySubscriptions({ fnSet, modName, subs, tableName })
+    return subs
   }
 
 for (const [modName, fns] of Object.entries(modules)) {
@@ -1984,7 +2647,7 @@ if (MOBILE_OUTPUT_PATH) {
       }
     }
 
-    const subs = customConfig.subscriptions?.[modName] ?? []
+    const subs = buildMobileSubscriptions({ factoryType, fnSet, modName, tableName })
     if (subs.length > 0) {
       me('')
       me(`extension ${apiName} {`)

@@ -7,7 +7,7 @@ import SwiftUI
 @Observable
 internal final class SearchViewModel: Performing {
     var query = ""
-    var results = [SearchResult]()
+    var results = [Movie]()
     var isLoading = false
     var errorMessage: String?
     var mutationError: String? {
@@ -46,7 +46,7 @@ internal final class SearchViewModel: Performing {
 }
 
 internal struct ResultRow: View {
-    let result: SearchResult
+    let result: Movie
 
     private let tmdbImg = "https://image.tmdb.org/t/p/w200"
 

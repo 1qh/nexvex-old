@@ -16,7 +16,7 @@ internal final class DetailViewModel: Performing {
 
     func loadMovie(tmdbID: Int) {
         performLoading({ self.isLoading = $0 }) {
-            self.movie = try await MovieAPI.load(tmdbId: tmdbID)
+            self.movie = try await MovieAPI.load(tmdbId: Double(tmdbID))
         }
     }
 

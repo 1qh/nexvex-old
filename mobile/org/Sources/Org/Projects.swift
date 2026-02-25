@@ -135,12 +135,13 @@ internal struct ProjectsView: View {
                                 editingProjectID = project._id
                                 showEditSheet = true
                             }) {
-                                Image(systemName: "pencil.circle")
+                                Label("Edit", systemImage: "pencil.circle")
+                                    .labelStyle(.titleAndIcon)
                                     .foregroundStyle(.blue)
-                                    .accessibilityHidden(true)
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("editProjectButton")
+                            .accessibilityLabel("Edit Project")
                         }
                     }
                 }

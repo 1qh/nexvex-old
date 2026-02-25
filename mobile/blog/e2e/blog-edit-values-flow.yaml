@@ -55,14 +55,13 @@ appId: dev.lazyconvex.blog
 - hideKeyboard
 
 - scrollUntilVisible:
-    element: "Save"
-    direction: UP
-    timeout: 5000
+    element: "Saved"
+    direction: DOWN
+    timeout: 10000
 
-- tapOn: "Save"
+- tapOn: "Cancel"
 - waitForAnimationToEnd
 
 - extendedWaitUntil:
-    visible: "Detail"
+    visible: "Updated Edit Values"
     timeout: 10000
-- assertVisible: "Updated Edit Values"

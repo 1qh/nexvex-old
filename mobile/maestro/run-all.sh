@@ -32,7 +32,7 @@ for port in "${PORTS[@]}"; do
   done
 done
 
-SHARD_COUNT=$(( ${#AVDS[@]} + 1 ))
+SHARD_COUNT=${#AVDS[@]}
 
 MOBILE_DIR="$SCRIPT_DIR/.."
 

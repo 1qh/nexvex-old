@@ -13,7 +13,7 @@ internal final class DetailViewModel: SwiftCrossUI.ObservableObject, Performing 
     @MainActor
     func loadMovie(tmdbID: Int) async {
         await performLoading({ isLoading = $0 }) {
-            let loaded = try await MovieAPI.load(client, tmdbId: tmdbID)
+            let loaded = try await MovieAPI.load(client, tmdbId: Double(tmdbID))
             movie = loaded
             if let poster = loaded.poster_path {
                 Task {

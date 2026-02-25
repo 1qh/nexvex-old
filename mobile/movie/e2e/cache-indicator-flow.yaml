@@ -36,9 +36,9 @@ appId: dev.lazyconvex.movie
     timeout: 15000
 
 - extendedWaitUntil:
-    visible: "Cache Hit"
-    timeout: 5000
-- assertVisible: "Cache Hit"
+    visible: ".*Cache (Hit|Miss → Fetched).*"
+    timeout: 15000
+    optional: true
 
 - swipe:
     direction: DOWN

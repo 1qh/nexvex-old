@@ -40,12 +40,7 @@ appId: dev.lazyconvex.org
 - assertVisible: "second-pending@example.com"
 
 - tapOn:
-    id: "copyInviteLink"
-    index: 0
-- waitForAnimationToEnd
-
-- tapOn:
-    id: "revokeInvite"
+    text: "Revoke"
     index: 0
 - waitForAnimationToEnd
 
@@ -54,6 +49,6 @@ appId: dev.lazyconvex.org
     timeout: 10000
 
 - tapOn:
-    id: "revokeInvite"
+    text: "Revoke"
     index: 0
 - waitForAnimationToEnd

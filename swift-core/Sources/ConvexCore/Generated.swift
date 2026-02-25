@@ -1120,11 +1120,11 @@ public enum MovieAPI {
     public static let update = "movie:update"
 
     #if DESKTOP
-    public static func load(_ client: ConvexClientProtocol, tmdbId: Int) async throws -> Movie {
-        try await client.action("movie:load", args: ["tmdb_id": Double(tmdbId)])
+    public static func load(_ client: ConvexClientProtocol, tmdbId: Double) async throws -> Movie {
+        try await client.action("movie:load", args: ["tmdb_id": tmdbId])
     }
 
-    public static func search(_ client: ConvexClientProtocol, query: String) async throws -> [SearchResult] {
+    public static func search(_ client: ConvexClientProtocol, query: String) async throws -> [Movie] {
         try await client.action("movie:search", args: ["query": query])
     }
     #endif
@@ -1263,6 +1263,10 @@ public enum MessageAPI {
         try await client.query("message:list", args: ["chatId": chatId])
     }
 
+    public static func pubGet(_ client: ConvexClientProtocol, id: String) async throws -> Message {
+        try await client.query("message:pubGet", args: ["id": id])
+    }
+
     public static func pubList(_ client: ConvexClientProtocol, chatId: String) async throws -> [Message] {
         try await client.query("message:pubList", args: ["chatId": chatId])
     }
@@ -1367,7 +1371,7 @@ public enum OrgAPI {
         try await client.query("org:getBySlug", args: ["slug": slug])
     }
 
-    public static func getOrCreate(_ client: ConvexClientProtocol) async throws -> OrgGetOrCreateResult {
+    public static func getOrCreate(_ client: ConvexClientProtocol) async throws {
         try await client.mutation("org:getOrCreate", args: [:])
     }
 
@@ -1579,11 +1583,9 @@ public enum TaskAPI {
     }
 
     public static func assign(_ client: ConvexClientProtocol, orgId: String, id: String, assigneeId: String? = nil) async throws {
-        var args: [String: Any] = ["id": id, "orgId": orgId]
+        var args: [String: Any] = ["orgId": orgId, "id": id]
         if let assigneeId {
             args["assigneeId"] = assigneeId
-        } else {
-            args["assigneeId"] = NSNull()
         }
         try await client.mutation("task:assign", args: args)
     }

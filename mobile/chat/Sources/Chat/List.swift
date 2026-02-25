@@ -143,12 +143,13 @@ internal struct ListView: View {
                                 chatToDelete = chat._id
                                 showDeleteConfirm = true
                             }) {
-                                Image(systemName: "trash")
+                                Label("Delete", systemImage: "trash")
+                                    .labelStyle(.titleAndIcon)
                                     .foregroundStyle(.red)
-                                    .accessibilityHidden(true)
                             }
                             .buttonStyle(.borderless)
                             .accessibilityIdentifier("deleteChat")
+                            .accessibilityLabel("Delete")
                         }
                     }
                     if !viewModel.isDone {
@@ -181,6 +182,7 @@ internal struct ListView: View {
                         .accessibilityHidden(true)
                 }
                 .accessibilityIdentifier("togglePublic")
+                .accessibilityLabel("Toggle Public")
             }
             ToolbarItem(placement: .automatic) {
                 NavigationLink(value: PublicListRoute()) {
@@ -188,6 +190,7 @@ internal struct ListView: View {
                         .accessibilityHidden(true)
                 }
                 .accessibilityIdentifier("publicChats")
+                .accessibilityLabel("Public Chats")
             }
         }
         .confirmationDialog("Delete this chat?", isPresented: $showDeleteConfirm) {

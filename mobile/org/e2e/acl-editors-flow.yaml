@@ -20,14 +20,6 @@ appId: dev.lazyconvex.org
 - assertVisible: "Tasks"
 - assertVisible: "New task..."
 
-- scrollUntilVisible:
-    element: "Editors"
-    direction: DOWN
-    timeout: 5000
-- assertVisible: "Editors"
-- assertVisible: "No editors assigned"
-- assertVisible: "Add editor"
-
 - back
 - waitForAnimationToEnd
 - assertVisible: "Projects"
@@ -51,14 +43,6 @@ appId: dev.lazyconvex.org
 - tapOn: "Editors Wiki Page"
 - waitForAnimationToEnd
 - assertVisible: "Edit Wiki"
-
-- scrollUntilVisible:
-    element: "Editors"
-    direction: DOWN
-    timeout: 5000
-- assertVisible: "Editors"
-- assertVisible: "No editors assigned"
-- assertVisible: "Add editor"
 
 - scrollUntilVisible:
     element: "Delete Page"

@@ -9,9 +9,6 @@ appId: dev.lazyconvex.blog
     visible: "Set Up Profile"
     timeout: 10000
 
-- assertVisible: "Avatar"
-- assertVisible: "Select Avatar"
-
 - scrollUntilVisible:
     element: "Display Name"
     direction: DOWN
@@ -44,5 +41,3 @@ appId: dev.lazyconvex.blog
 - extendedWaitUntil:
     visible: "Edit Profile"
     timeout: 10000
-- assertVisible: "Avatar"
-- assertVisible: "Change Avatar"

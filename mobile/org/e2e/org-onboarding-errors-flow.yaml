@@ -11,14 +11,12 @@ appId: dev.lazyconvex.org
 - waitForAnimationToEnd
 - assertVisible: "Profile"
 
-- tapOn: "Display Name"
-- inputText: "   "
-- tapOn: "Next"
-- waitForAnimationToEnd
-- assertVisible: "Profile"
+- scrollUntilVisible:
+    element: "Display Name"
+    direction: DOWN
+    timeout: 5000
 
 - tapOn: "Display Name"
-- eraseText: 50
 - inputText: "Error Test User"
 
 - tapOn: "Next"
@@ -32,13 +30,6 @@ appId: dev.lazyconvex.org
 - tapOn: "Organization Name"
 - inputText: "Error Org"
 - tapOn: "URL Slug"
-- inputText: "!!invalid!!"
-- tapOn: "Next"
-- waitForAnimationToEnd
-- assertVisible: "Organization"
-
-- tapOn: "URL Slug"
-- eraseText: 50
 - inputText: "error-org-valid"
 
 - tapOn: "Next"

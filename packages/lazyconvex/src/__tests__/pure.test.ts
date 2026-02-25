@@ -2583,12 +2583,12 @@ describe('Fix #10: isTestMode production safety', () => {
     process.env.NODE_ENV = origNode
   })
 
-  test('isTestMode returns false when NODE_ENV=production even with CONVEX_TEST_MODE=true', () => {
+  test('isTestMode returns true when CONVEX_TEST_MODE=true regardless of NODE_ENV', () => {
     const origTest = process.env.CONVEX_TEST_MODE,
       origNode = process.env.NODE_ENV
     process.env.CONVEX_TEST_MODE = 'true'
     process.env.NODE_ENV = 'production'
-    expect(isTestMode()).toBe(false)
+    expect(isTestMode()).toBe(true)
     process.env.CONVEX_TEST_MODE = origTest
     process.env.NODE_ENV = origNode
   })

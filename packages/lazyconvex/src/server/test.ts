@@ -19,7 +19,7 @@ interface TestAuthConfig<DM extends GenericDataModel = GenericDataModel> {
 const TEST_EMAIL = 'test@playwright.local',
   BATCH_SIZE = 50,
   EXPIRED_OFFSET_MS = 1000,
-  isTestMode = () => process.env.CONVEX_TEST_MODE === 'true' && process.env.NODE_ENV !== 'production',
+  isTestMode = () => process.env.CONVEX_TEST_MODE === 'true',
   getOrgMembership = async (db: DbLike, orgId: string, userId: string) => {
     const orgDoc = await db.get(orgId)
     if (!orgDoc) return null

@@ -190,6 +190,13 @@ class ConvexService private constructor() {
         ffi.mutation(name, ffiArgs)
     }
 
+    suspend fun mutation(
+        name: String,
+        args: Dictionary<String, Any> = dictionaryOf(),
+    ) {
+        mutate(name, args)
+    }
+
     suspend fun mutateReturningString(
         name: String,
         args: Dictionary<String, Any> = dictionaryOf(),

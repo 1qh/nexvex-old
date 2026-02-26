@@ -1401,7 +1401,30 @@ const SAFE_ARG_TYPES = new Set(['[Bool]', '[Double]', '[String]', 'Bool', 'Doubl
     } else {
       const argStr = fn.args.length === 0 ? '[:]' : `[${fn.args.map(a => `"${a.argName}": ${a.value}`).join(', ')}]`,
         callKind = fn.callKind ?? 'mutate'
-      if (fn.voidDummy)
+      if (fn.returnType && (callKind === 'query' || callKind === 'mutation')) {
+        const rt = fn.returnType,
+          isArray = rt.startsWith('[') && rt.endsWith(']'),
+          isNullable = rt.endsWith('?'),
+          baseType = isArray ? rt.slice(1, -1) : isNullable ? rt.slice(0, -1) : rt,
+          skipMethod =
+            callKind === 'mutation' && rt === 'String'
+              ? 'mutateReturningString'
+              : isArray
+                ? `${callKind}${baseType}s`
+                : isNullable
+                  ? `${callKind}Nullable${baseType}`
+                  : `${callKind}${baseType}`,
+          skipArrayCast = isArray
+        e(`${indent(2)}#if !SKIP`)
+        e(`${indent(2)}try await ConvexService.shared.${callKind}("${modName}:${fnName}", args: ${argStr})`)
+        e(`${indent(2)}#else`)
+        if (skipArrayCast)
+          e(
+            `${indent(2)}try await Array(ConvexService.shared.${skipMethod}(name: "${modName}:${fnName}", args: ${argStr}))`
+          )
+        else e(`${indent(2)}try await ConvexService.shared.${skipMethod}(name: "${modName}:${fnName}", args: ${argStr})`)
+        e(`${indent(2)}#endif`)
+      } else if (fn.voidDummy)
         e(
           `${indent(2)}let _: [String: String] = try await ConvexService.shared.${callKind}("${modName}:${fnName}", args: ${argStr})`
         )
@@ -1438,6 +1461,10 @@ const SAFE_ARG_TYPES = new Set(['[Bool]', '[Double]', '[String]', 'Bool', 'Doubl
     if (sub.onNull)
       e(
         `${indent(2)}return ConvexService.shared.${sub.skipMethod}(to: ${sub.apiRef}, args: ${skipArgs}, onUpdate: ${skipUpdate}, onError: ${skipError}, onNull: { onNull() })`
+      )
+    else if (sub.skipNullableViaOnUpdate)
+      e(
+        `${indent(2)}return ConvexService.shared.${sub.skipMethod}(to: ${sub.apiRef}, args: ${skipArgs}, onUpdate: ${skipUpdate}, onError: ${skipError}, onNull: { onUpdate(nil) })`
       )
     else
       e(
@@ -1490,6 +1517,7 @@ interface MobileSubscriptionDescriptor {
   resultType: string
   skipArrayCast?: boolean
   skipMethod: string
+  skipNullableViaOnUpdate?: boolean
   usesListArgs?: boolean
 }
 
@@ -1589,7 +1617,7 @@ const inferParsedReturnType = (parsed: ParsedCustomFn, fnName: string, tableName
         desc.mobileAction = {
           notSkipReturnType: inferred,
           skipArrayCast: isArray,
-          skipMethod: isArray ? `action${inferred.slice(1, -1)}` : `action${inferred}`
+          skipMethod: isArray ? `action${inferred.slice(1, -1)}s` : `action${inferred}`
         }
       } else {
         desc.voidDummy = true
@@ -2157,6 +2185,10 @@ const inferParsedReturnType = (parsed: ParsedCustomFn, fnName: string, tableName
       const inner = resultType.slice(1, -1)
       return `subscribe${inner}s`
     }
+    if (resultType.endsWith('?')) {
+      const inner = resultType.slice(0, -1)
+      return `subscribeNullable${inner}`
+    }
     return `subscribe${resultType}`
   },
   hasSubscriptionMethod = (subs: MobileSubscriptionDescriptor[], methodName: string): boolean => {
@@ -2347,7 +2379,8 @@ const inferParsedReturnType = (parsed: ParsedCustomFn, fnName: string, tableName
         !hasSubscriptionApiRef(subs, fnName)
       ) {
         const isArray = desc.returnType.startsWith('['),
-          isPaginated = desc.returnType.startsWith('PaginatedResult<')
+          isPaginated = desc.returnType.startsWith('PaginatedResult<'),
+          isNullable = desc.returnType.endsWith('?')
         subs.push({
           apiRef: fnName,
           args: desc.args,
@@ -2357,6 +2390,7 @@ const inferParsedReturnType = (parsed: ParsedCustomFn, fnName: string, tableName
           resultType: desc.returnType,
           skipArrayCast: isArray,
           skipMethod: subscriptionSkipMethod(fnName, desc.returnType),
+          skipNullableViaOnUpdate: isNullable || undefined,
           usesListArgs: isPaginated
         })
       }

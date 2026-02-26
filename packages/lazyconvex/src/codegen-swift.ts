@@ -2108,7 +2108,7 @@ const inferParsedReturnType = (parsed: ParsedCustomFn, fnName: string, tableName
     maybeAddPubReadAutoDescriptor({ auto, factoryType, fnSet, structName })
     if (factoryType === 'child') {
       maybeAddChildReadAutoDescriptors({ auto, fnSet, structName, tableName })
-      if (!isMobile) maybeAddChildCreateStructArrayDescriptor(auto, fnSet, fields)
+      maybeAddChildCreateStructArrayDescriptor(auto, fnSet, fields)
     }
     if (factoryType === 'base') maybeAddCacheLoadDescriptor({ auto, fields, fnSet, isMobile, modName, structName })
     maybeAddFileUploadDescriptor(auto, modName, fnSet)

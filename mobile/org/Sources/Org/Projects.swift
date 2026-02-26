@@ -23,7 +23,7 @@ internal final class ProjectsViewModel: Performing {
     }
 
     func start(orgID: String) {
-        sub.bind { ProjectAPI.subscribeList(orgId: orgID, onUpdate: $0, onError: $1) }
+        sub.bind { ProjectAPI.subscribeList(orgId: orgID, where: nil, onUpdate: $0, onError: $1) }
     }
 
     func stop() {
@@ -213,6 +213,9 @@ internal struct ProjectEditView: View {
     let orgID: String
     let projectID: String
     let role: OrgRole
+
+    @Environment(\.dismiss)
+    private var dismiss
 
     @State private var name = ""
     @State private var descriptionText = ""

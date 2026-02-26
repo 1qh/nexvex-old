@@ -15,7 +15,22 @@ internal final class ListViewModel: Performing {
     private(set) var isLoadingMore = false
     private var subID: String?
     private var loadMoreSubID: String?
-    private let blogWhere = BlogWhere(or: [.init(published: true), .init(own: true)])
+    private var searchTask: Task<Void, Never>?
+
+    private var currentWhere: BlogWhere {
+        let base: [BlogWhere] = [.init(published: true), .init(own: true)]
+        let q = searchQuery.trimmingCharacters(in: .whitespaces)
+        if q.isEmpty {
+            return BlogWhere(or: base)
+        }
+        return BlogWhere(or: [
+            .init(published: true, title: q),
+            .init(content: q, published: true),
+            .init(title: q, own: true),
+            .init(content: q, own: true),
+        ])
+    }
+
     var blogs: [Blog] {
         allBlogs
     }
@@ -25,32 +40,13 @@ internal final class ListViewModel: Performing {
     }
 
     var displayedBlogs: [Blog] {
-        if searchQuery.isEmpty {
-            return allBlogs
-        }
-        let q = searchQuery.lowercased()
-        var filtered = [Blog]()
-        for b in allBlogs {
-            if b.title.lowercased().contains(q) || b.content.lowercased().contains(q) {
-                filtered.append(b)
-            } else if let tags = b.tags {
-                var tagMatch = false
-                for t in tags where t.lowercased().contains(q) {
-                    tagMatch = true
-                    break
-                }
-                if tagMatch {
-                    filtered.append(b)
-                }
-            }
-        }
-        return filtered
+        allBlogs
     }
 
     func start() {
         isLoading = true
         subID = BlogAPI.subscribeList(
-            where: blogWhere,
+            where: currentWhere,
             onUpdate: { [weak self] result in
                 guard let self else {
                     return
@@ -88,7 +84,7 @@ internal final class ListViewModel: Performing {
         }
 
         isLoadingMore = true
-        let args = BlogAPI.listArgs(cursor: cursor, where: blogWhere)
+        let args = BlogAPI.listArgs(cursor: cursor, where: currentWhere)
         #if !SKIP
         loadMoreSubID = ConvexService.shared.subscribe(
             to: BlogAPI.list,
@@ -141,6 +137,19 @@ internal final class ListViewModel: Performing {
 
     func togglePublished(id: String, published: Bool) {
         perform { try await BlogAPI.update(id: id, published: !published) }
+    }
+
+    func debouncedSearch() {
+        searchTask?.cancel()
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            stop()
+            start()
+        }
     }
 }
 
@@ -291,5 +300,6 @@ internal struct ListView: View {
         .onDisappear {
             viewModel.stop()
         }
+        .onChange(of: viewModel.searchQuery) { _, _ in viewModel.debouncedSearch() }
     }
 }

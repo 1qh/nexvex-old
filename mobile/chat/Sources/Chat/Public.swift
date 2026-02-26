@@ -47,7 +47,7 @@ internal final class PublicListViewModel {
     }
 
     func start() {
-        sub.bind { ChatAPI.subscribePublicList(onUpdate: $0, onError: $1) }
+        sub.bind { ChatAPI.subscribeList(where: ChatWhere(isPublic: true), onUpdate: $0, onError: $1) }
     }
 
     func stop() {

@@ -91,8 +91,8 @@ internal struct ResultRow: View {
                     .lineLimit(2)
 
                 HStack(spacing: 4) {
-                    if let releaseDate = result.release_date, !releaseDate.isEmpty {
-                        Text(String(releaseDate.prefix(4)))
+                    if !result.release_date.isEmpty {
+                        Text(String(result.release_date.prefix(4)))
                     }
                     Text("•")
                     Text(String(format: "%.1f", result.vote_average))

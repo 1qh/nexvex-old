@@ -12,30 +12,11 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var continueCursor: String?
     @SwiftCrossUI.Published var isDone = false
     @SwiftCrossUI.Published var coverImageURLs = [String: URL]()
+    @SwiftCrossUI.Published var searchResults: [Blog]?
+    var searchTask: Task<Void, Never>?
 
     var displayedBlogs: [Blog] {
-        if searchQuery.isEmpty {
-            return blogs
-        }
-        let q = searchQuery.lowercased()
-        var filtered = [Blog]()
-        for b in blogs {
-            if b.title.lowercased().contains(q) || b.content.lowercased().contains(q) {
-                filtered.append(b)
-                continue
-            }
-            if let tags = b.tags {
-                var matched = false
-                for tag in tags where tag.lowercased().contains(q) {
-                    matched = true
-                    break
-                }
-                if matched {
-                    filtered.append(b)
-                }
-            }
-        }
-        return filtered
+        searchResults ?? blogs
     }
 
     @MainActor
@@ -99,6 +80,33 @@ internal final class ListViewModel: SwiftCrossUI.ObservableObject, Performing {
             }
         }
     }
+
+    @MainActor
+    func debouncedSearch() {
+        searchTask?.cancel()
+        guard !searchQuery.isEmpty else {
+            searchResults = nil
+            return
+        }
+
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            do {
+                let result = try await BlogAPI.search(client, query: searchQuery)
+                if !Task.isCancelled {
+                    searchResults = result.page
+                }
+            } catch {
+                if !Task.isCancelled {
+                    searchResults = nil
+                }
+            }
+        }
+    }
 }
 
 internal struct ListView: View {
@@ -158,6 +166,7 @@ internal struct ListView: View {
                 }
             }
         }
+        .onChange(of: viewModel.searchQuery) { viewModel.debouncedSearch() }
         .task {
             await viewModel.load()
         }

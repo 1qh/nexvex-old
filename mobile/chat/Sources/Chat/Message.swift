@@ -58,7 +58,7 @@ internal final class MessageViewModel: Performing {
                 try await MessageAPI.create(
                     chatId: chatID,
                     parts: [MessagePart(type: .text, text: text)],
-                    role: .user
+                    role: MessageRole.user
                 )
                 isAiLoading = true
                 try await MobileAiAPI.chat(chatId: chatID)

@@ -23,7 +23,7 @@ internal final class WikiListViewModel: Performing {
     }
 
     func start(orgID: String) {
-        sub.bind { WikiAPI.subscribeList(orgId: orgID, onUpdate: $0, onError: $1) }
+        sub.bind { WikiAPI.subscribeList(orgId: orgID, where: nil, onUpdate: $0, onError: $1) }
     }
 
     func stop() {

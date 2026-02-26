@@ -580,6 +580,27 @@ extension ChatAPI {
 }
 
 extension MessageAPI {
+    public static func create(chatId: String, parts: [MessagePart], role: MessageRole) async throws {
+        var partDicts = [[String: Any]]()
+        for p in parts {
+            var d: [String: Any] = ["type": p.type.rawValue]
+            if let text = p.text {
+                d["text"] = text
+            }
+            if let image = p.image {
+                d["image"] = image
+            }
+            if let file = p.file {
+                d["file"] = file
+            }
+            if let name = p.name {
+                d["name"] = name
+            }
+            partDicts.append(d)
+        }
+        try await ConvexService.shared.mutate("message:create", args: ["chatId": chatId, "role": role.rawValue, "parts": partDicts])
+    }
+
     public static func list(chatId: String) async throws -> [Message] {
         try await ConvexService.shared.query("message:list", args: ["chatId": chatId])
     }

@@ -99,6 +99,7 @@ const kindToComponent: Record<string, string> = {
 const crudFactories = new Set(['childCrud', 'crud', 'orgCrud', 'singletonCrud'])
 const convexFetchFns = new Set(['fetchAction', 'fetchQuery', 'preloadQuery'])
 const schemaMarkers = ['makeOwned(', 'makeOrgScoped(', 'makeSingleton(', 'makeBase(', 'child(']
+const routeFilePattern = /\/route\.[jt]sx?$/u
 
 const isIdent = (node: BaseNode, name: string): boolean => node.type === 'Identifier' && node.name === name
 
@@ -367,18 +368,23 @@ const consistentCrudNaming = {
   }
 }
 
+const isRouteHandler = (filename: string): boolean => routeFilePattern.test(filename)
+
 const requireConnection = {
-  create: (context: EslintContext) => ({
-    CallExpression: (node: CallNode) => {
-      const callee = getIdentName(node.callee)
-      if (!(callee && convexFetchFns.has(callee))) return
-      const src = context as unknown as { sourceCode: { getAncestors: (n: BaseNode) => BaseNode[] } }
-      const body = findEnclosingAsyncBody(src.sourceCode.getAncestors(node))
-      if (!body) return
-      if (blockHasConnection(body)) return
-      context.report({ data: { fn: callee }, messageId: 'missingConnection', node })
+  create: (context: EslintContext) => {
+    if (isRouteHandler(context.filename)) return {}
+    return {
+      CallExpression: (node: CallNode) => {
+        const callee = getIdentName(node.callee)
+        if (!(callee && convexFetchFns.has(callee))) return
+        const src = context as unknown as { sourceCode: { getAncestors: (n: BaseNode) => BaseNode[] } }
+        const body = findEnclosingAsyncBody(src.sourceCode.getAncestors(node))
+        if (!body) return
+        if (blockHasConnection(body)) return
+        context.report({ data: { fn: callee }, messageId: 'missingConnection', node })
+      }
     }
-  }),
+  },
   meta: {
     messages: {
       missingConnection:

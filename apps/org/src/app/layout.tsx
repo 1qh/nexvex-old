@@ -38,6 +38,7 @@ const queryOrDirect = async <T,>(
   query: FunctionReference<'query'>,
   args: Record<string, unknown>
 ): Promise<null | T> => {
+  // eslint-disable-next-line lazyconvex/require-connection
   if (token) return fetchQuery(query, args, { token }) as Promise<T>
   return getTestClient().query(query, args) as Promise<T>
 }

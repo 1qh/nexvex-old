@@ -1,4 +1,5 @@
 export { clearErrors, pushError, useDevErrors } from './devtools'
+export { default as LazyConvexDevtools } from './devtools-panel'
 export { buildMeta, getMeta, useForm, useFormMutation } from './form'
 export {
   canEditResource,

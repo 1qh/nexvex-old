@@ -12,7 +12,7 @@ internal final class TasksViewModel: SwiftCrossUI.ObservableObject, Performing {
     @SwiftCrossUI.Published var selectedIDs = Set<String>()
     @SwiftCrossUI.Published var editingTaskID: String?
     @SwiftCrossUI.Published var editTitle = ""
-    @SwiftCrossUI.Published var editPriority: TaskPriority?
+    @SwiftCrossUI.Published var editPriority: TaskItemPriority?
 
     var availableMembers: [OrgMemberEntry] {
         var editorIDs = Set<String>()
@@ -296,8 +296,8 @@ internal struct TasksView: View {
                         HStack {
                             TextField("Title", text: $viewModel.editTitle)
                             HStack {
-                                ForEach(0..<TaskPriority.allCases.count, id: \.self) { idx in
-                                    let p = TaskPriority.allCases[idx]
+                                ForEach(0..<TaskItemPriority.allCases.count, id: \.self) { idx in
+                                    let p = TaskItemPriority.allCases[idx]
                                     Button(p == viewModel.editPriority ? "[\(p.displayName)]" : p.displayName) {
                                         viewModel.editPriority = viewModel.editPriority == p ? nil : p
                                     }

@@ -1140,7 +1140,7 @@ extension TaskAPI {
         orgId: String,
         assigneeId: String? = nil,
         completed: Bool? = nil,
-        priority: TaskPriority? = nil,
+        priority: TaskItemPriority? = nil,
         projectId: String,
         title: String
     ) async throws {
@@ -1162,7 +1162,7 @@ extension TaskAPI {
         id: String,
         assigneeId: String? = nil,
         completed: Bool? = nil,
-        priority: TaskPriority? = nil,
+        priority: TaskItemPriority? = nil,
         projectId: String? = nil,
         title: String? = nil,
         expectedUpdatedAt: Double? = nil

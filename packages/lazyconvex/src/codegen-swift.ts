@@ -74,7 +74,8 @@ const parseArgs = (): { convex: string; mobileOutput: string; output: string; sc
     Task: 'TaskItem'
   },
   safeSwiftName = (name: string): string => SWIFT_NAME_MAP[name] ?? name,
-  enumName = (modelName: string, fieldName: string): string => `${capitalize(modelName)}${capitalize(fieldName)}`,
+  enumName = (modelName: string, fieldName: string): string =>
+    `${safeSwiftName(capitalize(modelName))}${capitalize(fieldName)}`,
   enumRegistry = new Map<string, string[]>(),
   pendingLines: string[][] = [],
   nestedEmitted = new Set<string>(),

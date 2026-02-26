@@ -49,7 +49,7 @@ public enum ProjectStatus: String, CaseIterable, Codable, Sendable {
     }
 }
 
-public enum TaskPriority: String, CaseIterable, Codable, Sendable {
+public enum TaskItemPriority: String, CaseIterable, Codable, Sendable {
     case high
     case low
     case medium
@@ -168,7 +168,7 @@ public struct TaskItem: Codable, Identifiable, Sendable {
     public let userId: String
     public let assigneeId: String?
     public let completed: Bool?
-    public let priority: TaskPriority?
+    public let priority: TaskItemPriority?
     public let projectId: String
     public let title: String
     public let assigneeIdUrl: String?
@@ -574,13 +574,13 @@ public struct ProjectWhere: Sendable {
 
 public struct TaskWhere: Sendable {
     public var completed: Bool?
-    public var priority: TaskPriority?
+    public var priority: TaskItemPriority?
     public var title: String?
     public var or: [Self]?
 
     public init(
         completed: Bool? = nil,
-        priority: TaskPriority? = nil,
+        priority: TaskItemPriority? = nil,
         title: String? = nil,
         or: [Self]? = nil
     ) {
@@ -1520,7 +1520,7 @@ public enum TaskAPI {
         orgId: String,
         assigneeId: String? = nil,
         completed: Bool? = nil,
-        priority: TaskPriority? = nil,
+        priority: TaskItemPriority? = nil,
         projectId: String,
         title: String
     ) async throws {
@@ -1543,7 +1543,7 @@ public enum TaskAPI {
         id: String,
         assigneeId: String? = nil,
         completed: Bool? = nil,
-        priority: TaskPriority? = nil,
+        priority: TaskItemPriority? = nil,
         projectId: String? = nil,
         title: String? = nil,
         expectedUpdatedAt: Double? = nil

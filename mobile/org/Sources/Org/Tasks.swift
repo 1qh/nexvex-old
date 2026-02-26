@@ -65,13 +65,13 @@ internal final class TasksViewModel: Performing {
         perform { try await TaskAPI.assign(orgId: orgID, id: taskID, assigneeId: assigneeID) }
     }
 
-    func updateTask(orgID: String, taskID: String, title: String, priority: TaskPriority?, updatedAt: Double) {
+    func updateTask(orgID: String, taskID: String, title: String, priority: TaskItemPriority?, updatedAt: Double) {
         perform { try await TaskAPI.update(orgId: orgID, id: taskID, priority: priority, title: title, expectedUpdatedAt: updatedAt) }
     }
 }
 
 internal struct PriorityBadge: View {
-    let priority: TaskPriority
+    let priority: TaskItemPriority
     private var priorityColor: Color {
         switch priority {
         case .high:
@@ -108,7 +108,7 @@ internal struct TasksView: View {
     @State private var selectedEditorID: String?
     @State private var editingTask: TaskItem?
     @State private var editTitle = ""
-    @State private var editPriority: TaskPriority?
+    @State private var editPriority: TaskItemPriority?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -238,18 +238,18 @@ internal struct TasksView: View {
                     .accessibilityIdentifier("editTaskTitle")
                 Picker("Priority", selection: $editPriority) {
                     #if !SKIP
-                    Text("None").tag(TaskPriority?.none)
-                    ForEach(TaskPriority.allCases, id: \.rawValue) { p in
+                    Text("None").tag(TaskItemPriority?.none)
+                    ForEach(TaskItemPriority.allCases, id: \.rawValue) { p in
                         Text(p.displayName).tag(Optional(p))
                     }
                     #else
-                    Text("None").tag(nil as TaskPriority?)
-                    ForEach(TaskPriority.allCases, id: \.self) { p in
-                        Text(p.displayName).tag(p as TaskPriority?)
+                    Text("None").tag(nil as TaskItemPriority?)
+                    ForEach(TaskItemPriority.allCases, id: \.self) { p in
+                        Text(p.displayName).tag(p as TaskItemPriority?)
                     }
                     #endif
                 }
-                .accessibilityIdentifier("editTaskPriority")
+                .accessibilityIdentifier("editTaskItemPriority")
             }
             .navigationTitle("Edit Task")
             .toolbar {

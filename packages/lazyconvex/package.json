@@ -58,7 +58,7 @@
     "sharp": "latest"
   },
   "devDependencies": {
-    "tsdown": "latest"
+    "tsdown": "^0.20.3"
   },
   "peerDependencies": {
     "@auth/core": "^0.41",

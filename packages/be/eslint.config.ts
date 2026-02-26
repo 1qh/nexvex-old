@@ -1,4 +1,5 @@
 import baseConfig from '@a/eslint-config/base'
+import convexApi from '@a/eslint-config/convex-api'
 import nextjsConfig from '@a/eslint-config/nextjs'
 import reactConfig from '@a/eslint-config/react'
 import restrictEnvAccess from '@a/eslint-config/restrict-env'
@@ -9,5 +10,6 @@ export default defineConfig(
   baseConfig,
   reactConfig,
   nextjsConfig,
-  restrictEnvAccess
+  restrictEnvAccess,
+  convexApi
 )

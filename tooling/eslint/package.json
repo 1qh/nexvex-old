@@ -5,7 +5,8 @@
     "./base": "./base.ts",
     "./nextjs": "./nextjs.ts",
     "./react": "./react.ts",
-    "./restrict-env": "./restrict-env.ts"
+    "./restrict-env": "./restrict-env.ts",
+    "./convex-api": "./convex-api.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo node_modules",

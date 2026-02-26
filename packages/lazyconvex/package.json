@@ -35,6 +35,7 @@
     "./schema": "./src/schema.ts",
     "./react": "./src/react/index.ts",
     "./components": "./src/components/index.ts",
+    "./eslint": "./src/eslint.ts",
     "./next": "./src/next/index.ts"
   },
   "bin": {

@@ -203,3 +203,4 @@ bunx lazyconvex-codegen-swift --schema packages/be/t.ts --convex packages/be/con
 | [Native Apps](docs/native-apps.md) | Swift codegen, ConvexClientProtocol, mobile (Skip), desktop (SwiftCrossUI) |
 | [Testing](docs/testing.md) | makeTestAuth, makeOrgTestCrud, convex-test patterns |
 | [API Reference](docs/api-reference.md) | All exports, error codes, file upload, rate limiting, known limitations |
+| [Migration](docs/migration.md) | Incremental adoption, convert one table at a time, coexistence with raw Convex |

@@ -22,7 +22,7 @@ export { create, rm, update }
 | Typesafe forms with Zod validation + auto-generated fields | 0 |
 | Conflict detection + resolution dialog | 0 |
 | Soft delete + undo toast (Gmail/Linear pattern) | 0 |
-| Bulk operations (select all, bulk delete) | 0 |
+| Bulk operations (select all, bulk delete, bulk update) | 0 |
 | Rate limiting on mutations | 0 |
 | Where clauses ($gt, $lt, $between, OR, own filter) | 0 |
 | Org multi-tenancy with roles + ACL + invites + join requests | 0 |
@@ -788,8 +788,8 @@ Wrappers brand schemas at the type level. Each factory and table helper only acc
 
 | Module | Key Exports |
 |--------|------------|
-| `lazyconvex/server` | `setup`, `ownedTable`, `orgTable`, `baseTable`, `singletonTable`, `orgChildTable`, `orgTables`, `uploadTables`, `rateLimitTable`, `orgCascade`, `canEdit`, `getOrgMember`, `getOrgRole`, `requireOrgMember`, `requireOrgRole`, `handleConvexError`, `getErrorCode`, `getErrorMessage`, `makeOrg`, `makeFileUpload`, `makeTestAuth` |
-| `lazyconvex/react` | `createOrgHooks`, `useForm`, `useFormMutation`, `useList`, `useOptimisticMutation`, `useSoftDelete`, `useUpload`, `useBulkSelection`, `useOnlineStatus`, `OrgProvider`, `useOrg`, `useOrgQuery`, `useOrgMutation`, `canEditResource` |
+| `lazyconvex/server` | `setup`, `ownedTable`, `orgTable`, `baseTable`, `singletonTable`, `childTable`, `orgChildTable`, `orgTables`, `uploadTables`, `rateLimitTable`, `orgCascade`, `ownedCascade`, `canEdit`, `getOrgMember`, `getOrgRole`, `requireOrgMember`, `requireOrgRole`, `handleConvexError`, `getErrorCode`, `getErrorMessage`, `checkRateLimit`, `checkSchema`, `makeOrg`, `makeFileUpload`, `makeTestAuth`, `makeOrgTestCrud`, `getOrgMembership` |
+| `lazyconvex/react` | `createOrgHooks`, `useForm`, `useFormMutation`, `useList`, `useOptimisticMutation`, `useSoftDelete`, `useUpload`, `useBulkSelection`, `useOnlineStatus`, `OrgProvider`, `useOrg`, `useActiveOrg`, `useMyOrgs`, `useOrgQuery`, `useOrgMutation`, `canEditResource`, `buildMeta`, `getMeta` |
 | `lazyconvex/components` | `Form`, `defineSteps`, `EditorsSection`, `PermissionGuard`, `OfflineIndicator`, `OrgAvatar`, `RoleBadge`, `AutoSaveIndicator`, `ConflictDialog`, `FileApiProvider` |
 | `lazyconvex/schema` | `child`, `cvFile`, `cvFiles`, `makeBase`, `makeOrgScoped`, `makeOwned`, `makeSingleton`, `orgSchema` |
 | `lazyconvex/zod` | `pickValues`, `defaultValues`, `enumToOptions` |

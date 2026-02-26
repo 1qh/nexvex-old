@@ -215,9 +215,22 @@ const TOKEN_BYTES = 24,
     code: ErrorCode,
     zodError: { flatten: () => { fieldErrors: Record<string, string[] | undefined> } }
   ): never => {
-    const { fieldErrors } = zodError.flatten(),
-      fields = Object.keys(fieldErrors)
-    throw new ConvexError({ code, fields, message: fields.length ? `Invalid: ${fields.join(', ')}` : 'Validation failed' })
+    const { fieldErrors: raw } = zodError.flatten(),
+      fields: string[] = [],
+      fieldErrors: Record<string, string> = {}
+    for (const k of Object.keys(raw)) {
+      const first = raw[k]?.[0]
+      if (first) {
+        fields.push(k)
+        fieldErrors[k] = first
+      }
+    }
+    throw new ConvexError({
+      code,
+      fieldErrors,
+      fields,
+      message: fields.length ? `Invalid: ${fields.join(', ')}` : 'Validation failed'
+    })
   },
   dbInsert = async (db: DbLike, table: string, data: Record<string, unknown>) => db.insert(table, data),
   dbPatch = async (db: DbLike, id: string, data: Record<string, unknown>) => db.patch(id, data),
@@ -248,6 +261,7 @@ const TOKEN_BYTES = 24,
 interface ConvexErrorData {
   code: ErrorCode
   debug?: string
+  fieldErrors?: Record<string, string>
   fields?: string[]
   message?: string
   op?: string
@@ -267,6 +281,7 @@ const extractErrorData = (e: unknown): ConvexErrorData | undefined => {
     return {
       code: code as ErrorCode,
       debug: typeof data.debug === 'string' ? data.debug : undefined,
+      fieldErrors: isRecord(data.fieldErrors) ? (data.fieldErrors as Record<string, string>) : undefined,
       fields: Array.isArray(data.fields) ? (data.fields as string[]) : undefined,
       message: typeof data.message === 'string' ? data.message : undefined,
       op: typeof data.op === 'string' ? data.op : undefined,

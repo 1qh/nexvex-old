@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ZodSchema } from '../zod'
 
-import { getErrorCode, getErrorMessage, isRecord } from '../server/helpers'
+import { extractErrorData, getErrorCode, getErrorMessage, isRecord } from '../server/helpers'
 import {
   coerceOptionals,
   cvFileKindOf,
@@ -86,6 +86,7 @@ interface ConflictData {
 interface FormReturn<T extends Record<string, unknown>, S extends ZodObject<ZodRawShape>> {
   conflict: ConflictData | null
   error: Error | null
+  fieldErrors: Record<string, string>
   instance: Api<T>
   isDirty: boolean
   isPending: boolean
@@ -129,6 +130,7 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
     const resolved = values ?? dv(schema),
       [conflict, setConflict] = useState<ConflictData | null>(null),
       [er, setEr] = useState<Error | null>(null),
+      [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}),
       [forceSubmit, setForceSubmit] = useState(false),
       [lastSaved, setLastSaved] = useState<null | number>(null),
       vRef = useRef(resolved),
@@ -142,6 +144,7 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
 
         onSubmit: async ({ value }) => {
           setEr(null)
+          setFieldErrors({})
           try {
             const coerced = coerceOptionals(schema, value),
               result = await onSubmit(coerced, forceSubmit),
@@ -158,9 +161,11 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
               onConflict?.(conflictData)
               return
             }
-            const err = submitError(error)
-            setEr(err)
-            onError?.(err)
+            const errData = extractErrorData(error)
+            if (errData?.fieldErrors) setFieldErrors(errData.fieldErrors)
+            const submitErr = submitError(error)
+            setEr(submitErr)
+            onError?.(submitErr)
           }
         },
         validators: { onSubmit: schema as unknown as StandardSchemaV1<output<S>, unknown> }
@@ -180,6 +185,7 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
     return {
       conflict,
       error: er,
+      fieldErrors,
       instance,
       isDirty,
       isPending: isSubmitting,
@@ -190,6 +196,7 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
         instance.reset(resetVals)
         if (vals) vRef.current = vals
         setEr(null)
+        setFieldErrors({})
         setLastSaved(null)
       },
       resolveConflict: (action: 'cancel' | 'overwrite' | 'reload') => {

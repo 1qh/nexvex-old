@@ -28,12 +28,12 @@ const classifyPending = (pending: PendingMutation[]) => {
     const deleteIds = new Set<string>(),
       updates = new Map<string, Rec>(),
       creates: Rec[] = []
-    for (const p of pending) 
+    for (const p of pending)
       if (p.type === 'delete') deleteIds.add(p.id)
       else if (p.type === 'update') {
         const prev = updates.get(p.id)
         updates.set(p.id, prev ? { ...prev, ...p.args } : p.args)
-      } else if (p.type === 'create')
+      } else
         creates.push({
           ...p.args,
           __optimistic: true,
@@ -41,7 +41,7 @@ const classifyPending = (pending: PendingMutation[]) => {
           _id: p.tempId,
           updatedAt: p.timestamp
         })
-    
+
     return { creates, deleteIds, updates }
   },
   isDev = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production',

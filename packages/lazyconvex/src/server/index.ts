@@ -15,6 +15,7 @@ export {
 export { makeOrg } from './org'
 export type { InviteDocLike, JoinRequestItem, OrgDocLike, OrgMemberItem, OrgUserLike } from './org'
 export { canEdit, getOrgMember, getOrgRole, orgCascade, requireOrgMember, requireOrgRole } from './org-crud'
+export { HEARTBEAT_INTERVAL_MS, makePresence, PRESENCE_TTL_MS, presenceTable } from './presence'
 export {
   baseTable,
   checkSchema,

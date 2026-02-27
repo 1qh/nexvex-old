@@ -10,6 +10,7 @@ import type { MutationType, PendingMutation } from '../react/optimistic-store'
 import type { InfiniteListOptions } from '../react/use-infinite-list'
 import type { UseListOptions } from '../react/use-list'
 import type { MutateOptions } from '../react/use-mutate'
+import type { PresenceUser, UsePresenceOptions, UsePresenceResult } from '../react/use-presence'
 import type { UseSearchOptions, UseSearchResult } from '../react/use-search'
 import type { OrgCrudOptions } from '../server/org-crud'
 import type {
@@ -64,8 +65,7 @@ import { makeErrorHandler } from '../react/error-toast'
 import { buildMeta, getMeta } from '../react/form'
 import { createOptimisticStore, makeTempId } from '../react/optimistic-store'
 import { canEditResource } from '../react/org'
-import { DEFAULT_PAGE_SIZE } from '../react/use-list'
-import { applyOptimistic } from '../react/use-list'
+import { applyOptimistic, DEFAULT_PAGE_SIZE } from '../react/use-list'
 import { DEFAULT_DEBOUNCE_MS, DEFAULT_MIN_LENGTH } from '../react/use-search'
 import { fetchWithRetry, withRetry } from '../retry'
 import { child, cvFile, cvFiles, makeBase, makeOrgScoped, makeOwned, makeSingleton } from '../schema'
@@ -92,6 +92,7 @@ import {
   warnLargeFilterSet
 } from '../server/helpers'
 import { orgCascade } from '../server/org-crud'
+import { HEARTBEAT_INTERVAL_MS, PRESENCE_TTL_MS } from '../server/presence'
 import { baseTable, orgTable, ownedTable, singletonTable } from '../server/schema-helpers'
 import { isTestMode } from '../server/test'
 import { ERROR_MESSAGES } from '../server/types'
@@ -4269,7 +4270,7 @@ describe('optimistic store', () => {
 
   test('makeTempId generates unique ids', () => {
     const id1 = makeTempId(),
-     id2 = makeTempId()
+      id2 = makeTempId()
     expect(id1).not.toBe(id2)
     expect(id1).toContain('__optimistic_')
     expect(id2).toContain('__optimistic_')
@@ -4278,7 +4279,7 @@ describe('optimistic store', () => {
   test('multiple subscribers all get notified', () => {
     const store = createOptimisticStore()
     let count1 = 0,
-     count2 = 0
+      count2 = 0
     store.subscribe(() => {
       count1 += 1
     })
@@ -4301,11 +4302,11 @@ describe('applyOptimistic', () => {
   })
 
   test('prepends optimistic creates', () => {
-    const items = [{ _id: '1', title: 'existing' }],
-     pending: PendingMutation[] = [
-      { args: { title: 'new' }, id: 'temp_1', tempId: 'temp_1', timestamp: 2000, type: 'create' }
-    ],
-     result = applyOptimistic(items, pending)
+    const items: Rec[] = [{ _id: '1', title: 'existing' }],
+      pending: PendingMutation[] = [
+        { args: { title: 'new' }, id: 'temp_1', tempId: 'temp_1', timestamp: 2000, type: 'create' }
+      ],
+      result = applyOptimistic(items, pending)
     expect(result).toHaveLength(2)
     expect(result[0]?.title).toBe('new')
     expect(result[0]?._id).toBe('temp_1')
@@ -4315,21 +4316,21 @@ describe('applyOptimistic', () => {
 
   test('filters out optimistic deletes', () => {
     const items = [
-      { _id: '1', title: 'a' },
-      { _id: '2', title: 'b' }
-    ],
-     pending: PendingMutation[] = [{ args: { id: '1' }, id: '1', tempId: 'temp_d', timestamp: 2000, type: 'delete' }],
-     result = applyOptimistic(items, pending)
+        { _id: '1', title: 'a' },
+        { _id: '2', title: 'b' }
+      ],
+      pending: PendingMutation[] = [{ args: { id: '1' }, id: '1', tempId: 'temp_d', timestamp: 2000, type: 'delete' }],
+      result = applyOptimistic(items, pending)
     expect(result).toHaveLength(1)
     expect(result[0]?._id).toBe('2')
   })
 
   test('merges optimistic updates', () => {
     const items = [{ _id: '1', status: 'draft', title: 'old' }],
-     pending: PendingMutation[] = [
-      { args: { id: '1', title: 'new' }, id: '1', tempId: 'temp_u', timestamp: 2000, type: 'update' }
-    ],
-     result = applyOptimistic(items, pending)
+      pending: PendingMutation[] = [
+        { args: { id: '1', title: 'new' }, id: '1', tempId: 'temp_u', timestamp: 2000, type: 'update' }
+      ],
+      result = applyOptimistic(items, pending)
     expect(result).toHaveLength(1)
     expect(result[0]?.title).toBe('new')
     expect(result[0]?.status).toBe('draft')
@@ -4337,17 +4338,17 @@ describe('applyOptimistic', () => {
   })
 
   test('handles create + delete + update together', () => {
-    const items = [
-      { _id: '1', title: 'keep' },
-      { _id: '2', title: 'remove' },
-      { _id: '3', title: 'update' }
-    ],
-     pending: PendingMutation[] = [
-      { args: { title: 'brand new' }, id: 'temp_c', tempId: 'temp_c', timestamp: 3000, type: 'create' },
-      { args: { id: '2' }, id: '2', tempId: 'temp_d', timestamp: 3001, type: 'delete' },
-      { args: { id: '3', title: 'updated' }, id: '3', tempId: 'temp_u', timestamp: 3002, type: 'update' }
-    ],
-     result = applyOptimistic(items, pending)
+    const items: Rec[] = [
+        { _id: '1', title: 'keep' },
+        { _id: '2', title: 'remove' },
+        { _id: '3', title: 'update' }
+      ],
+      pending: PendingMutation[] = [
+        { args: { title: 'brand new' }, id: 'temp_c', tempId: 'temp_c', timestamp: 3000, type: 'create' },
+        { args: { id: '2' }, id: '2', tempId: 'temp_d', timestamp: 3001, type: 'delete' },
+        { args: { id: '3', title: 'updated' }, id: '3', tempId: 'temp_u', timestamp: 3002, type: 'update' }
+      ],
+      result = applyOptimistic(items, pending)
     expect(result).toHaveLength(3)
     expect(result[0]?.title).toBe('brand new')
     expect(result[0]?.__optimistic).toBe(true)
@@ -4356,38 +4357,38 @@ describe('applyOptimistic', () => {
   })
 
   test('multiple updates to same id merge patches', () => {
-    const items = [{ _id: '1', a: 1, b: 2, c: 3 }],
-     pending: PendingMutation[] = [
-      { args: { a: 10, id: '1' }, id: '1', tempId: 't1', timestamp: 1000, type: 'update' },
-      { args: { b: 20, id: '1' }, id: '1', tempId: 't2', timestamp: 1001, type: 'update' }
-    ],
-     result = applyOptimistic(items, pending)
+    const items: Rec[] = [{ _id: '1', a: 1, b: 2, c: 3 }],
+      pending: PendingMutation[] = [
+        { args: { a: 10, id: '1' }, id: '1', tempId: 't1', timestamp: 1000, type: 'update' },
+        { args: { b: 20, id: '1' }, id: '1', tempId: 't2', timestamp: 1001, type: 'update' }
+      ],
+      result = applyOptimistic(items, pending)
     expect(result[0]).toEqual({ _id: '1', a: 10, b: 20, c: 3, id: '1' })
   })
 
   test('delete of non-existent id is no-op', () => {
     const items = [{ _id: '1', title: 'a' }],
-     pending: PendingMutation[] = [{ args: { id: '999' }, id: '999', tempId: 'td', timestamp: 1000, type: 'delete' }],
-     result = applyOptimistic(items, pending)
+      pending: PendingMutation[] = [{ args: { id: '999' }, id: '999', tempId: 'td', timestamp: 1000, type: 'delete' }],
+      result = applyOptimistic(items, pending)
     expect(result).toHaveLength(1)
     expect(result[0]?._id).toBe('1')
   })
 
   test('update of non-existent id is no-op', () => {
     const items = [{ _id: '1', title: 'a' }],
-     pending: PendingMutation[] = [
-      { args: { id: '999', title: 'x' }, id: '999', tempId: 'tu', timestamp: 1000, type: 'update' }
-    ],
-     result = applyOptimistic(items, pending)
+      pending: PendingMutation[] = [
+        { args: { id: '999', title: 'x' }, id: '999', tempId: 'tu', timestamp: 1000, type: 'update' }
+      ],
+      result = applyOptimistic(items, pending)
     expect(result).toHaveLength(1)
     expect(result[0]?.title).toBe('a')
   })
 
   test('optimistic creates get __optimistic flag and timestamps', () => {
     const pending: PendingMutation[] = [
-      { args: { title: 'test' }, id: 'tc', tempId: 'tc', timestamp: 5000, type: 'create' }
-    ],
-     result = applyOptimistic([], pending)
+        { args: { title: 'test' }, id: 'tc', tempId: 'tc', timestamp: 5000, type: 'create' }
+      ],
+      result = applyOptimistic([] as Rec[], pending)
     expect(result[0]?._creationTime).toBe(5000)
     expect(result[0]?.updatedAt).toBe(5000)
     expect(result[0]?.__optimistic).toBe(true)
@@ -4395,10 +4396,10 @@ describe('applyOptimistic', () => {
 
   test('empty items with creates works', () => {
     const pending: PendingMutation[] = [
-      { args: { title: 'first' }, id: 't1', tempId: 't1', timestamp: 1000, type: 'create' },
-      { args: { title: 'second' }, id: 't2', tempId: 't2', timestamp: 1001, type: 'create' }
-    ],
-     result = applyOptimistic([], pending)
+        { args: { title: 'first' }, id: 't1', tempId: 't1', timestamp: 1000, type: 'create' },
+        { args: { title: 'second' }, id: 't2', tempId: 't2', timestamp: 1001, type: 'create' }
+      ],
+      result = applyOptimistic([] as Rec[], pending)
     expect(result).toHaveLength(2)
     expect(result[0]?.title).toBe('second')
     expect(result[1]?.title).toBe('first')
@@ -4444,5 +4445,80 @@ describe('optimistic types', () => {
   test('UseListOptions optimistic defaults to true conceptually', () => {
     const opts: UseListOptions = {}
     expect(opts.optimistic).toBeUndefined()
+  })
+})
+
+describe('presence constants', () => {
+  test('HEARTBEAT_INTERVAL_MS is 15 seconds', () => {
+    expect(HEARTBEAT_INTERVAL_MS).toBe(15_000)
+  })
+
+  test('PRESENCE_TTL_MS is 30 seconds', () => {
+    expect(PRESENCE_TTL_MS).toBe(30_000)
+  })
+
+  test('TTL is at least 2x heartbeat interval', () => {
+    expect(PRESENCE_TTL_MS).toBeGreaterThanOrEqual(HEARTBEAT_INTERVAL_MS * 2)
+  })
+
+  test('HEARTBEAT_INTERVAL_MS is a positive number', () => {
+    expect(HEARTBEAT_INTERVAL_MS).toBeGreaterThan(0)
+  })
+
+  test('PRESENCE_TTL_MS is a positive number', () => {
+    expect(PRESENCE_TTL_MS).toBeGreaterThan(0)
+  })
+})
+
+describe('presence types', () => {
+  test('UsePresenceOptions accepts data and enabled', () => {
+    const opts: UsePresenceOptions = {
+      data: { cursor: { x: 10, y: 20 } },
+      enabled: true
+    }
+    expect(opts.enabled).toBe(true)
+    expect(opts.data).toEqual({ cursor: { x: 10, y: 20 } })
+  })
+
+  test('UsePresenceOptions fields are all optional', () => {
+    const opts: UsePresenceOptions = {}
+    expect(opts.enabled).toBeUndefined()
+    expect(opts.data).toBeUndefined()
+  })
+
+  test('UsePresenceResult has users, updatePresence, leave', () => {
+    type R = UsePresenceResult
+    type Keys = keyof R
+    const keys: Keys[] = ['users', 'updatePresence', 'leave']
+    expect(keys).toHaveLength(3)
+  })
+
+  test('PresenceUser has userId, lastSeen, data', () => {
+    const user: PresenceUser = {
+      data: { typing: true },
+      lastSeen: Date.now(),
+      userId: 'user123'
+    }
+    expect(user.userId).toBe('user123')
+    expect(user.data).toEqual({ typing: true })
+    expect(user.lastSeen).toBeGreaterThan(0)
+  })
+
+  test('PresenceUser data can be null', () => {
+    const user: PresenceUser = {
+      data: null,
+      lastSeen: Date.now(),
+      userId: 'user456'
+    }
+    expect(user.data).toBeNull()
+  })
+
+  test('PresenceUser data can be complex object', () => {
+    const user: PresenceUser = {
+      data: { cursor: { x: 100, y: 200 }, name: 'Alice', typing: false },
+      lastSeen: Date.now(),
+      userId: 'user789'
+    }
+    expect((user.data as Record<string, unknown>).typing).toBe(false)
   })
 })

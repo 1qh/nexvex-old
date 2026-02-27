@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 'use client'
 
 import type { FunctionReference, FunctionReturnType, OptionalRestArgs } from 'convex/server'
@@ -34,12 +35,11 @@ const detectMutationType = (ref: MutationRef): MutationType => {
       async (args: OptionalRestArgs<T>[0]): Promise<FunctionReturnType<T>> => {
         const type = options?.type ?? detectMutationType(ref)
 
-        if (!(store && isOptimistic)) 
+        if (!(store && isOptimistic))
           return (mutate as (a: OptionalRestArgs<T>[0]) => Promise<FunctionReturnType<T>>)(args)
-        
 
         const tempId = makeTempId(),
-          id = (args as Record<string, unknown>)?.id as string | undefined
+          id = (args as Record<string, unknown>).id as string | undefined
         store.add({
           args: args as Record<string, unknown>,
           id: id ?? tempId,

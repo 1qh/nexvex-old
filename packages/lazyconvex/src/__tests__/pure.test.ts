@@ -36,6 +36,7 @@ import {
   sleep
 } from '../constants'
 import { generateMarkdown } from '../docs-gen'
+import { recommended as eslintRecommended, rules as eslintRules } from '../eslint'
 import { guardApi } from '../guard'
 import {
   SLOW_THRESHOLD_MS,
@@ -3484,7 +3485,7 @@ describe('lazyconvex-docs', () => {
   test('generateMarkdown includes factory table', () => {
     const calls = [{ factory: 'crud', file: 'blog.ts', options: '', table: 'blog' }],
       fields = new Map([['blog', [{ name: 'title', type: 'string' }]]]),
-     md = generateMarkdown(calls, fields)
+      md = generateMarkdown(calls, fields)
     expect(md).toContain('## blog')
     expect(md).toContain('`crud`')
     expect(md).toContain('blog.ts')
@@ -3493,7 +3494,7 @@ describe('lazyconvex-docs', () => {
 
   test('generateMarkdown lists endpoints per factory', () => {
     const calls = [{ factory: 'crud', file: 'blog.ts', options: '', table: 'blog' }],
-     md = generateMarkdown(calls, new Map())
+      md = generateMarkdown(calls, new Map())
     expect(md).toContain('blog.create')
     expect(md).toContain('blog.update')
     expect(md).toContain('blog.rm')
@@ -3501,14 +3502,14 @@ describe('lazyconvex-docs', () => {
 
   test('generateMarkdown handles orgCrud with acl', () => {
     const calls = [{ factory: 'orgCrud', file: 'wiki.ts', options: 'acl: true', table: 'wiki' }],
-     md = generateMarkdown(calls, new Map())
+      md = generateMarkdown(calls, new Map())
     expect(md).toContain('wiki.addEditor')
     expect(md).toContain('wiki.setEditors')
   })
 
   test('generateMarkdown handles singletonCrud', () => {
     const calls = [{ factory: 'singletonCrud', file: 'profile.ts', options: '', table: 'profile' }],
-     md = generateMarkdown(calls, new Map())
+      md = generateMarkdown(calls, new Map())
     expect(md).toContain('profile.get')
     expect(md).toContain('profile.upsert')
   })
@@ -3524,7 +3525,7 @@ describe('lazyconvex-docs', () => {
           ]
         ]
       ]),
-     md = generateMarkdown(calls, fields)
+      md = generateMarkdown(calls, fields)
     expect(md).toContain('### Schema Fields')
     expect(md).toContain('| title | `string` |')
     expect(md).toContain('| published | `boolean` |')
@@ -3532,7 +3533,7 @@ describe('lazyconvex-docs', () => {
 
   test('generateMarkdown shows endpoint types', () => {
     const calls = [{ factory: 'crud', file: 'blog.ts', options: '', table: 'blog' }],
-     md = generateMarkdown(calls, new Map())
+      md = generateMarkdown(calls, new Map())
     expect(md).toContain('mutation')
     expect(md).toContain('query')
   })
@@ -3557,7 +3558,7 @@ describe('seed data generator', () => {
   test('generateFieldValue handles enum', () => {
     const field = zenum(['tech', 'life', 'tutorial']),
       val = generateFieldValue(field)
-    expect(['tech', 'life', 'tutorial']).toContain(val)
+    expect(['tech', 'life', 'tutorial']).toContain(String(val))
   })
 
   test('generateFieldValue handles number', () => {
@@ -3592,5 +3593,74 @@ describe('seed data generator', () => {
     const schema = object({ x: string() }),
       results = generateSeed(schema)
     expect(results).toHaveLength(1)
+  })
+})
+
+describe('security ESLint rules', () => {
+  test('require-rate-limit rule exists with correct meta', () => {
+    const rule = eslintRules['require-rate-limit']
+    expect(rule).toBeDefined()
+    expect(rule.meta.type).toBe('suggestion')
+    expect(rule.meta.messages.missingRateLimit).toContain('rateLimit')
+  })
+
+  test('no-unprotected-mutation rule exists with correct meta', () => {
+    const rule = eslintRules['no-unprotected-mutation']
+    expect(rule).toBeDefined()
+    expect(rule.meta.type).toBe('suggestion')
+    expect(rule.meta.messages.unprotectedMutation).toContain('auth')
+  })
+
+  test('no-unlimited-file-size rule exists with correct meta', () => {
+    const rule = eslintRules['no-unlimited-file-size']
+    expect(rule).toBeDefined()
+    expect(rule.meta.type).toBe('suggestion')
+    expect(rule.meta.messages.unlimitedFileSize).toContain('.max()')
+  })
+
+  test('no-empty-search-config rule exists with correct meta', () => {
+    const rule = eslintRules['no-empty-search-config']
+    expect(rule).toBeDefined()
+    expect(rule.meta.type).toBe('problem')
+    expect(rule.meta.messages.searchTrue).toContain('ambiguous')
+    expect(rule.meta.messages.searchEmpty).toContain('ambiguous')
+  })
+
+  test('recommended config includes all 4 new rules', () => {
+    const ruleNames = Object.keys(eslintRecommended.rules)
+    expect(ruleNames).toContain('lazyconvex/require-rate-limit')
+    expect(ruleNames).toContain('lazyconvex/no-unprotected-mutation')
+    expect(ruleNames).toContain('lazyconvex/no-unlimited-file-size')
+    expect(ruleNames).toContain('lazyconvex/no-empty-search-config')
+  })
+
+  test('total rule count is 16', () => {
+    expect(Object.keys(eslintRules)).toHaveLength(16)
+  })
+
+  test('all rules have create function and meta', () => {
+    for (const name of Object.keys(eslintRules)) {
+      const rule = eslintRules[name as keyof typeof eslintRules]
+      expect(typeof rule.create).toBe('function')
+      expect(rule.meta).toBeDefined()
+      expect(rule.meta.messages).toBeDefined()
+      expect(rule.meta.type).toBeDefined()
+    }
+  })
+
+  test('require-rate-limit is warn level in recommended', () => {
+    expect(eslintRecommended.rules['lazyconvex/require-rate-limit']).toBe('warn')
+  })
+
+  test('no-empty-search-config is error level in recommended', () => {
+    expect(eslintRecommended.rules['lazyconvex/no-empty-search-config']).toBe('error')
+  })
+
+  test('no-unprotected-mutation is warn level in recommended', () => {
+    expect(eslintRecommended.rules['lazyconvex/no-unprotected-mutation']).toBe('warn')
+  })
+
+  test('no-unlimited-file-size is warn level in recommended', () => {
+    expect(eslintRecommended.rules['lazyconvex/no-unlimited-file-size']).toBe('warn')
   })
 })

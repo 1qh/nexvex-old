@@ -10,9 +10,11 @@ import type {
   BaseBuilders,
   CanEditOpts,
   CascadeOption,
+  CrudHooks,
   DbLike,
   DbReadLike,
   FilterLike,
+  HookCtx,
   MutCtx,
   OrgCrudResult,
   OrgEnrichedDoc,
@@ -94,6 +96,7 @@ interface OrgCrudOptions<S extends ZodRawShape = ZodRawShape> {
   acl?: boolean
   aclFrom?: { field: keyof S & string; table: string }
   cascade?: CascadeOption
+  hooks?: CrudHooks
   rateLimit?: RateLimitConfig
   softDelete?: boolean
 }
@@ -121,6 +124,7 @@ const getEditors = (doc: Rec): string[] => (doc.editors as string[] | undefined)
     }
     return doc as { userId: string }
   },
+  ohk = (c: MutCtx): HookCtx => ({ db: c.db, storage: c.storage, userId: c.user._id as string }),
   makeOrgCrud = <S extends ZodRawShape>({
     builders,
     options: opt,
@@ -133,6 +137,7 @@ const getEditors = (doc: Rec): string[] => (doc.editors as string[] | undefined)
     table: string
   }): OrgCrudResult<S> => {
     const { m, q } = builders,
+      hooks = opt?.hooks,
       partial = schema.partial(),
       bulkIdsSchema = array(zid(table)).max(BULK_MAX),
       fileFs = detectFiles(schema.shape),
@@ -159,11 +164,15 @@ const getEditors = (doc: Rec): string[] => (doc.editors as string[] | undefined)
       create = m({
         args: { ...orgIdArg, ...schema.shape },
         handler: typed(async (c: MutCtx, a: Rec) => {
-          const { orgId, ...data } = a as Rec & { orgId: string }
+          const { orgId, ...raw } = a as Rec & { orgId: string }
           await requireOrgMember({ db: c.db, orgId, userId: c.user._id as string })
           if (opt?.rateLimit && !isTestMode())
             await checkRateLimit(c.db, { config: opt.rateLimit, key: c.user._id as string, table })
-          return dbInsert(c.db, table, { ...data, orgId, userId: c.user._id, ...time() })
+          let data = raw as Rec
+          if (hooks?.beforeCreate) data = await hooks.beforeCreate(ohk(c), { data })
+          const id = await dbInsert(c.db, table, { ...data, orgId, userId: c.user._id, ...time() })
+          if (hooks?.afterCreate) await hooks.afterCreate(ohk(c), { data, id })
+          return id
         })
       }),
       list = q({
@@ -194,7 +203,7 @@ const getEditors = (doc: Rec): string[] => (doc.editors as string[] | undefined)
       update = m({
         args: { ...orgIdArg, ...idArgs, ...partial.shape, expectedUpdatedAt: number().optional() },
         handler: typed(async (c: MutCtx, a: Rec) => {
-          const { expectedUpdatedAt, id, orgId, ...patch } = a as Rec & {
+          const { expectedUpdatedAt, id, orgId, ...raw } = a as Rec & {
               expectedUpdatedAt?: number
               id: string
               orgId: string
@@ -213,9 +222,12 @@ const getEditors = (doc: Rec): string[] => (doc.editors as string[] | undefined)
             return err('FORBIDDEN', `${table}:update`)
           if (expectedUpdatedAt !== undefined && doc.updatedAt !== expectedUpdatedAt)
             return err('CONFLICT', `${table}:update`)
+          let patch = raw as Rec
+          if (hooks?.beforeUpdate) patch = await hooks.beforeUpdate(ohk(c), { id, patch, prev: doc })
           const now = time()
           await cleanFiles({ doc, fileFields: fileFs, next: patch, storage: c.storage })
           await dbPatch(c.db, id, { ...patch, ...now })
+          if (hooks?.afterUpdate) await hooks.afterUpdate(ohk(c), { id, patch, prev: doc })
           return { ...doc, ...patch, ...now }
         })
       }),
@@ -234,14 +246,17 @@ const getEditors = (doc: Rec): string[] => (doc.editors as string[] | undefined)
             })
           )
             return err('FORBIDDEN', `${table}:rm`)
+          if (hooks?.beforeDelete) await hooks.beforeDelete(ohk(c), { doc, id })
           if (softDel) {
             await dbPatch(c.db, id, { deletedAt: Date.now() })
+            if (hooks?.afterDelete) await hooks.afterDelete(ohk(c), { doc, id })
             log('info', 'crud:delete', { id, soft: true, table })
             return doc
           }
           await cascadeDelete(c.db, id)
           await dbDelete(c.db, id)
           await cleanFiles({ doc, fileFields: fileFs, storage: c.storage })
+          if (hooks?.afterDelete) await hooks.afterDelete(ohk(c), { doc, id })
           return doc
         })
       }),

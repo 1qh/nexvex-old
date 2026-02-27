@@ -3,12 +3,13 @@ import type { ZodObject, ZodRawShape } from 'zod/v4'
 import { zid } from 'convex-helpers/server/zod4'
 import { number } from 'zod/v4'
 
-import type { BaseBuilders, ChildCrudResult, DbReadLike, MutCtx, Rec, UserCtx } from './types'
+import type { BaseBuilders, ChildCrudResult, CrudHooks, DbReadLike, HookCtx, MutCtx, Rec, UserCtx } from './types'
 
 import { idx, typed } from './bridge'
 import { cleanFiles, dbDelete, dbInsert, dbPatch, detectFiles, err, pickFields, time } from './helpers'
 
 interface ChildCrudOptions<PS extends ZodRawShape = ZodRawShape> {
+  hooks?: CrudHooks
   pub?: { parentField: keyof PS & string }
 }
 
@@ -20,7 +21,12 @@ interface ChildMeta<S extends ZodRawShape = ZodRawShape, PS extends ZodRawShape 
   schema: ZodObject<S>
 }
 
-const checkParentField = async (db: DbReadLike, parentId: string, field: string) => {
+const chk = (ctx: UserCtx): HookCtx => ({
+    db: ctx.db,
+    storage: (ctx as unknown as { storage: unknown }).storage as HookCtx['storage'],
+    userId: ctx.user._id as string
+  }),
+  checkParentField = async (db: DbReadLike, parentId: string, field: string) => {
     const p = await db.get(parentId)
     return p?.[field] ? p : null
   },
@@ -36,6 +42,7 @@ const checkParentField = async (db: DbReadLike, parentId: string, field: string)
     table: string
   }): ChildCrudResult<S> => {
     const { m, pq, q } = builders,
+      hooks = options?.hooks,
       { foreignKey, index, parent, schema } = meta,
       getFK = (doc: Rec): string => doc[foreignKey] as string,
       schemaKeys = Object.keys(schema.shape),
@@ -51,26 +58,29 @@ const checkParentField = async (db: DbReadLike, parentId: string, field: string)
         args: { ...schema.shape, [foreignKey]: zid(parent) },
         handler: typed(async (ctx: UserCtx, a: Rec) => {
           const args = a,
-            parentId = args[foreignKey] as string,
-            data = schema.parse(pickFields(args, schemaKeys))
+            parentId = args[foreignKey] as string
+          let data = schema.parse(pickFields(args, schemaKeys)) as Rec
           if (!(await verifyParentOwnership(ctx, parentId))) return err('NOT_FOUND', `${table}:create`)
-          return dbInsert(ctx.db, table, { ...data, [foreignKey]: parentId, ...time() })
+          if (hooks?.beforeCreate) data = await hooks.beforeCreate(chk(ctx), { data })
+          const id = await dbInsert(ctx.db, table, { ...data, [foreignKey]: parentId, ...time() })
+          if (hooks?.afterCreate) await hooks.afterCreate(chk(ctx), { data, id })
+          return id
         })
       }),
       update = m({
         args: { ...idArgs, ...partial.shape },
         handler: typed(async (ctx: MutCtx, a: Rec) => {
-          const args = a as Rec & { id: string },
-            { id, ...rest } = args,
-            data = partial.parse(pickFields(rest, schemaKeys)),
+          const { id, ...rest } = a as Rec & { id: string },
             doc = await ctx.db.get(id)
           if (!doc) return err('NOT_FOUND', `${table}:update`)
-          const parentId = getFK(doc)
-          if (!(await verifyParentOwnership(ctx, parentId))) return err('NOT_FOUND', `${table}:update`)
+          if (!(await verifyParentOwnership(ctx, getFK(doc)))) return err('NOT_FOUND', `${table}:update`)
+          let patch = partial.parse(pickFields(rest, schemaKeys)) as Rec
+          if (hooks?.beforeUpdate) patch = await hooks.beforeUpdate(chk(ctx), { id, patch, prev: doc })
           const now = time()
-          await cleanFiles({ doc, fileFields: fileFs, next: data as Rec, storage: ctx.storage })
-          await dbPatch(ctx.db, id, { ...data, ...now })
-          return { ...doc, ...data, ...now }
+          await cleanFiles({ doc, fileFields: fileFs, next: patch, storage: ctx.storage })
+          await dbPatch(ctx.db, id, { ...patch, ...now })
+          if (hooks?.afterUpdate) await hooks.afterUpdate(chk(ctx), { id, patch, prev: doc })
+          return { ...doc, ...patch, ...now }
         })
       }),
       rm = m({
@@ -80,8 +90,10 @@ const checkParentField = async (db: DbReadLike, parentId: string, field: string)
           if (!doc) return err('NOT_FOUND', `${table}:rm`)
           const parentId = getFK(doc)
           if (!(await verifyParentOwnership(ctx, parentId))) return err('NOT_FOUND', `${table}:rm`)
+          if (hooks?.beforeDelete) await hooks.beforeDelete(chk(ctx), { doc, id })
           await dbDelete(ctx.db, id)
           await cleanFiles({ doc, fileFields: fileFs, storage: ctx.storage })
+          if (hooks?.afterDelete) await hooks.afterDelete(chk(ctx), { doc, id })
           return doc
         })
       }),

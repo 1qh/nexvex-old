@@ -3448,6 +3448,120 @@ describe('lifecycle hooks types', () => {
   })
 })
 
+describe('lifecycle hooks in orgCrud and childCrud', () => {
+  test('OrgCrudOptions accepts hooks field', () => {
+    const opts: OrgCrudOptions<{ title: ReturnType<typeof string> }> = {
+      hooks: {
+        afterDelete: () => {
+          /* Noop */
+        },
+        beforeCreate: (_ctx, { data }) => data
+      },
+      softDelete: true
+    }
+    expect(opts.hooks).toBeDefined()
+    expect(opts.hooks?.beforeCreate).toBeDefined()
+    expect(opts.hooks?.afterDelete).toBeDefined()
+  })
+
+  test('OrgCrudOptions hooks are optional', () => {
+    const opts: OrgCrudOptions<{ title: ReturnType<typeof string> }> = {}
+    expect(opts.hooks).toBeUndefined()
+  })
+
+  test('OrgCrudOptions hooks coexist with acl and rateLimit', () => {
+    const opts: OrgCrudOptions<{ title: ReturnType<typeof string> }> = {
+      acl: true,
+      hooks: {
+        afterCreate: () => {
+          /* Noop */
+        }
+      },
+      rateLimit: { max: 10, window: 60_000 },
+      softDelete: true
+    }
+    expect(opts.hooks).toBeDefined()
+    expect(opts.acl).toBe(true)
+    expect(opts.rateLimit?.max).toBe(10)
+  })
+
+  test('OrgCrudOptions hooks can be async', () => {
+    const opts: OrgCrudOptions<{ title: ReturnType<typeof string> }> = {
+      hooks: {
+        afterDelete: async () => {
+          /* Noop */
+        },
+        beforeCreate: async (_ctx, { data }) => data,
+        beforeUpdate: async (_ctx, { patch }) => patch
+      }
+    }
+    expect(opts.hooks?.beforeCreate).toBeDefined()
+    expect(opts.hooks?.beforeUpdate).toBeDefined()
+  })
+
+  test('ChildCrudOptions via makeChildCrud accepts hooks conceptually', () => {
+    const hooks: CrudHooks = {
+      afterCreate: () => {
+        /* Noop */
+      },
+      afterDelete: () => {
+        /* Noop */
+      },
+      afterUpdate: () => {
+        /* Noop */
+      },
+      beforeCreate: (_ctx, { data }) => data,
+      beforeDelete: () => {
+        /* Noop */
+      },
+      beforeUpdate: (_ctx, { patch }) => patch
+    }
+    expect(typeof hooks.beforeCreate).toBe('function')
+    expect(typeof hooks.afterCreate).toBe('function')
+    expect(typeof hooks.beforeUpdate).toBe('function')
+    expect(typeof hooks.afterUpdate).toBe('function')
+    expect(typeof hooks.beforeDelete).toBe('function')
+    expect(typeof hooks.afterDelete).toBe('function')
+  })
+
+  test('all 6 hook callbacks work with HookCtx', () => {
+    const ctx: HookCtx = {
+        db: {} as HookCtx['db'],
+        storage: {} as HookCtx['storage'],
+        userId: 'user_456'
+      },
+      hooks: CrudHooks = {
+        afterCreate: (c, { id }) => {
+          expect(c.userId).toBe('user_456')
+          expect(typeof id).toBe('string')
+        },
+        afterDelete: c => {
+          expect(c.db).toBeDefined()
+        },
+        afterUpdate: (_c, { prev }) => {
+          expect(prev).toBeDefined()
+        },
+        beforeCreate: (c, { data }) => {
+          expect(c.storage).toBeDefined()
+          return data
+        },
+        beforeDelete: (_c, { doc }) => {
+          expect(doc).toBeDefined()
+        },
+        beforeUpdate: (c, { patch }) => {
+          expect(c.userId).toBe('user_456')
+          return patch
+        }
+      }
+    hooks.beforeCreate?.(ctx, { data: { title: 'test' } })
+    hooks.afterCreate?.(ctx, { data: { title: 'test' }, id: 'id_123' })
+    hooks.beforeUpdate?.(ctx, { id: 'id_123', patch: { title: 'new' }, prev: { title: 'old' } })
+    hooks.afterUpdate?.(ctx, { id: 'id_123', patch: { title: 'new' }, prev: { title: 'old' } })
+    hooks.beforeDelete?.(ctx, { doc: { title: 'test' }, id: 'id_123' })
+    hooks.afterDelete?.(ctx, { doc: { title: 'test' }, id: 'id_123' })
+  })
+})
+
 describe('query timing in devtools', () => {
   test('SLOW_THRESHOLD_MS is defined', () => {
     expect(SLOW_THRESHOLD_MS).toBe(5000)

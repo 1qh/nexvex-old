@@ -257,6 +257,7 @@ bunx lazyconvex-codegen-swift --schema packages/be/t.ts --convex packages/be/con
 | [API Reference](docs/api-reference.md) | All exports, error codes, file upload, rate limiting, known limitations |
 | [Migration](docs/migration.md) | Incremental adoption, convert one table at a time, coexistence with raw Convex |
 | [Schema Evolution](docs/schema-evolution.md) | Adding, renaming, removing fields, type changes, deployment strategies |
+| [Ejecting](docs/ejecting.md) | Gradual replacement of factories with raw Convex, what you lose/keep |
 
 ## Contributing
 

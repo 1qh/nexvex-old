@@ -1,5 +1,5 @@
 // oxlint-disable promise/prefer-await-to-then
-/* eslint-disable no-await-in-loop, no-continue, max-statements */
+/* eslint-disable no-await-in-loop, no-continue, max-statements, complexity */
 // biome-ignore-all lint/suspicious/useAwait: x
 // biome-ignore-all lint/performance/noAwaitInLoops: x
 // biome-ignore-all lint/nursery/noContinue: x
@@ -15,6 +15,7 @@ import type {
   DbLike,
   EnrichedDoc,
   FilterLike,
+  HookCtx,
   MutCtx,
   Qb,
   ReadCtx,
@@ -65,6 +66,8 @@ const makeCrud = <S extends ZodRawShape>({
     type WG = Rec & { own?: boolean }
     type W = WG & { or?: WG[] }
     const { m, pq, q } = builders,
+      hooks = opt?.hooks,
+      hk = (c: CrudMCtx): HookCtx => ({ db: c.db, storage: c.storage, userId: c.user._id as string }),
       searchCfg =
         opt?.search === true
           ? { field: 'text', index: 'search_field' }
@@ -268,6 +271,7 @@ const makeCrud = <S extends ZodRawShape>({
           db: DbLike
           delete: (id: string) => Promise<unknown>
           storage: StorageLike
+          user?: Rec
         },
         { id }: { id: string }
       ) => {
@@ -277,10 +281,17 @@ const makeCrud = <S extends ZodRawShape>({
             log('warn', 'crud:not_found', { id, table })
             return err('NOT_FOUND', `${table}:rm`)
           }
+          if (hooks?.beforeDelete)
+            await hooks.beforeDelete({ db: c.db, storage: c.storage, userId: (c.user?._id ?? '') as string }, { doc, id })
           await dbPatch(c.db, id, { deletedAt: Date.now() })
+          if (hooks?.afterDelete)
+            await hooks.afterDelete({ db: c.db, storage: c.storage, userId: (c.user?._id ?? '') as string }, { doc, id })
           log('info', 'crud:delete', { id, soft: true, table })
           return doc
         }
+        const doc = await c.db.get(id)
+        if (hooks?.beforeDelete && doc)
+          await hooks.beforeDelete({ db: c.db, storage: c.storage, userId: (c.user?._id ?? '') as string }, { doc, id })
         if (opt?.cascade)
           for (const { foreignKey: fk, table: tbl } of opt.cascade)
             for (const r of await c.db
@@ -290,6 +301,11 @@ const makeCrud = <S extends ZodRawShape>({
               await dbDelete(c.db, r._id as string)
         const d = await c.delete(id)
         await cleanFiles({ doc: d as Rec, fileFields: fileFs, storage: c.storage })
+        if (hooks?.afterDelete)
+          await hooks.afterDelete(
+            { db: c.db, storage: c.storage, userId: (c.user?._id ?? '') as string },
+            { doc: d as Rec, id }
+          )
         log('info', 'crud:delete', { id, table })
         return d
       }
@@ -331,7 +347,10 @@ const makeCrud = <S extends ZodRawShape>({
         handler: typed(async (c: CrudMCtx, a: Rec) => {
           if (opt?.rateLimit && !isTestMode())
             await checkRateLimit(c.db, { config: opt.rateLimit, key: c.user._id as string, table })
-          const id = await c.create(table, a)
+          let data = a
+          if (hooks?.beforeCreate) data = (await hooks.beforeCreate(hk(c), { data }))
+          const id = await c.create(table, data)
+          if (hooks?.afterCreate) await hooks.afterCreate(hk(c), { data, id })
           log('info', 'crud:create', { table, userId: c.user._id })
           return id
         })
@@ -362,10 +381,12 @@ const makeCrud = <S extends ZodRawShape>({
               expectedUpdatedAt?: number
               id: string
             },
-            patch = rest as Rec,
-            prev = await c.get(id),
-            ret = await c.patch(id, patch, expectedUpdatedAt)
+            prev = await c.get(id)
+          let patch = rest as Rec
+          if (hooks?.beforeUpdate) patch = (await hooks.beforeUpdate(hk(c), { id, patch, prev }))
+          const ret = await c.patch(id, patch, expectedUpdatedAt)
           await cleanFiles({ doc: prev, fileFields: fileFs, next: patch, storage: c.storage })
+          if (hooks?.afterUpdate) await hooks.afterUpdate(hk(c), { id, patch, prev })
           log('info', 'crud:update', { id, table })
           return ret
         })

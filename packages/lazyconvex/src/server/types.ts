@@ -58,9 +58,18 @@ interface CrudBuilders extends BaseBuilders {
   cq: Qb
   pq: Qb
 }
+interface CrudHooks {
+  afterCreate?: (ctx: HookCtx, args: { data: Rec; id: string }) => Promise<void> | void
+  afterDelete?: (ctx: HookCtx, args: { doc: Rec; id: string }) => Promise<void> | void
+  afterUpdate?: (ctx: HookCtx, args: { id: string; patch: Rec; prev: Rec }) => Promise<void> | void
+  beforeCreate?: (ctx: HookCtx, args: { data: Rec }) => Promise<Rec> | Rec
+  beforeDelete?: (ctx: HookCtx, args: { doc: Rec; id: string }) => Promise<void> | void
+  beforeUpdate?: (ctx: HookCtx, args: { id: string; patch: Rec; prev: Rec }) => Promise<Rec> | Rec
+}
 interface CrudOptions<S extends ZodRawShape> {
   auth?: { where?: WhereOf<S> }
   cascade?: CascadeOption[] | false
+  hooks?: CrudHooks
   pub?: { where?: WhereOf<S> }
   rateLimit?: RateLimitConfig
   search?: (keyof S & string) | true | { field?: keyof S & string; index?: string }
@@ -68,6 +77,11 @@ interface CrudOptions<S extends ZodRawShape> {
 }
 interface DbCtx {
   db: DbLike
+}
+interface HookCtx {
+  db: DbLike
+  storage: StorageLike
+  userId: string
 }
 interface MutCtx extends UserCtx {
   storage: StorageLike
@@ -406,6 +420,7 @@ export type {
   ChildCrudResult,
   ComparisonOp,
   CrudBuilders,
+  CrudHooks,
   CrudOptions,
   CrudReadApi,
   CrudResult,
@@ -417,6 +432,7 @@ export type {
   ErrorCode,
   FID,
   FilterLike,
+  HookCtx,
   IndexLike,
   Mb,
   MutationCtxLike,

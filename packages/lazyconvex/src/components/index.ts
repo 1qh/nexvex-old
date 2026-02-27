@@ -1,4 +1,5 @@
 export { default as EditorsSection } from './editors-section'
+export { default as ConvexErrorBoundary } from './error-boundary'
 export { fields, FormContext } from './fields'
 export type { Api } from './fields'
 export { FileApiContext, FileApiProvider } from './file-field'

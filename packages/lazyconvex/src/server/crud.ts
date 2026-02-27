@@ -50,7 +50,8 @@ interface CrudMCtx extends MutCtx {
   patch: (id: string, data: Rec, expectedUpdatedAt?: number) => Promise<Rec>
 }
 
-const makeCrud = <S extends ZodRawShape>({
+const hk = (c: CrudMCtx): HookCtx => ({ db: c.db, storage: c.storage, userId: c.user._id as string }),
+  makeCrud = <S extends ZodRawShape>({
     builders,
     options: opt,
     schema,
@@ -67,7 +68,6 @@ const makeCrud = <S extends ZodRawShape>({
     type W = WG & { or?: WG[] }
     const { m, pq, q } = builders,
       hooks = opt?.hooks,
-      hk = (c: CrudMCtx): HookCtx => ({ db: c.db, storage: c.storage, userId: c.user._id as string }),
       searchCfg =
         opt?.search === true
           ? { field: 'text', index: 'search_field' }
@@ -348,7 +348,7 @@ const makeCrud = <S extends ZodRawShape>({
           if (opt?.rateLimit && !isTestMode())
             await checkRateLimit(c.db, { config: opt.rateLimit, key: c.user._id as string, table })
           let data = a
-          if (hooks?.beforeCreate) data = (await hooks.beforeCreate(hk(c), { data }))
+          if (hooks?.beforeCreate) data = await hooks.beforeCreate(hk(c), { data })
           const id = await c.create(table, data)
           if (hooks?.afterCreate) await hooks.afterCreate(hk(c), { data, id })
           log('info', 'crud:create', { table, userId: c.user._id })
@@ -383,7 +383,7 @@ const makeCrud = <S extends ZodRawShape>({
             },
             prev = await c.get(id)
           let patch = rest as Rec
-          if (hooks?.beforeUpdate) patch = (await hooks.beforeUpdate(hk(c), { id, patch, prev }))
+          if (hooks?.beforeUpdate) patch = await hooks.beforeUpdate(hk(c), { id, patch, prev })
           const ret = await c.patch(id, patch, expectedUpdatedAt)
           await cleanFiles({ doc: prev, fileFields: fileFs, next: patch, storage: c.storage })
           if (hooks?.afterUpdate) await hooks.afterUpdate(hk(c), { id, patch, prev })

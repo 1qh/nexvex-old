@@ -1,4 +1,4 @@
-/* eslint-disable max-statements */
+/* eslint-disable max-statements, @typescript-eslint/no-use-before-define */
 import type { output, ZodObject, ZodRawShape, ZodType } from 'zod/v4'
 
 import { cvFileKindOf, isArrayType, isBooleanType, isNumberType, isOptionalField, isStringType, unwrapZod } from './zod'
@@ -101,11 +101,8 @@ const ALPHA = 'abcdefghijklmnopqrstuvwxyz',
     const result: Record<string, unknown> = {}
     for (const k of Object.keys(schema.shape)) {
       const field = schema.shape[k] as ZodType
-      if (isOptionalField(field)) 
-        result[k] = Math.random() > 0.3 ? generateFieldValue(field) : undefined
-       else 
-        result[k] = generateFieldValue(field)
-      
+      if (isOptionalField(field)) result[k] = Math.random() > 0.3 ? generateFieldValue(field) : undefined
+      else result[k] = generateFieldValue(field)
     }
     return result as output<ZodObject<S>>
   },

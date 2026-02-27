@@ -239,9 +239,8 @@ const dim = (s: string) => `\u001B[2m${s}\u001B[0m`,
         fields = tableFields.get(call.table)
       total += eps.length
       console.log(`${bold(call.table)} ${dim(`(${call.factory})`)} ${dim(`\u2014 ${call.file}`)}`)
-      if (fields?.length) 
-        console.log(`  ${dim('fields:')} ${fields.map(f => `${f.name}: ${f.type}`).join(', ')}`)
-      
+      if (fields?.length) console.log(`  ${dim('fields:')} ${fields.map(f => `${f.name}: ${f.type}`).join(', ')}`)
+
       console.log(`  ${dim('endpoints:')} ${eps.join(', ')}`)
       console.log('')
     }

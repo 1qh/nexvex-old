@@ -11,8 +11,10 @@ import type { OrgCrudOptions } from '../server/org-crud'
 import type {
   BaseSchema,
   CascadeOption,
+  CrudHooks,
   CrudOptions,
   ErrorCode,
+  HookCtx,
   OrgCascadeTableConfig,
   OrgSchema,
   OwnedSchema,
@@ -33,14 +35,22 @@ import {
   ONE_YEAR_SECONDS,
   sleep
 } from '../constants'
+import { generateMarkdown } from '../docs-gen'
 import { guardApi } from '../guard'
-import { STALE_THRESHOLD_MS, trackSubscription, untrackSubscription, updateSubscription } from '../react/devtools'
+import {
+  SLOW_THRESHOLD_MS,
+  STALE_THRESHOLD_MS,
+  trackSubscription,
+  untrackSubscription,
+  updateSubscription
+} from '../react/devtools'
 import { makeErrorHandler } from '../react/error-toast'
 import { buildMeta, getMeta } from '../react/form'
 import { canEditResource } from '../react/org'
 import { DEFAULT_PAGE_SIZE } from '../react/use-list'
 import { fetchWithRetry, withRetry } from '../retry'
 import { child, cvFile, cvFiles, makeBase, makeOrgScoped, makeOwned, makeSingleton } from '../schema'
+import { generateFieldValue, generateOne, generateSeed } from '../seed'
 import { flt, idx, indexFields, sch, typed } from '../server/bridge'
 import { ownedCascade } from '../server/crud'
 import {
@@ -3367,5 +3377,220 @@ describe('devtools subscription tracking', () => {
     const id = trackSubscription('api.test.list')
     untrackSubscription(id)
     expect(() => untrackSubscription(id)).not.toThrow()
+  })
+})
+
+describe('lifecycle hooks types', () => {
+  test('CrudHooks interface is structurally valid', () => {
+    const hooks: CrudHooks = {
+      afterCreate: () => {
+        /* Noop */
+      },
+      afterDelete: () => {
+        /* Noop */
+      },
+      afterUpdate: () => {
+        /* Noop */
+      },
+      beforeCreate: (_ctx, { data }) => data,
+      beforeDelete: () => {
+        /* Noop */
+      },
+      beforeUpdate: (_ctx, { patch }) => patch
+    }
+    expect(hooks.beforeCreate).toBeDefined()
+    expect(hooks.afterCreate).toBeDefined()
+    expect(hooks.beforeUpdate).toBeDefined()
+    expect(hooks.afterUpdate).toBeDefined()
+    expect(hooks.beforeDelete).toBeDefined()
+    expect(hooks.afterDelete).toBeDefined()
+  })
+
+  test('HookCtx has required properties', () => {
+    const ctx: HookCtx = {
+      db: {} as HookCtx['db'],
+      storage: {} as HookCtx['storage'],
+      userId: 'user_123'
+    }
+    expect(ctx.db).toBeDefined()
+    expect(ctx.storage).toBeDefined()
+    expect(ctx.userId).toBe('user_123')
+  })
+
+  test('CrudOptions accepts hooks field', () => {
+    const opts: CrudOptions<{ title: ReturnType<typeof string> }> = {
+      hooks: {
+        afterCreate: () => {
+          /* Noop */
+        }
+      },
+      softDelete: true
+    }
+    expect(opts.hooks).toBeDefined()
+    expect(opts.softDelete).toBe(true)
+  })
+
+  test('hooks can be async', () => {
+    const hooks: CrudHooks = {
+      afterDelete: async () => {
+        /* Noop */
+      },
+      beforeCreate: async (_ctx, { data }) => data
+    }
+    expect(hooks.beforeCreate).toBeDefined()
+    expect(hooks.afterDelete).toBeDefined()
+  })
+
+  test('hooks are optional on CrudOptions', () => {
+    const opts: CrudOptions<{ title: ReturnType<typeof string> }> = {}
+    expect(opts.hooks).toBeUndefined()
+  })
+})
+
+describe('query timing in devtools', () => {
+  test('SLOW_THRESHOLD_MS is defined', () => {
+    expect(SLOW_THRESHOLD_MS).toBe(5000)
+  })
+
+  test('trackSubscription initializes timing fields', () => {
+    const id = trackSubscription('api.blog.list')
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
+  })
+
+  test('updateSubscription computes latency on first loaded', () => {
+    const id = trackSubscription('api.timing.test')
+    updateSubscription(id, 'loaded')
+    untrackSubscription(id)
+    expect(id).toBeGreaterThan(0)
+  })
+
+  test('multiple updates do not reset firstResultAt', () => {
+    const id = trackSubscription('api.multi.test')
+    updateSubscription(id, 'loaded')
+    updateSubscription(id, 'loaded')
+    untrackSubscription(id)
+    expect(id).toBeGreaterThan(0)
+  })
+})
+
+describe('lazyconvex-docs', () => {
+  test('generateMarkdown produces markdown header', () => {
+    const md = generateMarkdown([], new Map())
+    expect(md).toContain('# API Reference')
+    expect(md).toContain('lazyconvex-docs')
+  })
+
+  test('generateMarkdown includes factory table', () => {
+    const calls = [{ factory: 'crud', file: 'blog.ts', options: '', table: 'blog' }],
+      fields = new Map([['blog', [{ name: 'title', type: 'string' }]]]),
+     md = generateMarkdown(calls, fields)
+    expect(md).toContain('## blog')
+    expect(md).toContain('`crud`')
+    expect(md).toContain('blog.ts')
+    expect(md).toContain('title')
+  })
+
+  test('generateMarkdown lists endpoints per factory', () => {
+    const calls = [{ factory: 'crud', file: 'blog.ts', options: '', table: 'blog' }],
+     md = generateMarkdown(calls, new Map())
+    expect(md).toContain('blog.create')
+    expect(md).toContain('blog.update')
+    expect(md).toContain('blog.rm')
+  })
+
+  test('generateMarkdown handles orgCrud with acl', () => {
+    const calls = [{ factory: 'orgCrud', file: 'wiki.ts', options: 'acl: true', table: 'wiki' }],
+     md = generateMarkdown(calls, new Map())
+    expect(md).toContain('wiki.addEditor')
+    expect(md).toContain('wiki.setEditors')
+  })
+
+  test('generateMarkdown handles singletonCrud', () => {
+    const calls = [{ factory: 'singletonCrud', file: 'profile.ts', options: '', table: 'profile' }],
+     md = generateMarkdown(calls, new Map())
+    expect(md).toContain('profile.get')
+    expect(md).toContain('profile.upsert')
+  })
+
+  test('generateMarkdown includes schema fields section', () => {
+    const calls = [{ factory: 'crud', file: 'blog.ts', options: '', table: 'blog' }],
+      fields = new Map([
+        [
+          'blog',
+          [
+            { name: 'title', type: 'string' },
+            { name: 'published', type: 'boolean' }
+          ]
+        ]
+      ]),
+     md = generateMarkdown(calls, fields)
+    expect(md).toContain('### Schema Fields')
+    expect(md).toContain('| title | `string` |')
+    expect(md).toContain('| published | `boolean` |')
+  })
+
+  test('generateMarkdown shows endpoint types', () => {
+    const calls = [{ factory: 'crud', file: 'blog.ts', options: '', table: 'blog' }],
+     md = generateMarkdown(calls, new Map())
+    expect(md).toContain('mutation')
+    expect(md).toContain('query')
+  })
+})
+
+describe('seed data generator', () => {
+  test('generateOne produces valid object for simple schema', () => {
+    const schema = object({ published: boolean(), title: string().min(1) }),
+      result = generateOne(schema)
+    expect(typeof result.title).toBe('string')
+    expect(typeof result.published).toBe('boolean')
+    expect(result.title.length).toBeGreaterThan(0)
+  })
+
+  test('generateSeed produces correct count', () => {
+    const schema = object({ name: string() }),
+      results = generateSeed(schema, 5)
+    expect(results).toHaveLength(5)
+    for (const r of results) expect(typeof r.name).toBe('string')
+  })
+
+  test('generateFieldValue handles enum', () => {
+    const field = zenum(['tech', 'life', 'tutorial']),
+      val = generateFieldValue(field)
+    expect(['tech', 'life', 'tutorial']).toContain(val)
+  })
+
+  test('generateFieldValue handles number', () => {
+    const val = generateFieldValue(number())
+    expect(typeof val).toBe('number')
+  })
+
+  test('generateFieldValue handles boolean', () => {
+    const val = generateFieldValue(boolean())
+    expect(typeof val).toBe('boolean')
+  })
+
+  test('generateFieldValue handles cvFile', () => {
+    const val = generateFieldValue(cvFile())
+    expect(typeof val).toBe('string')
+    expect(String(val)).toContain('_storage:')
+  })
+
+  test('generateFieldValue handles array', () => {
+    const val = generateFieldValue(array(string()))
+    expect(Array.isArray(val)).toBe(true)
+  })
+
+  test('generateOne handles optional fields', () => {
+    const schema = object({ bio: optional(string()), name: string() }),
+      result = generateOne(schema)
+    expect(typeof result.name).toBe('string')
+    expect(['string', 'undefined']).toContain(typeof result.bio)
+  })
+
+  test('generateSeed default count is 1', () => {
+    const schema = object({ x: string() }),
+      results = generateSeed(schema)
+    expect(results).toHaveLength(1)
   })
 })

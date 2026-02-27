@@ -590,6 +590,151 @@ const requireErrorBoundary = {
   }
 }
 
+const writeCrudFactories = new Set(['crud', 'orgCrud'])
+
+const getOptionsObject = (
+  node: CallNode
+): (BaseNode & { properties: (BaseNode & { key: BaseNode; value: BaseNode })[] }) | undefined => {
+  const argIdx = node.arguments.length >= 3 ? 2 : -1
+  if (argIdx < 0) return
+  const arg = node.arguments[argIdx]
+  if (arg?.type !== 'ObjectExpression') return
+  return arg as BaseNode & { properties: (BaseNode & { key: BaseNode; value: BaseNode })[] }
+}
+
+const hasProperty = (obj: BaseNode & { properties: (BaseNode & { key: BaseNode })[] }, name: string): boolean => {
+  for (const p of obj.properties) if (p.type === 'Property' && getIdentName(p.key) === name) return true
+  return false
+}
+
+const requireRateLimit = {
+  create: (context: EslintContext) => ({
+    CallExpression: (node: CallNode) => {
+      const callee = getIdentName(node.callee)
+      if (!(callee && writeCrudFactories.has(callee))) return
+      const opts = getOptionsObject(node)
+      if (opts && hasProperty(opts, 'rateLimit')) return
+      context.report({ data: { factory: callee }, messageId: 'missingRateLimit', node })
+    }
+  }),
+  meta: {
+    messages: {
+      missingRateLimit:
+        '{{factory}}() without rateLimit. Add rateLimit: { max, window } to prevent abuse on write endpoints.'
+    },
+    type: 'suggestion' as const
+  }
+}
+
+const getHandlerBody = (node: CallNode): BaseNode[] | undefined => {
+  if (node.arguments.length < 1) return
+  const [arg] = node.arguments
+  if (arg?.type !== 'ObjectExpression') return
+  const obj = arg as BaseNode & { properties: (BaseNode & { key: BaseNode; value: BaseNode })[] }
+  for (const p of obj.properties)
+    if (p.type === 'Property' && getIdentName(p.key) === 'handler') {
+      const fn = p.value
+      if (fn.body?.type === 'BlockStatement' && fn.body.body) return fn.body.body
+    }
+}
+
+const bodyContainsIdent = (nodes: BaseNode[], target: string): boolean => {
+  for (const n of nodes) {
+    if (n.type === 'Identifier' && n.name === target) return true
+    if (n.body?.body && bodyContainsIdent(n.body.body, target)) return true
+    if (n.argument && bodyContainsIdent([n.argument], target)) return true
+    if (n.expression && bodyContainsIdent([n.expression], target)) return true
+    if (n.callee && bodyContainsIdent([n.callee], target)) return true
+    if (n.properties) for (const p of n.properties) if (bodyContainsIdent([p], target)) return true
+  }
+  return false
+}
+
+const noUnprotectedMutation = {
+  create: (context: EslintContext) => {
+    if (context.filename.includes('_generated') || context.filename.includes('.test.')) return {}
+    return {
+      CallExpression: (node: CallNode) => {
+        if (!isIdent(node.callee, 'm')) return
+        const handlerBody = getHandlerBody(node)
+        if (!handlerBody) return
+        if (bodyContainsIdent(handlerBody, 'getAuthUserId') || bodyContainsIdent(handlerBody, 'requireAuth')) return
+        context.report({ messageId: 'unprotectedMutation', node })
+      }
+    }
+  },
+  meta: {
+    messages: {
+      unprotectedMutation:
+        'm() handler without auth check. Call getAuthUserId() or add a comment explaining why auth is not needed.'
+    },
+    type: 'suggestion' as const
+  }
+}
+
+const noUnlimitedFileSize = {
+  create: (context: EslintContext) => {
+    const content = findSchemaContent(context.cwd)
+    if (!content) return {}
+    const fileCallPattern = /cvFiles?\(\)/gu
+    let warned = false
+    return {
+      Program: (node: BaseNode) => {
+        if (warned) return
+        let match = fileCallPattern.exec(content)
+        while (match) {
+          const after = content.slice(match.index + match[0].length, match.index + match[0].length + 50)
+          if (!after.startsWith('.max(')) {
+            warned = true
+            context.report({
+              data: { call: match[0] },
+              messageId: 'unlimitedFileSize',
+              node
+            })
+            return
+          }
+          match = fileCallPattern.exec(content)
+        }
+      }
+    }
+  },
+  meta: {
+    messages: {
+      unlimitedFileSize: '{{call}} without .max() in schema. Add a size limit to prevent unbounded file uploads.'
+    },
+    type: 'suggestion' as const
+  }
+}
+
+const noEmptySearchConfig = {
+  create: (context: EslintContext) => ({
+    CallExpression: (node: CallNode) => {
+      const callee = getIdentName(node.callee)
+      if (!(callee && crudFactories.has(callee))) return
+      const opts = getOptionsObject(node)
+      if (!opts) return
+      for (const p of opts.properties)
+        if (p.type === 'Property' && getIdentName(p.key) === 'search') {
+          const val = p.value
+          if (val.type === 'Literal' && val.value === true) return context.report({ messageId: 'searchTrue', node: val })
+          if (val.type === 'ObjectExpression') {
+            const obj = val as BaseNode & { properties: BaseNode[] }
+            if (obj.properties.length === 0) return context.report({ messageId: 'searchEmpty', node: val })
+          }
+        }
+    }
+  }),
+  meta: {
+    messages: {
+      searchEmpty:
+        "search: {} is ambiguous. Specify the field to search: search: 'fieldName' or search: { field: 'fieldName' }.",
+      searchTrue:
+        "search: true is ambiguous. Specify the field to search: search: 'fieldName' or search: { field: 'fieldName' }."
+    },
+    type: 'problem' as const
+  }
+}
+
 const rules = {
   'api-casing': apiCasing,
   'consistent-crud-naming': consistentCrudNaming,
@@ -597,12 +742,16 @@ const rules = {
   'form-field-exists': formFieldExists,
   'form-field-kind': formFieldKind,
   'no-duplicate-crud': noDuplicateCrud,
+  'no-empty-search-config': noEmptySearchConfig,
   'no-raw-fetch-in-server-component': noRawFetchInServerComponent,
+  'no-unlimited-file-size': noUnlimitedFileSize,
+  'no-unprotected-mutation': noUnprotectedMutation,
   'no-unsafe-api-cast': noUnsafeApiCast,
   'prefer-useList': preferUseList,
   'prefer-useOrgQuery': preferUseOrgQuery,
   'require-connection': requireConnection,
-  'require-error-boundary': requireErrorBoundary
+  'require-error-boundary': requireErrorBoundary,
+  'require-rate-limit': requireRateLimit
 }
 
 const plugin = { rules }
@@ -619,12 +768,16 @@ const recommended = {
     'lazyconvex/form-field-exists': 'error' as const,
     'lazyconvex/form-field-kind': 'warn' as const,
     'lazyconvex/no-duplicate-crud': 'error' as const,
+    'lazyconvex/no-empty-search-config': 'error' as const,
     'lazyconvex/no-raw-fetch-in-server-component': 'warn' as const,
+    'lazyconvex/no-unlimited-file-size': 'warn' as const,
+    'lazyconvex/no-unprotected-mutation': 'warn' as const,
     'lazyconvex/no-unsafe-api-cast': 'warn' as const,
     'lazyconvex/prefer-useList': 'warn' as const,
     'lazyconvex/prefer-useOrgQuery': 'warn' as const,
     'lazyconvex/require-connection': 'error' as const,
-    'lazyconvex/require-error-boundary': 'warn' as const
+    'lazyconvex/require-error-boundary': 'warn' as const,
+    'lazyconvex/require-rate-limit': 'warn' as const
   }
 }
 

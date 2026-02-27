@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { ConvexError } from 'convex/values'
 import { array, boolean, date, number, object, optional, string, enum as zenum } from 'zod/v4'
 
+import type { FactoryCall } from '../check'
 import type { UseListOptions } from '../react/use-list'
 import type { OrgCrudOptions } from '../server/org-crud'
 import type {
@@ -20,6 +21,7 @@ import type {
   WhereOf
 } from '../server/types'
 
+import { endpointsForFactory } from '../check'
 import { isValidSwiftIdent, SWIFT_KEYWORDS, swiftEnumCase } from '../codegen-swift-utils'
 import { defineSteps } from '../components/step-form'
 import {
@@ -32,6 +34,7 @@ import {
   sleep
 } from '../constants'
 import { guardApi } from '../guard'
+import { STALE_THRESHOLD_MS, trackSubscription, untrackSubscription, updateSubscription } from '../react/devtools'
 import { makeErrorHandler } from '../react/error-toast'
 import { buildMeta, getMeta } from '../react/form'
 import { canEditResource } from '../react/org'
@@ -63,6 +66,7 @@ import { orgCascade } from '../server/org-crud'
 import { baseTable, orgTable, ownedTable, singletonTable } from '../server/schema-helpers'
 import { isTestMode } from '../server/test'
 import { ERROR_MESSAGES } from '../server/types'
+import { extractChildren, extractFieldsFromBlock, extractFieldType, extractWrapperTables, generateMermaid } from '../viz'
 import {
   coerceOptionals,
   cvFileKindOf,
@@ -3118,5 +3122,250 @@ describe('makeErrorHandler', () => {
       )
     handler(new ConvexError({ code: 'NOT_FOUND', message: 'Gone' }))
     expect(messages).toEqual(['Gone'])
+  })
+})
+
+describe('lazyconvex-viz', () => {
+  test('extractFieldType recognizes string', () => {
+    expect(extractFieldType('string().min(1)')).toBe('string')
+  })
+
+  test('extractFieldType recognizes boolean', () => {
+    expect(extractFieldType('boolean()')).toBe('boolean')
+  })
+
+  test('extractFieldType recognizes number', () => {
+    expect(extractFieldType('number()')).toBe('number')
+  })
+
+  test('extractFieldType recognizes cvFile', () => {
+    expect(extractFieldType('cvFile().nullable()')).toBe('file')
+  })
+
+  test('extractFieldType recognizes cvFiles', () => {
+    expect(extractFieldType('cvFiles().max(5)')).toBe('file[]')
+  })
+
+  test('extractFieldType recognizes zid', () => {
+    expect(extractFieldType("zid('chat')")).toBe('id<chat>')
+  })
+
+  test('extractFieldType recognizes enum', () => {
+    expect(extractFieldType("zenum(['a','b'])")).toBe('enum')
+  })
+
+  test('extractFieldsFromBlock parses fields', () => {
+    const block = `
+      title: string().min(1),
+      published: boolean(),
+      count: number()`,
+      fields = extractFieldsFromBlock(block)
+    expect(fields).toHaveLength(3)
+    expect(fields[0]).toEqual({ name: 'title', type: 'string' })
+    expect(fields[1]).toEqual({ name: 'published', type: 'boolean' })
+    expect(fields[2]).toEqual({ name: 'count', type: 'number' })
+  })
+
+  test('extractWrapperTables finds owned tables', () => {
+    const content = `const owned = makeOwned({
+  blog: object({
+    title: string().min(1),
+    published: boolean()
+  })
+})`,
+      tables = extractWrapperTables(content)
+    expect(tables).toHaveLength(1)
+    const [t] = tables
+    expect(t).toBeDefined()
+    expect(t?.name).toBe('blog')
+    expect(t?.tableType).toBe('owned')
+    expect(t?.fields.length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('extractChildren finds child tables', () => {
+    const content = `const children = {
+  message: child({
+    foreignKey: 'chatId',
+    parent: 'chat',
+    schema: object({
+      chatId: zid('chat'),
+      role: string()
+    })
+  })
+}`,
+      children = extractChildren(content)
+    expect(children).toHaveLength(1)
+    const [c] = children
+    expect(c).toBeDefined()
+    expect(c?.name).toBe('message')
+    expect(c?.parent).toBe('chat')
+    expect(c?.foreignKey).toBe('chatId')
+  })
+
+  test('generateMermaid outputs erDiagram', () => {
+    const tables = [{ fields: [{ name: 'title', type: 'string' }], name: 'blog', tableType: 'owned' }],
+      children = [
+        {
+          fields: [{ name: 'chatId', type: 'id<chat>' }],
+          foreignKey: 'chatId',
+          name: 'message',
+          parent: 'chat',
+          tableType: 'child'
+        }
+      ],
+      mermaid = generateMermaid(tables, children)
+    expect(mermaid).toContain('erDiagram')
+    expect(mermaid).toContain('blog {')
+    expect(mermaid).toContain('message {')
+    expect(mermaid).toContain('chat ||--o{ message')
+  })
+})
+
+describe('lazyconvex-check --endpoints', () => {
+  const makeCall = (factory: string, options = ''): FactoryCall => ({ factory, file: 'test.ts', options, table: 'test' })
+
+  test('crud produces base + pub endpoints', () => {
+    const eps = endpointsForFactory(makeCall('crud'))
+    expect(eps).toContain('create')
+    expect(eps).toContain('update')
+    expect(eps).toContain('rm')
+    expect(eps).toContain('bulkRm')
+    expect(eps).toContain('bulkUpdate')
+    expect(eps).toContain('pub.list')
+    expect(eps).toContain('pub.read')
+  })
+
+  test('crud with search adds pub.search', () => {
+    const eps = endpointsForFactory(makeCall('crud', "{ search: 'content' }"))
+    expect(eps).toContain('pub.search')
+  })
+
+  test('crud with softDelete adds restore', () => {
+    const eps = endpointsForFactory(makeCall('crud', '{ softDelete: true }'))
+    expect(eps).toContain('restore')
+  })
+
+  test('orgCrud produces base endpoints', () => {
+    const eps = endpointsForFactory(makeCall('orgCrud'))
+    expect(eps).toContain('list')
+    expect(eps).toContain('read')
+    expect(eps).toContain('create')
+    expect(eps).toContain('update')
+    expect(eps).toContain('rm')
+  })
+
+  test('orgCrud with acl adds editor endpoints', () => {
+    const eps = endpointsForFactory(makeCall('orgCrud', '{ acl: true }'))
+    expect(eps).toContain('addEditor')
+    expect(eps).toContain('removeEditor')
+    expect(eps).toContain('setEditors')
+    expect(eps).toContain('editors')
+  })
+
+  test('singletonCrud produces get + upsert', () => {
+    const eps = endpointsForFactory(makeCall('singletonCrud'))
+    expect(eps).toEqual(['get', 'upsert'])
+  })
+
+  test('cacheCrud produces all cache endpoints', () => {
+    const eps = endpointsForFactory(makeCall('cacheCrud'))
+    expect(eps).toContain('get')
+    expect(eps).toContain('invalidate')
+    expect(eps).toContain('purge')
+    expect(eps).toContain('refresh')
+  })
+
+  test('childCrud produces base child endpoints', () => {
+    const eps = endpointsForFactory(makeCall('childCrud'))
+    expect(eps).toContain('list')
+    expect(eps).toContain('create')
+    expect(eps).toContain('update')
+    expect(eps).toContain('rm')
+  })
+
+  test('childCrud with pub adds pub.list and pub.get', () => {
+    const eps = endpointsForFactory(makeCall('childCrud', '{ pub: true }'))
+    expect(eps).toContain('pub.list')
+    expect(eps).toContain('pub.get')
+  })
+})
+
+describe('bundle verification', () => {
+  test('lazyconvex/server does not export React hooks', async () => {
+    const serverExports = await import('../server/index'),
+      names = Object.keys(serverExports)
+    for (const name of names) expect(name.startsWith('use')).toBe(false)
+  })
+
+  test('lazyconvex/schema has no React imports', async () => {
+    const { readFileSync } = await import('node:fs'),
+      { join } = await import('node:path'),
+      content = readFileSync(join(import.meta.dir, '..', 'schema.ts'), 'utf8')
+    expect(content.includes("from 'react'")).toBe(false)
+    expect(content.includes('useState')).toBe(false)
+    expect(content.includes('useEffect')).toBe(false)
+  })
+
+  test('lazyconvex/schema has no node:fs imports', async () => {
+    const { readFileSync } = await import('node:fs'),
+      { join } = await import('node:path'),
+      content = readFileSync(join(import.meta.dir, '..', 'schema.ts'), 'utf8')
+    expect(content.includes("from 'node:fs'")).toBe(false)
+  })
+
+  test('lazyconvex/retry has no React or server imports', async () => {
+    const { readFileSync } = await import('node:fs'),
+      { join } = await import('node:path'),
+      content = readFileSync(join(import.meta.dir, '..', 'retry.ts'), 'utf8')
+    expect(content.includes("from 'react'")).toBe(false)
+    expect(content.includes("from 'node:fs'")).toBe(false)
+  })
+
+  test('entry point count matches package.json exports', async () => {
+    const { readFileSync } = await import('node:fs'),
+      { join } = await import('node:path'),
+      content = readFileSync(join(import.meta.dir, '..', '..', 'package.json'), 'utf8'),
+      pkg = JSON.parse(content) as { exports: Record<string, string> },
+      exportKeys = Object.keys(pkg.exports)
+    expect(exportKeys.length).toBeGreaterThanOrEqual(8)
+  })
+})
+
+describe('devtools subscription tracking', () => {
+  test('STALE_THRESHOLD_MS is 30 seconds', () => {
+    expect(STALE_THRESHOLD_MS).toBe(30_000)
+  })
+
+  test('trackSubscription returns numeric id', () => {
+    const id = trackSubscription('api.blog.list', { where: {} })
+    expect(typeof id).toBe('number')
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
+  })
+
+  test('trackSubscription assigns unique ids', () => {
+    const id1 = trackSubscription('api.blog.list'),
+      id2 = trackSubscription('api.chat.list')
+    expect(id1).not.toBe(id2)
+    untrackSubscription(id1)
+    untrackSubscription(id2)
+  })
+
+  test('updateSubscription changes status', () => {
+    const id = trackSubscription('api.blog.list')
+    updateSubscription(id, 'loaded')
+    updateSubscription(id, 'error')
+    untrackSubscription(id)
+    expect(id).toBeGreaterThan(0)
+  })
+
+  test('updateSubscription on missing id is no-op', () => {
+    expect(() => updateSubscription(999_999, 'loaded')).not.toThrow()
+  })
+
+  test('untrackSubscription removes subscription', () => {
+    const id = trackSubscription('api.test.list')
+    untrackSubscription(id)
+    expect(() => untrackSubscription(id)).not.toThrow()
   })
 })

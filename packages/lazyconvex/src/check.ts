@@ -12,6 +12,11 @@ const red = (s: string) => `\u001B[31m${s}\u001B[0m`,
   dim = (s: string) => `\u001B[2m${s}\u001B[0m`,
   bold = (s: string) => `\u001B[1m${s}\u001B[0m`
 
+interface AccessEntry {
+  endpoints: string[]
+  level: string
+}
+
 interface FactoryCall {
   factory: string
   file: string
@@ -443,6 +448,67 @@ const schemaMarkers = ['makeOwned(', 'makeOrgScoped(', 'makeSingleton(', 'makeBa
       console.log(`\n${yellow(`${issues.length} unindexed where clause(s)`)}\n`)
     } else console.log(green('\u2713 All detected where clauses have matching indexes\n'))
   },
+  accessForFactory = (call: FactoryCall): AccessEntry[] => {
+    const { factory, options: opts } = call,
+      result: AccessEntry[] = []
+    if (factory === 'cacheCrud') {
+      result.push({ endpoints: [...CACHE_BASE], level: 'No Auth' })
+      return result
+    }
+    if (factory === 'singletonCrud') {
+      result.push({ endpoints: [...SINGLETON_BASE], level: 'Owner' })
+      return result
+    }
+    if (factory === 'childCrud') {
+      const ownerEps = [...CHILD_BASE]
+      result.push({ endpoints: ownerEps, level: 'Parent Owner' })
+      if (hasOption(opts, 'pub')) result.push({ endpoints: ['pub.list', 'pub.get'], level: 'Public' })
+      return result
+    }
+    if (factory === 'orgCrud') {
+      const memberEps = ['list', 'read']
+      if (hasOption(opts, 'search')) memberEps.push('search')
+      result.push({ endpoints: memberEps, level: 'Org Member' })
+      result.push({ endpoints: ['create', 'update'], level: 'Org Member' })
+      const adminEps = ['rm', 'bulkCreate', 'bulkRm', 'bulkUpdate']
+      if (hasOption(opts, 'softDelete')) adminEps.push('restore')
+      result.push({ endpoints: adminEps, level: 'Org Admin' })
+      if (hasOption(opts, 'acl')) result.push({ endpoints: [...ORG_ACL], level: 'Org Admin' })
+      return result
+    }
+    const pubEps = [...CRUD_PUB]
+    if (hasOption(opts, 'search')) pubEps.push('pub.search')
+    result.push({ endpoints: pubEps, level: 'Public' })
+    result.push({ endpoints: ['create', 'bulkCreate'], level: 'Authenticated' })
+    const ownerEps = ['update', 'rm', 'bulkRm', 'bulkUpdate']
+    if (hasOption(opts, 'softDelete')) ownerEps.push('restore')
+    result.push({ endpoints: ownerEps, level: 'Owner' })
+    return result
+  },
+  ACCESS_ICONS: Record<string, string> = {
+    Authenticated: '\u{1F511}',
+    'No Auth': '\u{1F310}',
+    'Org Admin': '\u{1F6E1}\uFE0F',
+    'Org Member': '\u{1F465}',
+    Owner: '\u{1F464}',
+    'Parent Owner': '\u{1F517}',
+    Public: '\u{1F310}'
+  },
+  printAccessReport = (calls: FactoryCall[]) => {
+    console.log(bold('Access Control Matrix\n'))
+    let totalEndpoints = 0
+    for (const call of calls) {
+      const entries = accessForFactory(call)
+      console.log(`  ${bold(call.table)} ${dim(`(${call.factory})`)} ${dim(`\u2014 ${call.file}`)}`)
+      for (const entry of entries) {
+        const icon = ACCESS_ICONS[entry.level] ?? '\u2022'
+        console.log(`    ${icon} ${yellow(entry.level)}: ${entry.endpoints.join(', ')}`)
+        totalEndpoints += entry.endpoints.length
+      }
+      console.log('')
+    }
+    console.log(`${bold(String(totalEndpoints))} endpoints across ${bold(String(calls.length))} tables\n`)
+  },
   run = () => {
     const root = process.cwd(),
       flags = new Set(process.argv.slice(2))
@@ -471,6 +537,12 @@ const schemaMarkers = ['makeOwned(', 'makeOrgScoped(', 'makeSingleton(', 'makeBa
       return
     }
 
+    if (flags.has('--access')) {
+      const { calls } = extractFactoryCalls(convexDir)
+      printAccessReport(calls)
+      return
+    }
+
     if (flags.has('--indexes')) {
       const { calls } = extractFactoryCalls(convexDir)
       printIndexReport(convexDir, calls)
@@ -483,11 +555,13 @@ const schemaMarkers = ['makeOwned(', 'makeOrgScoped(', 'makeSingleton(', 'makeBa
 if (import.meta.main) run()
 
 export {
+  accessForFactory,
   endpointsForFactory,
   extractCustomIndexes,
   extractWhereFromOptions,
   FACTORY_DEFAULT_INDEXES,
+  printAccessReport,
   printIndexReport,
   scanWhereUsage
 }
-export type { FactoryCall, TableIndex, WhereField }
+export type { AccessEntry, FactoryCall, TableIndex, WhereField }

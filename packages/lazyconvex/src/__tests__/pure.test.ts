@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { ConvexError } from 'convex/values'
 import { array, boolean, date, number, object, optional, string, enum as zenum } from 'zod/v4'
 
-import type { FactoryCall } from '../check'
+import type { AccessEntry, FactoryCall } from '../check'
 import type { MutationType, PendingMutation } from '../react/optimistic-store'
 import type { InfiniteListOptions } from '../react/use-infinite-list'
 import type { UseListOptions } from '../react/use-list'
@@ -39,7 +39,13 @@ import type {
   WhereOf
 } from '../server/types'
 
-import { endpointsForFactory, extractCustomIndexes, extractWhereFromOptions, FACTORY_DEFAULT_INDEXES } from '../check'
+import {
+  accessForFactory,
+  endpointsForFactory,
+  extractCustomIndexes,
+  extractWhereFromOptions,
+  FACTORY_DEFAULT_INDEXES
+} from '../check'
 import { isValidSwiftIdent, SWIFT_KEYWORDS, swiftEnumCase } from '../codegen-swift-utils'
 import { defineSteps } from '../components/step-form'
 import {
@@ -5231,5 +5237,280 @@ const orgScoped = makeOrgScoped({
       expect(types).toContain('table_added')
       expect(types).toContain('field_added_required')
     })
+  })
+})
+
+describe('accessForFactory', () => {
+  test('crud returns Public, Authenticated, Owner levels', () => {
+    const call: FactoryCall = { factory: 'crud', file: 'blog.ts', options: '', table: 'blog' },
+      result = accessForFactory(call),
+      levels = result.map((e: AccessEntry) => e.level)
+    expect(levels).toContain('Public')
+    expect(levels).toContain('Authenticated')
+    expect(levels).toContain('Owner')
+  })
+
+  test('crud Public includes pub.list and pub.read', () => {
+    const call: FactoryCall = { factory: 'crud', file: 'blog.ts', options: '', table: 'blog' },
+      result = accessForFactory(call),
+      pub = result.find((e: AccessEntry) => e.level === 'Public')
+    expect(pub).toBeDefined()
+    expect(pub?.endpoints).toContain('pub.list')
+    expect(pub?.endpoints).toContain('pub.read')
+  })
+
+  test('crud with search adds pub.search to Public', () => {
+    const call: FactoryCall = { factory: 'crud', file: 'blog.ts', options: "search: 'content'", table: 'blog' },
+      result = accessForFactory(call),
+      pub = result.find((e: AccessEntry) => e.level === 'Public')
+    expect(pub?.endpoints).toContain('pub.search')
+  })
+
+  test('crud without search has no pub.search', () => {
+    const call: FactoryCall = { factory: 'crud', file: 'blog.ts', options: '', table: 'blog' },
+      result = accessForFactory(call),
+      pub = result.find((e: AccessEntry) => e.level === 'Public')
+    expect(pub?.endpoints).not.toContain('pub.search')
+  })
+
+  test('crud Authenticated includes create and bulkCreate', () => {
+    const call: FactoryCall = { factory: 'crud', file: 'blog.ts', options: '', table: 'blog' },
+      result = accessForFactory(call),
+      auth = result.find((e: AccessEntry) => e.level === 'Authenticated')
+    expect(auth).toBeDefined()
+    expect(auth?.endpoints).toContain('create')
+    expect(auth?.endpoints).toContain('bulkCreate')
+  })
+
+  test('crud Owner includes update, rm, bulkRm, bulkUpdate', () => {
+    const call: FactoryCall = { factory: 'crud', file: 'blog.ts', options: '', table: 'blog' },
+      result = accessForFactory(call),
+      owner = result.find((e: AccessEntry) => e.level === 'Owner')
+    expect(owner).toBeDefined()
+    expect(owner?.endpoints).toContain('update')
+    expect(owner?.endpoints).toContain('rm')
+    expect(owner?.endpoints).toContain('bulkRm')
+    expect(owner?.endpoints).toContain('bulkUpdate')
+  })
+
+  test('crud with softDelete adds restore to Owner', () => {
+    const call: FactoryCall = { factory: 'crud', file: 'blog.ts', options: 'softDelete: true', table: 'blog' },
+      result = accessForFactory(call),
+      owner = result.find((e: AccessEntry) => e.level === 'Owner')
+    expect(owner?.endpoints).toContain('restore')
+  })
+
+  test('crud without softDelete has no restore', () => {
+    const call: FactoryCall = { factory: 'crud', file: 'blog.ts', options: '', table: 'blog' },
+      result = accessForFactory(call),
+      owner = result.find((e: AccessEntry) => e.level === 'Owner')
+    expect(owner?.endpoints).not.toContain('restore')
+  })
+
+  test('orgCrud returns Org Member and Org Admin levels', () => {
+    const call: FactoryCall = { factory: 'orgCrud', file: 'wiki.ts', options: '', table: 'wiki' },
+      result = accessForFactory(call),
+      levels = result.map((e: AccessEntry) => e.level)
+    expect(levels).toContain('Org Member')
+    expect(levels).toContain('Org Admin')
+  })
+
+  test('orgCrud Org Member includes list, read, create, update', () => {
+    const call: FactoryCall = { factory: 'orgCrud', file: 'wiki.ts', options: '', table: 'wiki' },
+      result = accessForFactory(call),
+      memberEntries = result.filter((e: AccessEntry) => e.level === 'Org Member'),
+      allMemberEps: string[] = []
+    for (const entry of memberEntries) for (const ep of entry.endpoints) allMemberEps.push(ep)
+    expect(allMemberEps).toContain('list')
+    expect(allMemberEps).toContain('read')
+    expect(allMemberEps).toContain('create')
+    expect(allMemberEps).toContain('update')
+  })
+
+  test('orgCrud with search adds search to Org Member', () => {
+    const call: FactoryCall = { factory: 'orgCrud', file: 'wiki.ts', options: "search: 'content'", table: 'wiki' },
+      result = accessForFactory(call),
+      memberEntries = result.filter((e: AccessEntry) => e.level === 'Org Member'),
+      allMemberEps: string[] = []
+    for (const entry of memberEntries) for (const ep of entry.endpoints) allMemberEps.push(ep)
+    expect(allMemberEps).toContain('search')
+  })
+
+  test('orgCrud Org Admin includes rm, bulkCreate, bulkRm, bulkUpdate', () => {
+    const call: FactoryCall = { factory: 'orgCrud', file: 'wiki.ts', options: '', table: 'wiki' },
+      result = accessForFactory(call),
+      adminEntries = result.filter((e: AccessEntry) => e.level === 'Org Admin'),
+      allAdminEps: string[] = []
+    for (const entry of adminEntries) for (const ep of entry.endpoints) allAdminEps.push(ep)
+    expect(allAdminEps).toContain('rm')
+    expect(allAdminEps).toContain('bulkCreate')
+    expect(allAdminEps).toContain('bulkRm')
+    expect(allAdminEps).toContain('bulkUpdate')
+  })
+
+  test('orgCrud with acl adds ACL endpoints to Org Admin', () => {
+    const call: FactoryCall = { factory: 'orgCrud', file: 'wiki.ts', options: 'acl: true', table: 'wiki' },
+      result = accessForFactory(call),
+      adminEntries = result.filter((e: AccessEntry) => e.level === 'Org Admin'),
+      allAdminEps: string[] = []
+    for (const entry of adminEntries) for (const ep of entry.endpoints) allAdminEps.push(ep)
+    expect(allAdminEps).toContain('addEditor')
+    expect(allAdminEps).toContain('removeEditor')
+    expect(allAdminEps).toContain('setEditors')
+    expect(allAdminEps).toContain('editors')
+  })
+
+  test('orgCrud without acl has no ACL endpoints', () => {
+    const call: FactoryCall = { factory: 'orgCrud', file: 'wiki.ts', options: '', table: 'wiki' },
+      result = accessForFactory(call),
+      adminEntries = result.filter((e: AccessEntry) => e.level === 'Org Admin'),
+      allAdminEps: string[] = []
+    for (const entry of adminEntries) for (const ep of entry.endpoints) allAdminEps.push(ep)
+    expect(allAdminEps).not.toContain('addEditor')
+  })
+
+  test('orgCrud with softDelete adds restore to Org Admin', () => {
+    const call: FactoryCall = { factory: 'orgCrud', file: 'wiki.ts', options: 'softDelete: true', table: 'wiki' },
+      result = accessForFactory(call),
+      adminEntries = result.filter((e: AccessEntry) => e.level === 'Org Admin'),
+      allAdminEps: string[] = []
+    for (const entry of adminEntries) for (const ep of entry.endpoints) allAdminEps.push(ep)
+    expect(allAdminEps).toContain('restore')
+  })
+
+  test('childCrud returns Parent Owner level', () => {
+    const call: FactoryCall = { factory: 'childCrud', file: 'message.ts', options: '', table: 'message' },
+      result = accessForFactory(call),
+      levels = result.map((e: AccessEntry) => e.level)
+    expect(levels).toContain('Parent Owner')
+  })
+
+  test('childCrud Parent Owner includes list, create, update, rm, bulkCreate, bulkRm, bulkUpdate', () => {
+    const call: FactoryCall = { factory: 'childCrud', file: 'message.ts', options: '', table: 'message' },
+      result = accessForFactory(call),
+      owner = result.find((e: AccessEntry) => e.level === 'Parent Owner')
+    expect(owner).toBeDefined()
+    expect(owner?.endpoints).toContain('list')
+    expect(owner?.endpoints).toContain('create')
+    expect(owner?.endpoints).toContain('update')
+    expect(owner?.endpoints).toContain('rm')
+    expect(owner?.endpoints).toContain('bulkCreate')
+    expect(owner?.endpoints).toContain('bulkRm')
+    expect(owner?.endpoints).toContain('bulkUpdate')
+  })
+
+  test('childCrud with pub adds Public level with pub.list and pub.get', () => {
+    const call: FactoryCall = { factory: 'childCrud', file: 'message.ts', options: 'pub: true', table: 'message' },
+      result = accessForFactory(call),
+      pub = result.find((e: AccessEntry) => e.level === 'Public')
+    expect(pub).toBeDefined()
+    expect(pub?.endpoints).toContain('pub.list')
+    expect(pub?.endpoints).toContain('pub.get')
+  })
+
+  test('childCrud without pub has no Public level', () => {
+    const call: FactoryCall = { factory: 'childCrud', file: 'message.ts', options: '', table: 'message' },
+      result = accessForFactory(call),
+      pub = result.find((e: AccessEntry) => e.level === 'Public')
+    expect(pub).toBeUndefined()
+  })
+
+  test('cacheCrud returns No Auth level with all cache endpoints', () => {
+    const call: FactoryCall = { factory: 'cacheCrud', file: 'movie.ts', options: '', table: 'movie' },
+      result = accessForFactory(call)
+    expect(result).toHaveLength(1)
+    expect(result[0]?.level).toBe('No Auth')
+    expect(result[0]?.endpoints).toContain('get')
+    expect(result[0]?.endpoints).toContain('all')
+    expect(result[0]?.endpoints).toContain('list')
+    expect(result[0]?.endpoints).toContain('create')
+    expect(result[0]?.endpoints).toContain('update')
+    expect(result[0]?.endpoints).toContain('rm')
+    expect(result[0]?.endpoints).toContain('invalidate')
+    expect(result[0]?.endpoints).toContain('purge')
+    expect(result[0]?.endpoints).toContain('load')
+    expect(result[0]?.endpoints).toContain('refresh')
+  })
+
+  test('singletonCrud returns Owner level with get and upsert', () => {
+    const call: FactoryCall = { factory: 'singletonCrud', file: 'profile.ts', options: '', table: 'profile' },
+      result = accessForFactory(call)
+    expect(result).toHaveLength(1)
+    expect(result[0]?.level).toBe('Owner')
+    expect(result[0]?.endpoints).toContain('get')
+    expect(result[0]?.endpoints).toContain('upsert')
+  })
+
+  test('total endpoints from accessForFactory matches endpointsForFactory', () => {
+    const calls: FactoryCall[] = [
+      { factory: 'crud', file: 'blog.ts', options: "search: 'content', softDelete: true", table: 'blog' },
+      { factory: 'orgCrud', file: 'wiki.ts', options: 'acl: true, softDelete: true', table: 'wiki' },
+      { factory: 'childCrud', file: 'message.ts', options: 'pub: true', table: 'message' },
+      { factory: 'cacheCrud', file: 'movie.ts', options: '', table: 'movie' },
+      { factory: 'singletonCrud', file: 'profile.ts', options: '', table: 'profile' }
+    ]
+    for (const call of calls) {
+      const accessEntries = accessForFactory(call)
+      let accessCount = 0
+      for (const entry of accessEntries) accessCount += entry.endpoints.length
+      const endpointCount = endpointsForFactory(call).length
+      expect(accessCount).toBe(endpointCount)
+    }
+  })
+
+  test('orgCrud with acl + softDelete + search has all options reflected', () => {
+    const call: FactoryCall = {
+        factory: 'orgCrud',
+        file: 'wiki.ts',
+        options: "acl: true, softDelete: true, search: 'title'",
+        table: 'wiki'
+      },
+      result = accessForFactory(call),
+      memberEntries = result.filter((e: AccessEntry) => e.level === 'Org Member'),
+      allMemberEps: string[] = []
+    for (const entry of memberEntries) for (const ep of entry.endpoints) allMemberEps.push(ep)
+    expect(allMemberEps).toContain('search')
+    const adminEntries = result.filter((e: AccessEntry) => e.level === 'Org Admin'),
+      allAdminEps: string[] = []
+    for (const entry of adminEntries) for (const ep of entry.endpoints) allAdminEps.push(ep)
+    expect(allAdminEps).toContain('restore')
+    expect(allAdminEps).toContain('addEditor')
+  })
+
+  test('crud access entries do not overlap endpoints', () => {
+    const call: FactoryCall = {
+        factory: 'crud',
+        file: 'blog.ts',
+        options: "search: 'content', softDelete: true",
+        table: 'blog'
+      },
+      result = accessForFactory(call),
+      allEps: string[] = []
+    for (const entry of result) for (const ep of entry.endpoints) allEps.push(ep)
+    const unique = new Set(allEps)
+    expect(unique.size).toBe(allEps.length)
+  })
+
+  test('orgCrud access entries do not overlap endpoints', () => {
+    const call: FactoryCall = {
+        factory: 'orgCrud',
+        file: 'wiki.ts',
+        options: 'acl: true, softDelete: true',
+        table: 'wiki'
+      },
+      result = accessForFactory(call),
+      allEps: string[] = []
+    for (const entry of result) for (const ep of entry.endpoints) allEps.push(ep)
+    const unique = new Set(allEps)
+    expect(unique.size).toBe(allEps.length)
+  })
+
+  test('childCrud access entries do not overlap endpoints', () => {
+    const call: FactoryCall = { factory: 'childCrud', file: 'message.ts', options: 'pub: true', table: 'message' },
+      result = accessForFactory(call),
+      allEps: string[] = []
+    for (const entry of result) for (const ep of entry.endpoints) allEps.push(ep)
+    const unique = new Set(allEps)
+    expect(unique.size).toBe(allEps.length)
   })
 })

@@ -54,6 +54,7 @@ import {
 import { generateMarkdown } from '../docs-gen'
 import { recommended as eslintRecommended, rules as eslintRules } from '../eslint'
 import { guardApi } from '../guard'
+import { diffSnapshots, isOptionalField as isOptionalRaw, parseFieldsFromBlock, parseSchemaContent } from '../migrate'
 import {
   clearMutations,
   completeMutation,
@@ -4714,5 +4715,345 @@ describe('FACTORY_DEFAULT_INDEXES', () => {
     const byOrgUser = orgIdx?.find(ix => ix.name === 'by_org_user')
     expect(byOrgUser).toBeDefined()
     expect(byOrgUser?.fields).toEqual(['orgId', 'userId'])
+  })
+})
+
+describe('lazyconvex-migrate', () => {
+  describe('parseSchemaContent', () => {
+    test('parses owned tables', () => {
+      const content = `const owned = makeOwned({
+  blog: object({
+    title: string().min(1),
+    content: string().min(3),
+    published: boolean()
+  })
+})`,
+        result = parseSchemaContent(content)
+      expect(result.tables).toHaveLength(1)
+      expect(result.tables[0]?.name).toBe('blog')
+      expect(result.tables[0]?.factory).toBe('crud')
+      expect(result.tables[0]?.fields).toHaveLength(3)
+    })
+
+    test('parses orgScoped tables', () => {
+      const content = `const orgScoped = makeOrgScoped({
+  wiki: object({
+    title: string(),
+    slug: string()
+  })
+})`,
+        result = parseSchemaContent(content)
+      expect(result.tables).toHaveLength(1)
+      expect(result.tables[0]?.factory).toBe('orgCrud')
+    })
+
+    test('parses singleton tables', () => {
+      const content = `const singleton = makeSingleton({
+  profile: object({
+    displayName: string(),
+    theme: zenum(['light', 'dark'])
+  })
+})`,
+        result = parseSchemaContent(content)
+      expect(result.tables).toHaveLength(1)
+      expect(result.tables[0]?.factory).toBe('singletonCrud')
+    })
+
+    test('parses base (cache) tables', () => {
+      const content = `const base = makeBase({
+  movie: object({
+    title: string(),
+    tmdb_id: number()
+  })
+})`,
+        result = parseSchemaContent(content)
+      expect(result.tables).toHaveLength(1)
+      expect(result.tables[0]?.factory).toBe('cacheCrud')
+    })
+
+    test('parses child tables', () => {
+      const content = `const children = {
+  message: child({
+    foreignKey: 'chatId',
+    parent: 'chat',
+    schema: object({
+      chatId: zid('chat'),
+      role: zenum(['user', 'assistant'])
+    })
+  })
+}`,
+        result = parseSchemaContent(content)
+      expect(result.tables).toHaveLength(1)
+      expect(result.tables[0]?.name).toBe('message')
+      expect(result.tables[0]?.factory).toBe('childCrud')
+    })
+
+    test('parses multiple tables across factories', () => {
+      const content = `const owned = makeOwned({
+  blog: object({ title: string() }),
+  chat: object({ isPublic: boolean() })
+})
+const orgScoped = makeOrgScoped({
+  wiki: object({ content: string() })
+})`,
+        result = parseSchemaContent(content)
+      expect(result.tables).toHaveLength(3)
+    })
+
+    test('returns sorted tables', () => {
+      const content = `const owned = makeOwned({
+  zzz: object({ a: string() }),
+  aaa: object({ b: string() })
+})`,
+        result = parseSchemaContent(content)
+      expect(result.tables[0]?.name).toBe('aaa')
+      expect(result.tables[1]?.name).toBe('zzz')
+    })
+
+    test('empty content returns no tables', () => {
+      const result = parseSchemaContent('')
+      expect(result.tables).toHaveLength(0)
+    })
+  })
+
+  describe('parseFieldsFromBlock', () => {
+    test('parses simple fields', () => {
+      const block = `title: string().min(1),
+    content: string(),
+    published: boolean()`,
+        fields = parseFieldsFromBlock(block)
+      expect(fields).toHaveLength(3)
+      expect(fields[0]?.name).toBe('title')
+      expect(fields[0]?.type).toBe('string')
+      expect(fields[1]?.name).toBe('content')
+      expect(fields[2]?.type).toBe('boolean')
+    })
+
+    test('detects optional fields', () => {
+      const block = `bio: string().optional(),
+    name: string()`,
+        fields = parseFieldsFromBlock(block)
+      expect(fields[0]?.optional).toBe(true)
+      expect(fields[1]?.optional).toBe(false)
+    })
+
+    test('detects nullable fields', () => {
+      const block = 'avatar: cvFile().nullable()',
+        fields = parseFieldsFromBlock(block)
+      expect(fields[0]?.optional).toBe(true)
+    })
+
+    test('detects file types', () => {
+      const block = `cover: cvFile(),
+    attachments: cvFiles()`,
+        fields = parseFieldsFromBlock(block)
+      expect(fields[0]?.type).toBe('file')
+      expect(fields[1]?.type).toBe('file[]')
+    })
+
+    test('detects number and enum types', () => {
+      const block = `count: number(),
+    status: zenum(['active', 'archived'])`,
+        fields = parseFieldsFromBlock(block)
+      expect(fields[0]?.type).toBe('number')
+      expect(fields[1]?.type).toBe('enum')
+    })
+  })
+
+  describe('isOptionalField', () => {
+    test('optional() is optional', () => {
+      expect(isOptionalRaw('string().optional()')).toBe(true)
+    })
+
+    test('nullable() is optional', () => {
+      expect(isOptionalRaw('cvFile().nullable()')).toBe(true)
+    })
+
+    test('required field is not optional', () => {
+      expect(isOptionalRaw('string().min(1)')).toBe(false)
+    })
+  })
+
+  describe('diffSnapshots', () => {
+    test('no changes returns empty actions', () => {
+      const snapshot = {
+          tables: [{ factory: 'crud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'blog' }]
+        },
+        actions = diffSnapshots(snapshot, snapshot)
+      expect(actions).toHaveLength(0)
+    })
+
+    test('detects added table', () => {
+      const before = {
+          tables: [] as { factory: string; fields: { name: string; optional: boolean; type: string }[]; name: string }[]
+        },
+        after = {
+          tables: [{ factory: 'crud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'blog' }]
+        },
+        actions = diffSnapshots(before, after)
+      expect(actions).toHaveLength(1)
+      expect(actions[0]?.type).toBe('table_added')
+    })
+
+    test('detects removed table', () => {
+      const before = {
+          tables: [{ factory: 'crud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'blog' }]
+        },
+        after = {
+          tables: [] as { factory: string; fields: { name: string; optional: boolean; type: string }[]; name: string }[]
+        },
+        actions = diffSnapshots(before, after)
+      expect(actions).toHaveLength(1)
+      expect(actions[0]?.type).toBe('table_removed')
+    })
+
+    test('detects factory change', () => {
+      const before = {
+          tables: [{ factory: 'crud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'wiki' }]
+        },
+        after = {
+          tables: [{ factory: 'orgCrud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'wiki' }]
+        },
+        actions = diffSnapshots(before, after)
+      expect(actions).toHaveLength(1)
+      expect(actions[0]?.type).toBe('factory_changed')
+    })
+
+    test('detects added required field', () => {
+      const before = {
+          tables: [{ factory: 'crud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'blog' }]
+        },
+        after = {
+          tables: [
+            {
+              factory: 'crud',
+              fields: [
+                { name: 'title', optional: false, type: 'string' },
+                { name: 'category', optional: false, type: 'enum' }
+              ],
+              name: 'blog'
+            }
+          ]
+        },
+        actions = diffSnapshots(before, after)
+      expect(actions).toHaveLength(1)
+      expect(actions[0]?.type).toBe('field_added_required')
+    })
+
+    test('detects added optional field', () => {
+      const before = {
+          tables: [{ factory: 'crud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'blog' }]
+        },
+        after = {
+          tables: [
+            {
+              factory: 'crud',
+              fields: [
+                { name: 'title', optional: false, type: 'string' },
+                { name: 'bio', optional: true, type: 'string' }
+              ],
+              name: 'blog'
+            }
+          ]
+        },
+        actions = diffSnapshots(before, after)
+      expect(actions).toHaveLength(1)
+      expect(actions[0]?.type).toBe('field_added_optional')
+    })
+
+    test('detects removed field', () => {
+      const before = {
+          tables: [
+            {
+              factory: 'crud',
+              fields: [
+                { name: 'title', optional: false, type: 'string' },
+                { name: 'subtitle', optional: true, type: 'string' }
+              ],
+              name: 'blog'
+            }
+          ]
+        },
+        after = {
+          tables: [{ factory: 'crud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'blog' }]
+        },
+        actions = diffSnapshots(before, after)
+      expect(actions).toHaveLength(1)
+      expect(actions[0]?.type).toBe('field_removed')
+    })
+
+    test('detects field type change', () => {
+      const before = {
+          tables: [{ factory: 'crud', fields: [{ name: 'count', optional: false, type: 'string' }], name: 'blog' }]
+        },
+        after = {
+          tables: [{ factory: 'crud', fields: [{ name: 'count', optional: false, type: 'number' }], name: 'blog' }]
+        },
+        actions = diffSnapshots(before, after)
+      expect(actions).toHaveLength(1)
+      expect(actions[0]?.type).toBe('field_type_changed')
+    })
+
+    test('multiple changes across tables', () => {
+      const before = {
+          tables: [
+            { factory: 'crud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'blog' },
+            { factory: 'orgCrud', fields: [{ name: 'content', optional: false, type: 'string' }], name: 'wiki' }
+          ]
+        },
+        after = {
+          tables: [
+            {
+              factory: 'crud',
+              fields: [
+                { name: 'title', optional: false, type: 'string' },
+                { name: 'tags', optional: true, type: 'array' }
+              ],
+              name: 'blog'
+            },
+            { factory: 'crud', fields: [{ name: 'name', optional: false, type: 'string' }], name: 'project' }
+          ]
+        },
+        actions = diffSnapshots(before, after),
+        types = actions.map(a => a.type)
+      expect(types).toContain('table_added')
+      expect(types).toContain('table_removed')
+      expect(types).toContain('field_added_optional')
+    })
+
+    test('unchanged table produces no actions', () => {
+      const table = { factory: 'crud', fields: [{ name: 'title', optional: false, type: 'string' }], name: 'blog' },
+        before = { tables: [table] },
+        after = { tables: [{ ...table }] },
+        actions = diffSnapshots(before, after)
+      expect(actions).toHaveLength(0)
+    })
+
+    test('end-to-end: parse then diff', () => {
+      const oldSchema = `const owned = makeOwned({
+  blog: object({
+    title: string(),
+    content: string()
+  })
+})`,
+        newSchema = `const owned = makeOwned({
+  blog: object({
+    title: string(),
+    content: string(),
+    category: zenum(['tech', 'life'])
+  })
+})
+const orgScoped = makeOrgScoped({
+  wiki: object({
+    title: string()
+  })
+})`,
+        before = parseSchemaContent(oldSchema),
+        after = parseSchemaContent(newSchema),
+        actions = diffSnapshots(before, after),
+        types = actions.map(a => a.type)
+      expect(types).toContain('table_added')
+      expect(types).toContain('field_added_required')
+    })
   })
 })

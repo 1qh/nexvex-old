@@ -1,4 +1,4 @@
-/* eslint-disable complexity, @typescript-eslint/no-unnecessary-type-parameters, @typescript-eslint/max-params */
+/* eslint-disable complexity, max-statements, @typescript-eslint/no-unnecessary-type-parameters, @typescript-eslint/max-params */
 import type { GenericDataModel, GenericMutationCtx, GenericQueryCtx } from 'convex/server'
 import type { ZodObject, ZodRawShape } from 'zod/v4'
 
@@ -30,11 +30,53 @@ import { makeCacheCrud } from './cache-crud'
 import { makeChildCrud } from './child'
 import { makeCrud } from './crud'
 import { dbInsert, dbPatch, err, getUser, makeUnique, ownGet, readCtx, time } from './helpers'
+import { composeMiddleware } from './middleware'
 import { makeOrg } from './org'
 import { makeOrgCrud } from './org-crud'
 import { makeSingletonCrud } from './singleton'
 
-const mergeHooks = (gh: GlobalHooks | undefined, fh: CrudHooks | undefined, table: string): CrudHooks | undefined => {
+const mergeGlobalHooks = (a: GlobalHooks | undefined, b: GlobalHooks | undefined): GlobalHooks | undefined => {
+    if (!(a || b)) return
+    if (!a) return b
+    if (!b) return a
+    const merged: GlobalHooks = {}
+    if (a.beforeCreate ?? b.beforeCreate)
+      merged.beforeCreate = async (ctx, args) => {
+        let { data } = args
+        if (a.beforeCreate) data = await a.beforeCreate(ctx, { data })
+        if (b.beforeCreate) data = await b.beforeCreate(ctx, { data })
+        return data
+      }
+    if (a.afterCreate ?? b.afterCreate)
+      merged.afterCreate = async (ctx, args) => {
+        if (a.afterCreate) await a.afterCreate(ctx, args)
+        if (b.afterCreate) await b.afterCreate(ctx, args)
+      }
+    if (a.beforeUpdate ?? b.beforeUpdate)
+      merged.beforeUpdate = async (ctx, args) => {
+        let { patch } = args
+        if (a.beforeUpdate) patch = await a.beforeUpdate(ctx, { ...args, patch })
+        if (b.beforeUpdate) patch = await b.beforeUpdate(ctx, { ...args, patch })
+        return patch
+      }
+    if (a.afterUpdate ?? b.afterUpdate)
+      merged.afterUpdate = async (ctx, args) => {
+        if (a.afterUpdate) await a.afterUpdate(ctx, args)
+        if (b.afterUpdate) await b.afterUpdate(ctx, args)
+      }
+    if (a.beforeDelete ?? b.beforeDelete)
+      merged.beforeDelete = async (ctx, args) => {
+        if (a.beforeDelete) await a.beforeDelete(ctx, args)
+        if (b.beforeDelete) await b.beforeDelete(ctx, args)
+      }
+    if (a.afterDelete ?? b.afterDelete)
+      merged.afterDelete = async (ctx, args) => {
+        if (a.afterDelete) await a.afterDelete(ctx, args)
+        if (b.afterDelete) await b.afterDelete(ctx, args)
+      }
+    return merged
+  },
+  mergeHooks = (gh: GlobalHooks | undefined, fh: CrudHooks | undefined, table: string): CrudHooks | undefined => {
     if (!(gh || fh)) return
     const merged: CrudHooks = {}
     if (gh?.beforeCreate ?? fh?.beforeCreate)
@@ -117,7 +159,8 @@ const mergeHooks = (gh: GlobalHooks | undefined, fh: CrudHooks | undefined, tabl
     type QCtx = GenericQueryCtx<DM>
     type MCtx = GenericMutationCtx<DM>
     const { getAuthUserId } = config,
-      gh = config.hooks,
+      mwHooks = config.middleware?.length ? composeMiddleware(...config.middleware) : undefined,
+      gh = mergeGlobalHooks(config.hooks, mwHooks),
       authId = async (c: unknown) => getAuthUserId(typed(c)),
       asDb = (c: { db: unknown }) => typed(c.db) as DbLike,
       pq = zCustomQuery(

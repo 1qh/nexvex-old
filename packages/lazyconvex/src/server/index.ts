@@ -12,6 +12,7 @@ export {
   isRecord,
   time
 } from './helpers'
+export { auditLog, composeMiddleware, inputSanitize, slowQueryWarn } from './middleware'
 export { makeOrg } from './org'
 export type { InviteDocLike, JoinRequestItem, OrgDocLike, OrgMemberItem, OrgUserLike } from './org'
 export { canEdit, getOrgMember, getOrgRole, orgCascade, requireOrgMember, requireOrgRole } from './org-crud'

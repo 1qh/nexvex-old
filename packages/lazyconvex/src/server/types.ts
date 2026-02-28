@@ -111,6 +111,18 @@ interface HookCtx {
   storage: StorageLike
   userId: string
 }
+interface Middleware {
+  afterCreate?: (ctx: MiddlewareCtx, args: { data: Rec; id: string }) => Promise<void> | void
+  afterDelete?: (ctx: MiddlewareCtx, args: { doc: Rec; id: string }) => Promise<void> | void
+  afterUpdate?: (ctx: MiddlewareCtx, args: { id: string; patch: Rec; prev: Rec }) => Promise<void> | void
+  beforeCreate?: (ctx: MiddlewareCtx, args: { data: Rec }) => Promise<Rec> | Rec
+  beforeDelete?: (ctx: MiddlewareCtx, args: { doc: Rec; id: string }) => Promise<void> | void
+  beforeUpdate?: (ctx: MiddlewareCtx, args: { id: string; patch: Rec; prev: Rec }) => Promise<Rec> | Rec
+  name: string
+}
+interface MiddlewareCtx extends GlobalHookCtx {
+  operation: 'create' | 'delete' | 'update'
+}
 interface MutCtx extends UserCtx {
   storage: StorageLike
 }
@@ -379,6 +391,7 @@ interface SetupConfig<DM extends GenericDataModel = GenericDataModel> {
   hooks?: GlobalHooks
   internalMutation: MutationBuilder<DM, 'internal'>
   internalQuery: QueryBuilder<DM, 'internal'>
+  middleware?: Middleware[]
   mutation: MutationBuilder<DM, 'public'>
   orgCascadeTables?: OrgCascadeTableConfig<DM>[]
   orgSchema?: ZodObject<ZodRawShape>
@@ -473,6 +486,8 @@ export type {
   HookCtx,
   IndexLike,
   Mb,
+  Middleware,
+  MiddlewareCtx,
   MutationCtxLike,
   MutCtx,
   OrgCascadeTableConfig,

@@ -28,6 +28,8 @@ import type {
   GlobalHookCtx,
   GlobalHooks,
   HookCtx,
+  Middleware,
+  MiddlewareCtx,
   OrgCascadeTableConfig,
   OrgCrudResult,
   OrgSchema,
@@ -102,6 +104,14 @@ import {
   time,
   warnLargeFilterSet
 } from '../server/helpers'
+import {
+  auditLog,
+  composeMiddleware,
+  inputSanitize,
+  sanitizeRec,
+  sanitizeString,
+  slowQueryWarn
+} from '../server/middleware'
 import { orgCascade } from '../server/org-crud'
 import { HEARTBEAT_INTERVAL_MS, PRESENCE_TTL_MS } from '../server/presence'
 import { baseTable, orgTable, ownedTable, singletonTable } from '../server/schema-helpers'
@@ -5512,5 +5522,488 @@ describe('accessForFactory', () => {
     for (const entry of result) for (const ep of entry.endpoints) allEps.push(ep)
     const unique = new Set(allEps)
     expect(unique.size).toBe(allEps.length)
+  })
+})
+
+describe('middleware', () => {
+  const mockCtx: GlobalHookCtx = { db: {} as GlobalHookCtx['db'], table: 'blog', userId: 'user1' }
+
+  describe('composeMiddleware', () => {
+    test('returns empty hooks when no middleware provided', () => {
+      const hooks = composeMiddleware()
+      expect(hooks.beforeCreate).toBeUndefined()
+      expect(hooks.afterCreate).toBeUndefined()
+      expect(hooks.beforeUpdate).toBeUndefined()
+      expect(hooks.afterUpdate).toBeUndefined()
+      expect(hooks.beforeDelete).toBeUndefined()
+      expect(hooks.afterDelete).toBeUndefined()
+    })
+
+    test('composes beforeCreate from multiple middleware', async () => {
+      const calls: string[] = [],
+        mw1: Middleware = {
+          beforeCreate: (_ctx, { data }) => {
+            calls.push('mw1')
+            return { ...data, added1: true }
+          },
+          name: 'mw1'
+        },
+        mw2: Middleware = {
+          beforeCreate: (_ctx, { data }) => {
+            calls.push('mw2')
+            return { ...data, added2: true }
+          },
+          name: 'mw2'
+        },
+        hooks = composeMiddleware(mw1, mw2),
+        result = await hooks.beforeCreate?.(mockCtx, { data: { title: 'test' } })
+      expect(result).toEqual({ added1: true, added2: true, title: 'test' })
+      expect(calls).toEqual(['mw1', 'mw2'])
+    })
+
+    test('composes afterCreate from multiple middleware', async () => {
+      const calls: string[] = [],
+        mw1: Middleware = {
+          afterCreate: () => {
+            calls.push('mw1')
+          },
+          name: 'mw1'
+        },
+        mw2: Middleware = {
+          afterCreate: () => {
+            calls.push('mw2')
+          },
+          name: 'mw2'
+        },
+        hooks = composeMiddleware(mw1, mw2)
+      await hooks.afterCreate?.(mockCtx, { data: {}, id: 'id1' })
+      expect(calls).toEqual(['mw1', 'mw2'])
+    })
+
+    test('composes beforeUpdate from multiple middleware', async () => {
+      const mw1: Middleware = {
+          beforeUpdate: (_ctx, { patch }) => ({ ...patch, from1: true }),
+          name: 'mw1'
+        },
+        mw2: Middleware = {
+          beforeUpdate: (_ctx, { patch }) => ({ ...patch, from2: true }),
+          name: 'mw2'
+        },
+        hooks = composeMiddleware(mw1, mw2),
+        result = await hooks.beforeUpdate?.(mockCtx, { id: 'id1', patch: { title: 'x' }, prev: {} })
+      expect(result).toEqual({ from1: true, from2: true, title: 'x' })
+    })
+
+    test('composes afterUpdate from multiple middleware', async () => {
+      const calls: string[] = [],
+        mw1: Middleware = {
+          afterUpdate: () => {
+            calls.push('mw1')
+          },
+          name: 'mw1'
+        },
+        mw2: Middleware = {
+          afterUpdate: () => {
+            calls.push('mw2')
+          },
+          name: 'mw2'
+        },
+        hooks = composeMiddleware(mw1, mw2)
+      await hooks.afterUpdate?.(mockCtx, { id: 'id1', patch: {}, prev: {} })
+      expect(calls).toEqual(['mw1', 'mw2'])
+    })
+
+    test('composes beforeDelete from multiple middleware', async () => {
+      const calls: string[] = [],
+        mw1: Middleware = {
+          beforeDelete: () => {
+            calls.push('mw1')
+          },
+          name: 'mw1'
+        },
+        mw2: Middleware = {
+          beforeDelete: () => {
+            calls.push('mw2')
+          },
+          name: 'mw2'
+        },
+        hooks = composeMiddleware(mw1, mw2)
+      await hooks.beforeDelete?.(mockCtx, { doc: {}, id: 'id1' })
+      expect(calls).toEqual(['mw1', 'mw2'])
+    })
+
+    test('composes afterDelete from multiple middleware', async () => {
+      const calls: string[] = [],
+        mw1: Middleware = {
+          afterDelete: () => {
+            calls.push('mw1')
+          },
+          name: 'mw1'
+        },
+        mw2: Middleware = {
+          afterDelete: () => {
+            calls.push('mw2')
+          },
+          name: 'mw2'
+        },
+        hooks = composeMiddleware(mw1, mw2)
+      await hooks.afterDelete?.(mockCtx, { doc: {}, id: 'id1' })
+      expect(calls).toEqual(['mw1', 'mw2'])
+    })
+
+    test('skips middleware without matching hook', async () => {
+      const calls: string[] = [],
+        mw1: Middleware = {
+          beforeCreate: (_ctx, { data }) => {
+            calls.push('mw1')
+            return data
+          },
+          name: 'mw1'
+        },
+        mw2: Middleware = { name: 'mw2' },
+        hooks = composeMiddleware(mw1, mw2)
+      await hooks.beforeCreate?.(mockCtx, { data: { x: 1 } })
+      expect(calls).toEqual(['mw1'])
+    })
+
+    test('does not set hooks when no middleware implements them', () => {
+      const mw1: Middleware = { beforeCreate: (_ctx, { data }) => data, name: 'mw1' },
+        hooks = composeMiddleware(mw1)
+      expect(hooks.beforeCreate).toBeDefined()
+      expect(hooks.afterCreate).toBeUndefined()
+      expect(hooks.beforeUpdate).toBeUndefined()
+      expect(hooks.afterUpdate).toBeUndefined()
+      expect(hooks.beforeDelete).toBeUndefined()
+      expect(hooks.afterDelete).toBeUndefined()
+    })
+
+    test('passes MiddlewareCtx with operation field to hooks', async () => {
+      let capturedOp = ''
+      const mw: Middleware = {
+          beforeCreate: (ctx, { data }) => {
+            capturedOp = ctx.operation
+            return data
+          },
+          name: 'capture'
+        },
+        hooks = composeMiddleware(mw)
+      await hooks.beforeCreate?.(mockCtx, { data: {} })
+      expect(capturedOp).toBe('create')
+    })
+
+    test('passes delete operation in beforeDelete', async () => {
+      let capturedOp = ''
+      const mw: Middleware = {
+          beforeDelete: ctx => {
+            capturedOp = ctx.operation
+          },
+          name: 'capture'
+        },
+        hooks = composeMiddleware(mw)
+      await hooks.beforeDelete?.(mockCtx, { doc: {}, id: 'id1' })
+      expect(capturedOp).toBe('delete')
+    })
+
+    test('passes update operation in beforeUpdate', async () => {
+      let capturedOp = ''
+      const mw: Middleware = {
+          beforeUpdate: (ctx, { patch }) => {
+            capturedOp = ctx.operation
+            return patch
+          },
+          name: 'capture'
+        },
+        hooks = composeMiddleware(mw)
+      await hooks.beforeUpdate?.(mockCtx, { id: 'id1', patch: {}, prev: {} })
+      expect(capturedOp).toBe('update')
+    })
+  })
+
+  describe('auditLog', () => {
+    test('returns middleware with name auditLog', () => {
+      const mw = auditLog()
+      expect(mw.name).toBe('auditLog')
+    })
+
+    test('has afterCreate, afterUpdate, afterDelete hooks', () => {
+      const mw = auditLog()
+      expect(mw.afterCreate).toBeDefined()
+      expect(mw.afterUpdate).toBeDefined()
+      expect(mw.afterDelete).toBeDefined()
+    })
+
+    test('does not have before hooks', () => {
+      const mw = auditLog()
+      expect(mw.beforeCreate).toBeUndefined()
+      expect(mw.beforeUpdate).toBeUndefined()
+      expect(mw.beforeDelete).toBeUndefined()
+    })
+
+    test('afterCreate does not throw', () => {
+      const mw = auditLog(),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'create' }
+      expect(async () => mw.afterCreate?.(mwCtx, { data: { title: 'x' }, id: 'id1' })).not.toThrow()
+    })
+
+    test('afterUpdate does not throw', () => {
+      const mw = auditLog(),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'update' }
+      expect(async () => mw.afterUpdate?.(mwCtx, { id: 'id1', patch: { title: 'y' }, prev: { title: 'x' } })).not.toThrow()
+    })
+
+    test('afterDelete does not throw', () => {
+      const mw = auditLog(),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'delete' }
+      expect(async () => mw.afterDelete?.(mwCtx, { doc: { title: 'x' }, id: 'id1' })).not.toThrow()
+    })
+
+    test('accepts custom log level', () => {
+      const mw = auditLog({ logLevel: 'debug' })
+      expect(mw.name).toBe('auditLog')
+    })
+
+    test('accepts verbose mode', () => {
+      const mw = auditLog({ verbose: true })
+      expect(mw.name).toBe('auditLog')
+      const mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'create' }
+      expect(async () => mw.afterCreate?.(mwCtx, { data: { title: 'x' }, id: 'id1' })).not.toThrow()
+    })
+  })
+
+  describe('slowQueryWarn', () => {
+    test('returns middleware with name slowQueryWarn', () => {
+      const mw = slowQueryWarn()
+      expect(mw.name).toBe('slowQueryWarn')
+    })
+
+    test('has all before and after hooks', () => {
+      const mw = slowQueryWarn()
+      expect(mw.beforeCreate).toBeDefined()
+      expect(mw.afterCreate).toBeDefined()
+      expect(mw.beforeUpdate).toBeDefined()
+      expect(mw.afterUpdate).toBeDefined()
+      expect(mw.beforeDelete).toBeDefined()
+      expect(mw.afterDelete).toBeDefined()
+    })
+
+    test('beforeCreate returns data unchanged', () => {
+      const mw = slowQueryWarn(),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'create' },
+        data = { title: 'test' },
+        result = mw.beforeCreate?.(mwCtx, { data })
+      expect(result).toEqual(data)
+    })
+
+    test('beforeUpdate returns patch unchanged', () => {
+      const mw = slowQueryWarn(),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'update' },
+        patch = { title: 'updated' },
+        result = mw.beforeUpdate?.(mwCtx, { id: 'id1', patch, prev: {} })
+      expect(result).toEqual(patch)
+    })
+
+    test('accepts custom threshold', () => {
+      const mw = slowQueryWarn({ threshold: 100 })
+      expect(mw.name).toBe('slowQueryWarn')
+    })
+  })
+
+  describe('inputSanitize', () => {
+    test('returns middleware with name inputSanitize', () => {
+      const mw = inputSanitize()
+      expect(mw.name).toBe('inputSanitize')
+    })
+
+    test('has beforeCreate and beforeUpdate hooks', () => {
+      const mw = inputSanitize()
+      expect(mw.beforeCreate).toBeDefined()
+      expect(mw.beforeUpdate).toBeDefined()
+    })
+
+    test('does not have after or delete hooks', () => {
+      const mw = inputSanitize()
+      expect(mw.afterCreate).toBeUndefined()
+      expect(mw.afterUpdate).toBeUndefined()
+      expect(mw.beforeDelete).toBeUndefined()
+      expect(mw.afterDelete).toBeUndefined()
+    })
+
+    test('sanitizes script tags from string fields on create', () => {
+      const mw = inputSanitize(),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'create' },
+        data = { content: 'Hello <script>alert(1)</script> World', title: 'Test' },
+        result = mw.beforeCreate?.(mwCtx, { data })
+      expect(result).toEqual({ content: 'Hello  World', title: 'Test' })
+    })
+
+    test('sanitizes event handlers from string fields on create', () => {
+      const mw = inputSanitize(),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'create' },
+        data = { title: 'Hello onclick= test' },
+        result = mw.beforeCreate?.(mwCtx, { data })
+      expect(result).toEqual({ title: 'Hello  test' })
+    })
+
+    test('sanitizes script tags from string fields on update', () => {
+      const mw = inputSanitize(),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'update' },
+        patch = { content: '<script>bad()</script>safe' },
+        result = mw.beforeUpdate?.(mwCtx, { id: 'id1', patch, prev: {} })
+      expect(result).toEqual({ content: 'safe' })
+    })
+
+    test('leaves non-string values untouched', () => {
+      const mw = inputSanitize(),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'create' },
+        data = { count: 42, published: true, title: 'safe' },
+        result = mw.beforeCreate?.(mwCtx, { data })
+      expect(result).toEqual({ count: 42, published: true, title: 'safe' })
+    })
+
+    test('targets specific fields when configured', () => {
+      const mw = inputSanitize({ fields: ['content'] }),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'create' },
+        data = { content: '<script>x</script>safe', title: '<script>keep</script>' },
+        result = mw.beforeCreate?.(mwCtx, { data })
+      expect(result).toEqual({ content: 'safe', title: '<script>keep</script>' })
+    })
+
+    test('targets specific fields on update', () => {
+      const mw = inputSanitize({ fields: ['content'] }),
+        mwCtx: MiddlewareCtx = { ...mockCtx, operation: 'update' },
+        patch = { content: '<script>x</script>safe', title: '<script>keep</script>' },
+        result = mw.beforeUpdate?.(mwCtx, { id: 'id1', patch, prev: {} })
+      expect(result).toEqual({ content: 'safe', title: '<script>keep</script>' })
+    })
+  })
+
+  describe('sanitizeString', () => {
+    test('removes script tags', () => {
+      expect(sanitizeString('<script>alert(1)</script>')).toBe('')
+    })
+
+    test('removes script tags with attributes', () => {
+      expect(sanitizeString('<script type="text/javascript">alert(1)</script>')).toBe('')
+    })
+
+    test('removes event handlers', () => {
+      expect(sanitizeString('test onclick= foo')).toBe('test  foo')
+    })
+
+    test('removes onload handlers', () => {
+      expect(sanitizeString('test onload= foo')).toBe('test  foo')
+    })
+
+    test('preserves clean strings', () => {
+      expect(sanitizeString('Hello World')).toBe('Hello World')
+    })
+
+    test('preserves HTML without scripts', () => {
+      expect(sanitizeString('<b>bold</b>')).toBe('<b>bold</b>')
+    })
+
+    test('handles empty string', () => {
+      expect(sanitizeString('')).toBe('')
+    })
+
+    test('handles multiple script tags', () => {
+      expect(sanitizeString('a<script>1</script>b<script>2</script>c')).toBe('abc')
+    })
+  })
+
+  describe('sanitizeRec', () => {
+    test('sanitizes string values', () => {
+      const result = sanitizeRec({ content: '<script>x</script>safe', title: 'clean' })
+      expect(result).toEqual({ content: 'safe', title: 'clean' })
+    })
+
+    test('preserves non-string values', () => {
+      const result = sanitizeRec({ count: 42, ok: true, title: 'x' })
+      expect(result).toEqual({ count: 42, ok: true, title: 'x' })
+    })
+
+    test('handles empty record', () => {
+      expect(sanitizeRec({})).toEqual({})
+    })
+  })
+
+  describe('middleware composition with composeMiddleware', () => {
+    test('multiple middleware run in order on create', async () => {
+      const order: string[] = [],
+        mw1: Middleware = {
+          afterCreate: () => {
+            order.push('audit')
+          },
+          beforeCreate: (_ctx, { data }) => {
+            order.push('sanitize')
+            return data
+          },
+          name: 'first'
+        },
+        mw2: Middleware = {
+          afterCreate: () => {
+            order.push('log')
+          },
+          beforeCreate: (_ctx, { data }) => {
+            order.push('validate')
+            return data
+          },
+          name: 'second'
+        },
+        hooks = composeMiddleware(mw1, mw2)
+      await hooks.beforeCreate?.(mockCtx, { data: {} })
+      await hooks.afterCreate?.(mockCtx, { data: {}, id: 'id1' })
+      expect(order).toEqual(['sanitize', 'validate', 'audit', 'log'])
+    })
+
+    test('data transforms chain through beforeCreate', async () => {
+      const mw1: Middleware = {
+          beforeCreate: (_ctx, { data }) => ({ ...data, step1: true }),
+          name: 'step1'
+        },
+        mw2: Middleware = {
+          beforeCreate: (_ctx, { data }) => ({ ...data, step2: true }),
+          name: 'step2'
+        },
+        mw3: Middleware = {
+          beforeCreate: (_ctx, { data }) => ({ ...data, step3: true }),
+          name: 'step3'
+        },
+        hooks = composeMiddleware(mw1, mw2, mw3),
+        result = await hooks.beforeCreate?.(mockCtx, { data: { original: true } })
+      expect(result).toEqual({ original: true, step1: true, step2: true, step3: true })
+    })
+
+    test('patch transforms chain through beforeUpdate', async () => {
+      const mw1: Middleware = {
+          beforeUpdate: (_ctx, { patch }) => ({ ...patch, normalized: true }),
+          name: 'normalize'
+        },
+        mw2: Middleware = {
+          beforeUpdate: (_ctx, { patch }) => ({ ...patch, validated: true }),
+          name: 'validate'
+        },
+        hooks = composeMiddleware(mw1, mw2),
+        result = await hooks.beforeUpdate?.(mockCtx, { id: 'id1', patch: { title: 'x' }, prev: {} })
+      expect(result).toEqual({ normalized: true, title: 'x', validated: true })
+    })
+  })
+
+  describe('type safety', () => {
+    test('Middleware type requires name', () => {
+      const mw: Middleware = { name: 'test' }
+      expect(mw.name).toBe('test')
+    })
+
+    test('MiddlewareCtx extends GlobalHookCtx with operation', () => {
+      const ctx: MiddlewareCtx = { db: {} as MiddlewareCtx['db'], operation: 'create', table: 'test' }
+      expect(ctx.operation).toBe('create')
+      expect(ctx.table).toBe('test')
+    })
+
+    test('MiddlewareCtx operation is create, update, or delete', () => {
+      const ops: MiddlewareCtx['operation'][] = ['create', 'update', 'delete']
+      expect(ops).toHaveLength(3)
+    })
   })
 })

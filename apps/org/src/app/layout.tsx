@@ -8,6 +8,7 @@ import AuthLayout from '@a/fe/auth-layout'
 import ConvexProvider from '@a/fe/convex-provider'
 import { fetchQuery } from 'convex/nextjs'
 import { getActiveOrg, getToken, isAuthenticated } from 'lazyconvex/next'
+import { LazyConvexDevtools } from 'lazyconvex/react'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
@@ -81,7 +82,13 @@ const resolveOrgContext = async (pathname: string): Promise<OrgContext> => {
       const ctx = await resolveOrgContext(pathname)
       if (ctx.kind === 'redirect')
         return (
-          <AuthLayout convexProvider={inner => <ConvexProvider fileApi>{inner}</ConvexProvider>}>
+          <AuthLayout
+            convexProvider={inner => (
+              <ConvexProvider fileApi>
+                <LazyConvexDevtools />
+                {inner}
+              </ConvexProvider>
+            )}>
             <OrgRedirect orgId={ctx.orgId} slug={ctx.slug} to={ctx.to} />
           </AuthLayout>
         )
@@ -92,7 +99,17 @@ const resolveOrgContext = async (pathname: string): Promise<OrgContext> => {
       )
     }
 
-    return <AuthLayout convexProvider={inner => <ConvexProvider fileApi>{inner}</ConvexProvider>}>{content}</AuthLayout>
+    return (
+      <AuthLayout
+        convexProvider={inner => (
+          <ConvexProvider fileApi>
+            <LazyConvexDevtools />
+            {inner}
+          </ConvexProvider>
+        )}>
+        {content}
+      </AuthLayout>
+    )
   }
 
 export default Layout

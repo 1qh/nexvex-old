@@ -13,6 +13,7 @@ export {
   useDevErrors
 } from './devtools'
 export { default as LazyConvexDevtools } from './devtools-panel'
+export type { DevtoolsProps } from './devtools-panel'
 export type { ErrorToastOptions, ToastFn } from './error-toast'
 export { makeErrorHandler, useErrorToast } from './error-toast'
 export { buildMeta, getMeta, useForm, useFormMutation } from './form'
@@ -30,6 +31,8 @@ export {
   useOrgMutation,
   useOrgQuery
 } from './org'
+export type { PlaygroundProps } from './schema-playground'
+export { default as SchemaPlayground } from './schema-playground'
 export { useBulkSelection } from './use-bulk-selection'
 export { useCacheEntry } from './use-cache'
 export { useInfiniteList } from './use-infinite-list'

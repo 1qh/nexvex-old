@@ -1,5 +1,5 @@
 /* eslint-disable complexity */
-// oxlint-disable complexity
+/* oxlint-disable eslint/complexity */
 'use client'
 import { useEffect, useState } from 'react'
 
@@ -7,9 +7,32 @@ import type { DevCacheEntry, DevError, DevMutation, DevSubscription } from './de
 
 import { SLOW_THRESHOLD_MS, STALE_THRESHOLD_MS, useDevErrors } from './devtools'
 
+/** Props for customizing the LazyConvex DevTools panel. */
+interface DevtoolsProps {
+  /** Additional CSS class for the floating trigger button. */
+  buttonClassName?: string
+  /** Additional CSS class for both the button and panel wrapper. */
+  className?: string
+  /** Open the panel by default. @default false */
+  defaultOpen?: boolean
+  /** Tab to show when panel is first opened. @default 'errors' */
+  defaultTab?: TabId
+  /** Additional CSS class for the expanded panel. */
+  panelClassName?: string
+  /** Corner position of the floating button and panel. @default 'bottom-right' */
+  position?: Position
+}
+type Position = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
+
 type TabId = 'cache' | 'errors' | 'mutations' | 'subs'
 
-const formatTime = (ts: number) => {
+const POSITION_CLASSES: Record<Position, string> = {
+    'bottom-left': 'left-4 bottom-4',
+    'bottom-right': 'right-4 bottom-4',
+    'top-left': 'left-4 top-4',
+    'top-right': 'right-4 top-4'
+  },
+  formatTime = (ts: number) => {
     const d = new Date(ts),
       h = String(d.getHours()).padStart(2, '0'),
       mn = String(d.getMinutes()).padStart(2, '0'),
@@ -161,10 +184,18 @@ const formatTime = (ts: number) => {
     </button>
   ),
   /** Development-only floating panel that displays errors, subscriptions, mutations, and cache stats. */
-  LazyConvexDevtools = () => {
+  LazyConvexDevtools = ({
+    buttonClassName,
+    className,
+    defaultOpen = false,
+    defaultTab = 'errors',
+    panelClassName,
+    position = 'bottom-right'
+  }: DevtoolsProps = {}) => {
     const { cache, clear, clearMutations, errors, mutations, subscriptions } = useDevErrors(),
-      [open, setOpen] = useState(false),
-      [tab, setTab] = useState<TabId>('errors'),
+      posClass = POSITION_CLASSES[position],
+      [open, setOpen] = useState(defaultOpen),
+      [tab, setTab] = useState<TabId>(defaultTab),
       [showWaterfall, setShowWaterfall] = useState(false)
 
     if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return null
@@ -181,7 +212,7 @@ const formatTime = (ts: number) => {
     if (!open)
       return (
         <button
-          className={`fixed right-4 bottom-4 z-9999 flex size-10 items-center justify-center rounded-full shadow-lg transition-colors ${count > 0 ? 'bg-red-600 text-white hover:bg-red-700' : staleCount > 0 || pendingCount > 0 ? 'bg-yellow-600 text-white hover:bg-yellow-700' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+          className={`fixed ${posClass} z-9999 flex size-10 items-center justify-center rounded-full shadow-lg transition-colors ${count > 0 ? 'bg-red-600 text-white hover:bg-red-700' : staleCount > 0 || pendingCount > 0 ? 'bg-yellow-600 text-white hover:bg-yellow-700' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'} ${className ?? ''} ${buttonClassName ?? ''}`}
           onClick={() => setOpen(v => !v)}
           title='LazyConvex DevTools'
           type='button'>
@@ -198,7 +229,8 @@ const formatTime = (ts: number) => {
       )
 
     return (
-      <div className='fixed right-4 bottom-4 z-9999 flex w-96 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 shadow-2xl'>
+      <div
+        className={`fixed ${posClass} z-9999 flex w-96 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 shadow-2xl ${className ?? ''} ${panelClassName ?? ''}`}>
         <div className='flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-3 py-2'>
           <div className='flex gap-1'>
             <TabBtn
@@ -307,3 +339,4 @@ const formatTime = (ts: number) => {
   }
 
 export default LazyConvexDevtools
+export type { DevtoolsProps }

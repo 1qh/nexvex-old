@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import AuthLayout from '@a/fe/auth-layout'
 import ConvexProvider from '@a/fe/convex-provider'
 import Logout from '@a/fe/user-menu'
+import { LazyConvexDevtools } from 'lazyconvex/react'
 import { UserRound } from 'lucide-react'
 import { headers } from 'next/headers'
 import Link from 'next/link'
@@ -14,7 +15,13 @@ const metadata: Metadata = { description: 'lazyconvex blog demo', title: 'Blog' 
       isLogin = pathname === '/login' || pathname.startsWith('/login/')
 
     return (
-      <AuthLayout convexProvider={inner => <ConvexProvider fileApi>{inner}</ConvexProvider>}>
+      <AuthLayout
+        convexProvider={inner => (
+          <ConvexProvider fileApi>
+            <LazyConvexDevtools />
+            {inner}
+          </ConvexProvider>
+        )}>
         {isLogin ? (
           children
         ) : (

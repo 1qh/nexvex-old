@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import ConvexProvider from '@a/fe/convex-provider'
 import ErrorBoundary from '@a/fe/error-boundary'
 import { Toaster } from '@a/ui/sonner'
+import { LazyConvexDevtools } from 'lazyconvex/react'
 import { ThemeProvider } from 'next-themes'
 import { Suspense } from 'react'
 
@@ -13,6 +14,7 @@ const Layout = ({ children }: { children: ReactNode }) => (
       <Suspense>
         <ErrorBoundary>
           <ConvexProvider noAuth>
+            <LazyConvexDevtools />
             <ThemeProvider attribute='class' defaultTheme='system' enableSystem>
               {children}
             </ThemeProvider>

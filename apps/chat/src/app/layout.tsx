@@ -5,6 +5,7 @@ import AuthLayout from '@a/fe/auth-layout'
 import ConvexProvider from '@a/fe/convex-provider'
 import { SidebarInset, SidebarProvider } from '@a/ui/sidebar'
 import { isAuthenticated } from 'lazyconvex/next'
+import { LazyConvexDevtools } from 'lazyconvex/react'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
@@ -24,7 +25,13 @@ const metadata: Metadata = { description: 'lazyconvex chat demo', title: 'Chat' 
     const showSidebar = !isPublicPath(pathname)
 
     return (
-      <AuthLayout convexProvider={inner => <ConvexProvider>{inner}</ConvexProvider>}>
+      <AuthLayout
+        convexProvider={inner => (
+          <ConvexProvider>
+            <LazyConvexDevtools />
+            {inner}
+          </ConvexProvider>
+        )}>
         {showSidebar ? (
           <SidebarProvider>
             <Sidebar />

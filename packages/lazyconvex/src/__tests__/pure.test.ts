@@ -6,7 +6,9 @@ import { ConvexError } from 'convex/values'
 import { array, boolean, date, number, object, optional, string, enum as zenum } from 'zod/v4'
 
 import type { AccessEntry, FactoryCall } from '../check'
+import type { DevtoolsProps } from '../react/devtools-panel'
 import type { MutationType, PendingMutation } from '../react/optimistic-store'
+import type { PlaygroundProps } from '../react/schema-playground'
 import type { InfiniteListOptions } from '../react/use-infinite-list'
 import type { UseListOptions } from '../react/use-list'
 import type { MutateOptions } from '../react/use-mutate'
@@ -6926,5 +6928,147 @@ describe('printSchemaPreview', () => {
     const output = logs.join('\n')
     expect(output).toContain('2')
     expect(output).toContain('3')
+  })
+})
+
+describe('DevtoolsProps customization (R11.3)', () => {
+  test('DevtoolsProps interface accepts all optional props', () => {
+    const props: DevtoolsProps = {
+      buttonClassName: 'my-btn',
+      className: 'my-class',
+      defaultOpen: true,
+      defaultTab: 'subs',
+      panelClassName: 'my-panel',
+      position: 'top-left'
+    }
+    expect(props.className).toBe('my-class')
+    expect(props.buttonClassName).toBe('my-btn')
+    expect(props.panelClassName).toBe('my-panel')
+    expect(props.defaultTab).toBe('subs')
+    expect(props.defaultOpen).toBe(true)
+    expect(props.position).toBe('top-left')
+  })
+
+  test('DevtoolsProps accepts empty object', () => {
+    const props: DevtoolsProps = {}
+    expect(props.className).toBeUndefined()
+    expect(props.position).toBeUndefined()
+  })
+
+  test('position accepts all 4 corners', () => {
+    const positions: DevtoolsProps['position'][] = ['bottom-right', 'bottom-left', 'top-right', 'top-left']
+    expect(positions).toHaveLength(4)
+  })
+
+  test('defaultTab accepts all tab ids', () => {
+    const tabs: DevtoolsProps['defaultTab'][] = ['errors', 'subs', 'mutations', 'cache']
+    expect(tabs).toHaveLength(4)
+  })
+
+  test('DevtoolsProps rejects invalid position', () => {
+    type P = DevtoolsProps['position']
+    type Check = 'center' extends P ? true : false
+    const invalid: Check = false
+    expect(invalid).toBe(false)
+  })
+
+  test('DevtoolsProps rejects invalid defaultTab', () => {
+    type T = DevtoolsProps['defaultTab']
+    type Check = 'settings' extends T ? true : false
+    const invalid: Check = false
+    expect(invalid).toBe(false)
+  })
+})
+
+describe('SchemaPlayground (R11.4)', () => {
+  test('PlaygroundProps accepts all optional props', () => {
+    const props: PlaygroundProps = {
+      className: 'my-playground',
+      defaultValue: 'const x = makeOwned({})',
+      endpointClassName: 'ep-class',
+      inputClassName: 'input-class',
+      placeholder: 'Type schema...',
+      readOnly: true,
+      tableClassName: 'table-class'
+    }
+    expect(props.className).toBe('my-playground')
+    expect(props.readOnly).toBe(true)
+    expect(props.defaultValue).toBe('const x = makeOwned({})')
+  })
+
+  test('PlaygroundProps accepts empty object', () => {
+    const props: PlaygroundProps = {}
+    expect(props.className).toBeUndefined()
+    expect(props.readOnly).toBeUndefined()
+  })
+
+  test('PlaygroundProps onChange is callable', () => {
+    let captured = ''
+    const props: PlaygroundProps = {
+      onChange: (v: string) => {
+        captured = v
+      }
+    }
+    props.onChange?.('test')
+    expect(captured).toBe('test')
+  })
+
+  test('extractSchemaFields powers the playground preview', () => {
+    const content = `const owned = makeOwned({
+  blog: object({
+    title: string(),
+    content: string(),
+  })
+})`,
+      tables = extractSchemaFields(content)
+    expect(tables).toHaveLength(1)
+    expect(tables[0]?.table).toBe('blog')
+    expect(tables[0]?.factory).toBe('crud')
+    const endpoints = endpointsForFactory({ factory: 'crud', file: '', options: '', table: 'blog' })
+    expect(endpoints.length).toBeGreaterThan(0)
+    expect(endpoints).toContain('pub.list')
+    expect(endpoints).toContain('create')
+    expect(endpoints).toContain('update')
+    expect(endpoints).toContain('rm')
+  })
+
+  test('playground detects multiple factory types', () => {
+    const content = `const owned = makeOwned({
+  blog: object({ title: string() }),
+})
+const org = makeOrgScoped({
+  project: object({ name: string() }),
+})`,
+      tables = extractSchemaFields(content)
+    expect(tables).toHaveLength(2)
+    const factories = tables.map(t => t.factory)
+    expect(factories).toContain('crud')
+    expect(factories).toContain('orgCrud')
+  })
+
+  test('endpointsForFactory returns correct endpoints for each factory', () => {
+    expect(endpointsForFactory({ factory: 'crud', file: '', options: '', table: 't' })).toContain('create')
+    expect(endpointsForFactory({ factory: 'orgCrud', file: '', options: '', table: 't' })).toContain('create')
+    expect(endpointsForFactory({ factory: 'singletonCrud', file: '', options: '', table: 't' })).toContain('get')
+    expect(endpointsForFactory({ factory: 'singletonCrud', file: '', options: '', table: 't' })).toContain('upsert')
+    expect(endpointsForFactory({ factory: 'cacheCrud', file: '', options: '', table: 't' })).toContain('invalidate')
+    expect(endpointsForFactory({ factory: 'childCrud', file: '', options: '', table: 't' })).toContain('list')
+  })
+
+  test('orgCrud with acl option adds editor endpoints', () => {
+    const endpoints = endpointsForFactory({ factory: 'orgCrud', file: '', options: '{ acl: true }', table: 't' })
+    expect(endpoints).toContain('addEditor')
+    expect(endpoints).toContain('removeEditor')
+    expect(endpoints).toContain('editors')
+  })
+
+  test('crud with softDelete adds restore endpoint', () => {
+    const endpoints = endpointsForFactory({ factory: 'crud', file: '', options: '{ softDelete: true }', table: 't' })
+    expect(endpoints).toContain('restore')
+  })
+
+  test('crud with search adds pub.search endpoint', () => {
+    const endpoints = endpointsForFactory({ factory: 'crud', file: '', options: "{ search: 'title' }", table: 't' })
+    expect(endpoints).toContain('pub.search')
   })
 })

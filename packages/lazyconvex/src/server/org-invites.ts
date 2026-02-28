@@ -10,6 +10,7 @@ import { idx } from './bridge'
 import { err, generateToken, SEVEN_DAYS_MS, time } from './helpers'
 import { getOrgMember, requireOrgRole } from './org-crud'
 
+/** Shape of an org invite document as stored in the orgInvite table. */
 interface InviteDocLike {
   [k: string]: unknown
   _creationTime: number

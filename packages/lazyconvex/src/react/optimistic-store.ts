@@ -2,6 +2,7 @@
 
 import { createContext, use, useRef, useSyncExternalStore } from 'react'
 
+/** The kind of mutation: create, update, or delete. */
 type MutationType = 'create' | 'delete' | 'update'
 
 interface OptimisticStore {
@@ -11,6 +12,7 @@ interface OptimisticStore {
   subscribe: (cb: () => void) => () => void
 }
 
+/** Represents a mutation that has been optimistically applied but not yet confirmed by the server. */
 interface PendingMutation {
   args: Record<string, unknown>
   id: string
@@ -52,8 +54,10 @@ const makeTempId = () => {
       }
     }
   },
+  /** React context that holds the optimistic mutation store. */
   OptimisticContext = createContext<null | OptimisticStore>(null),
   useOptimisticStore = (): null | OptimisticStore => use(OptimisticContext),
+  /** Returns all pending optimistic mutations from the store, or an empty array if no provider exists. */
   usePendingMutations = (): PendingMutation[] => {
     const store = useOptimisticStore(),
       emptyRef = useRef<PendingMutation[]>([])

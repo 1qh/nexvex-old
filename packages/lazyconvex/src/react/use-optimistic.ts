@@ -16,6 +16,7 @@ interface OptimisticOptions<T extends MutationFn, R = FunctionReturnType<T>> {
   onSuccess?: (result: R, args: Args<T>) => void
 }
 
+/** Wraps a Convex mutation with optimistic callback, automatic rollback on error, and pending state. */
 const useOptimisticMutation = <T extends MutationFn>({
   mutation,
   onOptimistic,

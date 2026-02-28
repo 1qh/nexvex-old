@@ -19,6 +19,7 @@ interface UseBulkSelectionOpts {
   undoMs?: number
 }
 
+/** Manages bulk item selection with select-all toggle and bulk delete with undo-via-restore support. */
 const useBulkSelection = ({
   bulkRm,
   items,

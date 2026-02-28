@@ -9,6 +9,7 @@ import { idx } from './bridge'
 import { err, time } from './helpers'
 import { getOrgMember, requireOrgRole } from './org-crud'
 
+/** Shape of a join request item returned by pendingJoinRequests, including the request doc and associated user. */
 interface JoinRequestItem {
   request: {
     [k: string]: unknown

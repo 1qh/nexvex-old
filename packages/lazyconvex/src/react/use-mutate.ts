@@ -10,6 +10,7 @@ import type { MutationType } from './optimistic-store'
 
 import { makeTempId, useOptimisticStore } from './optimistic-store'
 
+/** Options for useMutate: whether to use optimistic updates and the mutation type. */
 interface MutateOptions {
   optimistic?: boolean
   type?: MutationType
@@ -23,6 +24,7 @@ const detectMutationType = (ref: MutationRef): MutationType => {
     if (name.endsWith(':update') || name.endsWith('.update') || name.includes('patch')) return 'update'
     return 'create'
   },
+  /** Wraps a Convex mutation with automatic optimistic store tracking and cleanup. */
   useMutate = <T extends MutationRef>(
     ref: T,
     options?: MutateOptions

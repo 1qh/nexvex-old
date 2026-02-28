@@ -160,6 +160,7 @@ const formatTime = (ts: number) => {
       {label}
     </button>
   ),
+  /** Development-only floating panel that displays errors, subscriptions, mutations, and cache stats. */
   LazyConvexDevtools = () => {
     const { cache, clear, clearMutations, errors, mutations, subscriptions } = useDevErrors(),
       [open, setOpen] = useState(false),

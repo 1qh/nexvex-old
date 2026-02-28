@@ -424,6 +424,7 @@ type WithUrls<D> = D & { [K in keyof D as UrlKey<K, D[K]>]: UrlVal<D[K]> }
 declare const __brand: unique symbol
 type BaseSchema<T extends ZodRawShape> = SchemaBrand<'base'> & ZodObject<T>
 type OrgSchema<T extends ZodRawShape> = SchemaBrand<'org'> & ZodObject<T>
+/** Minimal user shape used across org operations, containing id, name, email, and image. */
 interface OrgUserLike {
   [k: string]: unknown
   _id: GenericId<'users'>

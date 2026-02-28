@@ -7,6 +7,11 @@ import { log } from './helpers'
 const withOp = (ctx: GlobalHookCtx, op: MiddlewareCtx['operation']): MiddlewareCtx => ({ ...ctx, operation: op }),
   // oxlint-disable-next-line max-statements
 
+  /**
+   * Composes multiple middleware instances into a single GlobalHooks object that chains their lifecycle callbacks.
+   * @param middlewares - Middleware instances to compose
+   * @returns Combined GlobalHooks with all middleware callbacks chained in order
+   */
   composeMiddleware = (...middlewares: Middleware[]): GlobalHooks => {
     const hooks: GlobalHooks = {},
       hasBeforeCreate = middlewares.some(mw => mw.beforeCreate),
@@ -58,6 +63,11 @@ const withOp = (ctx: GlobalHookCtx, op: MiddlewareCtx['operation']): MiddlewareC
 
     return hooks
   },
+  /**
+   * Creates a middleware that logs structured audit entries for create, update, and delete operations.
+   * @param opts - Optional log level and verbosity settings
+   * @returns Middleware that emits audit log entries
+   */
   auditLog = (opts?: { logLevel?: 'debug' | 'info'; verbose?: boolean }): Middleware => {
     const level = opts?.logLevel ?? 'info',
       verbose = opts?.verbose ?? false
@@ -79,6 +89,11 @@ const withOp = (ctx: GlobalHookCtx, op: MiddlewareCtx['operation']): MiddlewareC
     }
   },
   DEFAULT_SLOW_THRESHOLD_MS = 500,
+  /**
+   * Creates a middleware that warns when mutation operations exceed a configurable time threshold.
+   * @param opts - Optional threshold in milliseconds (default 500ms)
+   * @returns Middleware that logs slow operation warnings
+   */
   slowQueryWarn = (opts?: { threshold?: number }): Middleware => {
     const threshold = opts?.threshold ?? DEFAULT_SLOW_THRESHOLD_MS
     return {
@@ -119,6 +134,11 @@ const withOp = (ctx: GlobalHookCtx, op: MiddlewareCtx['operation']): MiddlewareC
     }
     return result
   },
+  /**
+   * Creates a middleware that strips `<script>` tags and inline event handlers from string fields before writes.
+   * @param opts - Optional list of specific fields to sanitize; defaults to all string fields
+   * @returns Middleware that sanitizes input data
+   */
   inputSanitize = (opts?: { fields?: string[] }): Middleware => {
     const targetFields = opts?.fields ? new Set(opts.fields) : undefined
     return {

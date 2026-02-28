@@ -10,6 +10,7 @@ import { idx } from './bridge'
 import { err, time } from './helpers'
 import { getOrgMember, getOrgRole, requireOrgMember, requireOrgRole } from './org-crud'
 
+/** Shape of an org member item returned by the members endpoint, including role and user info. */
 interface OrgMemberItem {
   memberId?: GenericId<'orgMember'>
   role: OrgRole

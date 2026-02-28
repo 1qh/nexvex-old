@@ -21,6 +21,7 @@ interface UseSearchResult<T> {
 
 const DEFAULT_DEBOUNCE_MS = 300,
   DEFAULT_MIN_LENGTH = 1,
+  /** Debounced search hook that queries a Convex search endpoint with configurable delay and minimum length. */
   useSearch = <F extends SearchFn>(
     searchRef: F,
     argsBuilder: (query: string) => OptionalRestArgs<F>[0],

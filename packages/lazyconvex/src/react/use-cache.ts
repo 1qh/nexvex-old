@@ -15,12 +15,14 @@ interface FireLoadCtx {
 
 type QueryRef = FunctionReference<'query'>
 
+/** Options for useCacheEntry: the query to read cached data and the action to refresh it. */
 interface UseCacheEntryOptions<Q extends QueryRef, A extends ActionRef> {
   args: OptionalRestArgs<Q>[0]
   get: Q
   load: A
 }
 
+/** Return value of useCacheEntry with the cached data, loading/stale state, and a refresh function. */
 interface UseCacheEntryResult<T> {
   data: null | T
   isLoading: boolean
@@ -38,6 +40,7 @@ const fireLoad = async ({ args, load, loadingRef, setIsLoading }: FireLoadCtx) =
       setIsLoading(false)
     }
   },
+  /** Reads a cached entry via a Convex query and auto-triggers the load action when data is stale. */
   useCacheEntry = <Q extends QueryRef, A extends ActionRef>({
     args,
     get: getRef,

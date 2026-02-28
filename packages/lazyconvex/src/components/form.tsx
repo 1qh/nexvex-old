@@ -138,7 +138,7 @@ const useWithGuard = <T extends Record<string, unknown>, S extends ZodObject<Zod
     values?: zinfer<S>
   }) => useWithGuard(useBaseFormMutation(opts)),
   Form = <T extends Record<string, unknown>, S extends ZodObject<ZodRawShape>>({
-    form: { conflict, error, guard, instance, meta, resolveConflict, schema },
+    form: { conflict, error, fieldErrors, guard, instance, meta, resolveConflict, schema },
     render,
     showError = true,
     ...props
@@ -147,7 +147,7 @@ const useWithGuard = <T extends Record<string, unknown>, S extends ZodObject<Zod
     render: (f: TypedFields<T>) => ReactNode
     showError?: boolean
   }) => (
-    <FormContext value={{ form: instance as Api<Record<string, unknown>>, meta, schema }}>
+    <FormContext value={{ form: instance as Api<Record<string, unknown>>, meta, schema, serverErrors: fieldErrors }}>
       <form
         {...props}
         onSubmit={e => {

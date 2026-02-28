@@ -2789,6 +2789,182 @@ describe('errValidation with VALIDATION_FAILED', () => {
   })
 })
 
+describe('field-level error routing (R9.3)', () => {
+  test('errValidation produces fieldErrors in thrown error', () => {
+    const zodError = {
+      flatten: () => ({ fieldErrors: { content: ['Too short', 'Must be unique'], title: ['Required'] } })
+    }
+    try {
+      errValidation('VALIDATION_FAILED', zodError)
+    } catch (error) {
+      const e = error as { data: { fieldErrors: Record<string, string> } }
+      expect(e.data.fieldErrors).toEqual({ content: 'Too short', title: 'Required' })
+    }
+  })
+
+  test('errValidation takes first error message per field', () => {
+    const zodError = {
+      flatten: () => ({ fieldErrors: { email: ['Invalid email', 'Already taken'] } })
+    }
+    try {
+      errValidation('VALIDATION_FAILED', zodError)
+    } catch (error) {
+      const e = error as { data: { fieldErrors: Record<string, string> } }
+      expect(e.data.fieldErrors.email).toBe('Invalid email')
+    }
+  })
+
+  test('errValidation with empty fieldErrors produces empty object', () => {
+    const zodError = { flatten: () => ({ fieldErrors: {} }) }
+    try {
+      errValidation('VALIDATION_FAILED', zodError)
+    } catch (error) {
+      const e = error as { data: { fieldErrors: Record<string, string> } }
+      expect(e.data.fieldErrors).toEqual({})
+    }
+  })
+
+  test('extractErrorData returns fieldErrors from ConvexError', () => {
+    const e = new ConvexError({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: { content: 'Too short', title: 'Required' },
+        fields: ['title', 'content'],
+        message: 'Invalid: title, content'
+      }),
+      d = extractErrorData(e)
+    expect(d).toBeDefined()
+    expect(d?.fieldErrors).toEqual({ content: 'Too short', title: 'Required' })
+  })
+
+  test('extractErrorData returns undefined fieldErrors when not a record', () => {
+    const e = new ConvexError({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: 'not-a-record'
+      }),
+      d = extractErrorData(e)
+    expect(d).toBeDefined()
+    expect(d?.fieldErrors).toBeUndefined()
+  })
+
+  test('extractErrorData returns undefined fieldErrors when missing', () => {
+    const e = new ConvexError({ code: 'NOT_FOUND' }),
+      d = extractErrorData(e)
+    expect(d).toBeDefined()
+    expect(d?.fieldErrors).toBeUndefined()
+  })
+
+  test('extractErrorData treats array fieldErrors as record (isRecord passes arrays)', () => {
+    const e = new ConvexError({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: ['title', 'content']
+      }),
+      d = extractErrorData(e)
+    expect(d).toBeDefined()
+    expect(d?.fieldErrors).toBeDefined()
+  })
+
+  test('end-to-end: errValidation → extractErrorData preserves fieldErrors', () => {
+    const zodError = {
+      flatten: () => ({
+        fieldErrors: {
+          category: ['Invalid value'],
+          content: ['Min 3 chars'],
+          title: ['Required']
+        }
+      })
+    }
+    try {
+      errValidation('VALIDATION_FAILED', zodError)
+    } catch (error) {
+      const d = extractErrorData(error)
+      expect(d).toBeDefined()
+      expect(d?.code).toBe('VALIDATION_FAILED')
+      expect(d?.fieldErrors).toEqual({
+        category: 'Invalid value',
+        content: 'Min 3 chars',
+        title: 'Required'
+      })
+      expect(d?.fields).toEqual(['category', 'content', 'title'])
+      expect(d?.message).toBe('Invalid: category, content, title')
+    }
+  })
+
+  test('errValidation skips fields with empty error arrays', () => {
+    const zodError = {
+      flatten: () => ({ fieldErrors: { content: [], empty: undefined, title: ['Required'] } })
+    }
+    try {
+      errValidation('VALIDATION_FAILED', zodError)
+    } catch (error) {
+      const e = error as { data: { fieldErrors: Record<string, string>; fields: string[] } }
+      expect(e.data.fieldErrors).toEqual({ title: 'Required' })
+      expect(e.data.fields).toEqual(['title'])
+    }
+  })
+
+  test('extractErrorData with fieldErrors as null returns undefined', () => {
+    const e = new ConvexError({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: null
+      }),
+      d = extractErrorData(e)
+    expect(d?.fieldErrors).toBeUndefined()
+  })
+
+  test('extractErrorData with fieldErrors as number returns undefined', () => {
+    const e = new ConvexError({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: 42
+      }),
+      d = extractErrorData(e)
+    expect(d?.fieldErrors).toBeUndefined()
+  })
+
+  test('extractErrorData with nested fieldErrors preserves values', () => {
+    const e = new ConvexError({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: { email: 'Already taken', password: 'Too weak' },
+        fields: ['email', 'password']
+      }),
+      d = extractErrorData(e)
+    expect(d?.fieldErrors).toEqual({ email: 'Already taken', password: 'Too weak' })
+    expect(d?.fields).toEqual(['email', 'password'])
+  })
+
+  test('errValidation with single field produces correct shape', () => {
+    const zodError = {
+      flatten: () => ({ fieldErrors: { slug: ['Must be lowercase'] } })
+    }
+    try {
+      errValidation('VALIDATION_FAILED', zodError)
+    } catch (error) {
+      const d = extractErrorData(error)
+      expect(d?.fieldErrors).toEqual({ slug: 'Must be lowercase' })
+      expect(d?.fields).toEqual(['slug'])
+      expect(d?.message).toBe('Invalid: slug')
+    }
+  })
+  test('extractErrorData with empty record fieldErrors returns empty record', () => {
+    const e = new ConvexError({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: {}
+      }),
+      d = extractErrorData(e)
+    expect(d?.fieldErrors).toEqual({})
+  })
+  test('field-level errors coexist with general error message', () => {
+    const e = new ConvexError({
+        code: 'VALIDATION_FAILED',
+        fieldErrors: { title: 'Too long' },
+        fields: ['title'],
+        message: 'Validation failed'
+      }),
+      d = extractErrorData(e)
+    expect(d?.message).toBe('Validation failed')
+    expect(d?.fieldErrors).toEqual({ title: 'Too long' })
+  })
+})
+
 describe('cleanFiles update scenario (next param)', () => {
   const mockStorage = () => {
     const deleted: string[] = []

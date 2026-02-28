@@ -45,6 +45,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
     form: Api<Record<string, unknown>>
     meta: FieldMetaMap
     schema: ZodObject<ZodRawShape>
+    serverErrors: Record<string, string>
   }>(null),
   useFCtx = () => {
     const c = use(FormContext)
@@ -56,7 +57,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       info = ctx.meta[name]
     if (!info) throw new Error(`Unknown field: ${name}`)
     if (info.kind !== kind) throw new Error(`Field ${name} is not ${kind}`)
-    return { form: ctx.form, info, schema: ctx.schema }
+    return { form: ctx.form, info, schema: ctx.schema, serverErrors: ctx.serverErrors }
   },
   defaultEnumOptions = (schema: ZodObject<ZodRawShape>, name: string): { label: string; value: string }[] => {
     const { schema: inner } = unwrapZod(schema.shape[name])
@@ -65,6 +66,20 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       return opts.map(v => ({ label: v.charAt(0).toUpperCase() + v.slice(1), value: v }))
     }
     throw new Error(`Choose: field "${name}" has no enum options. Pass options prop.`)
+  },
+  ServerFieldError = ({ className, name, ...props }: ComponentProps<'div'> & { name: string }) => {
+    const ctx = useFCtx(),
+      msg = ctx.serverErrors[name]
+    if (!msg) return null
+    return (
+      <div
+        className={cn('text-sm font-normal text-destructive', className)}
+        data-slot='server-field-error'
+        role='alert'
+        {...props}>
+        {msg}
+      </div>
+    )
   },
   fields = {
     Arr: ({
@@ -161,6 +176,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   />
                 </div>
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -209,6 +225,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   </SelectContent>
                 </Select>
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -256,6 +273,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   />
                 </div>
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -335,6 +353,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   </PopoverContent>
                 </Popover>
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -411,6 +430,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   ) : null}
                 </div>
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -578,6 +598,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   </div>
                 ) : null}
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -619,6 +640,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   {...props}
                 />
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -662,6 +684,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   ))}
                 </div>
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -711,6 +734,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   value={[val]}
                 />
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -809,6 +833,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   {...props}
                 />
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -849,6 +874,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   value={f.state.value ?? ''}
                 />
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -889,6 +915,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
                   <FieldLabel htmlFor={f.name}>{f.state.value ? trueLabel : (falseLabel ?? trueLabel)}</FieldLabel>
                 </div>
                 {inv ? <FieldError errors={f.state.meta.errors} id={errorId} /> : null}
+                <ServerFieldError name={name} />
               </Field>
             )
           }}
@@ -898,4 +925,4 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
   }
 
 export type { Api }
-export { fields, FormContext }
+export { fields, FormContext, ServerFieldError }

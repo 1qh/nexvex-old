@@ -10,6 +10,10 @@
 *.hmap
 *.ipa
 *.mobileprovision
+resource_bundle_accessor*
+*.swiftdeps
+*.swiftmodule
+*.dia
 *.mode1v3
 *.mode2v3
 *.moved-aside

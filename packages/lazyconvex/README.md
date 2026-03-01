@@ -112,6 +112,13 @@ One line of config. 12 endpoints. Role-based access, editor ACL, soft delete wit
 | Browser devtools panel (customizable position, tabs) | 0 |
 | Interactive schema playground component | 0 |
 | JSDoc on all public exports | 0 |
+| Auto-derived field labels from field name | 0 |
+| Default error toasts with smart routing (auth, rate-limit) | 0 |
+| Auto-mount devtools in dev mode (inside forms) | 0 |
+| File upload auto-detection + dev warning | 0 |
+| Guarded API wrapper — runtime typo detection | 0 |
+| Test utilities (`discoverModules`, `createTestContext`) | 0 |
+| CLI scaffold with best-practice defaults | 0 |
 
 ## Developer Tools
 
@@ -123,7 +130,7 @@ Schema mismatches surface as clear compile-time errors:
 
 ### Browser Devtools Panel
 
-Drop-in floating panel for inspecting errors, subscriptions, mutations, and cache — customizable position, tabs, and styling:
+In dev mode, the devtools panel auto-mounts inside `<Form>` components — no import needed. For standalone usage or customization:
 
 ![Devtools button in app](docs/assets/devtools-button.png)
 
@@ -234,6 +241,21 @@ export const {
 ```tsx
 const { items: blogs, loadMore } = useList(api.blog.list, { where: { published: true } })
 ```
+
+## Zero-Config Defaults
+
+Everything works out of the box. Opt out only when needed.
+
+| Default | What it does | Opt out |
+|---------|-------------|---------|
+| Auto-derived labels | `coverImage` renders as "Cover Image" | `label={false}` or `label="Custom"` |
+| Error toasts | `useMutate` and forms show toast on error | `onError: false` |
+| Devtools panel | Auto-mounts in dev mode inside forms | Manual `<LazyConvexDevtools>` for customization |
+| File upload warning | Console warning if file fields lack `<FileApiProvider>` | Add the provider |
+| Form data return | Forms auto-return submitted data for reset | Return custom data from `onSubmit` |
+| Devtools tracking | Mutations and cache access tracked in dev panel | Dev mode only |
+
+`bunx lazyconvex init` scaffolds new projects with all defaults pre-configured: guarded API wrapper, `FileApiProvider`, `ConvexErrorBoundary`, and commented middleware examples.
 
 ## 5 Table Types
 

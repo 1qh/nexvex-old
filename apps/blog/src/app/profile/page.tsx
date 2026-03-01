@@ -1,7 +1,6 @@
 'use client'
 
 import { api } from '@a/be'
-import { fail } from '@a/fe/utils'
 import { FieldGroup } from '@a/ui/field'
 import { Spinner } from '@a/ui/spinner'
 import { useMutation, useQuery } from 'convex/react'
@@ -15,7 +14,6 @@ const Page = () => {
   const profile = useQuery(api.blogProfile.get, {}),
     upsert = useMutation(api.blogProfile.upsert),
     form = useForm({
-      onError: fail,
       onSubmit: async d => {
         await upsert(d)
         return d
@@ -58,11 +56,11 @@ const Page = () => {
         render={({ Choose, File, Submit, Text, Toggle }) => (
           <>
             <FieldGroup className='gap-5'>
-              <Text data-testid='profile-displayName' label='Display Name' name='displayName' />
-              <Text className='min-h-24' data-testid='profile-bio' label='Bio' multiline name='bio' />
-              <Choose data-testid='profile-theme' label='Theme' name='theme' />
+              <Text data-testid='profile-displayName' name='displayName' />
+              <Text className='min-h-24' data-testid='profile-bio' multiline name='bio' />
+              <Choose data-testid='profile-theme' name='theme' />
               <Toggle data-testid='profile-notifications' falseLabel='Off' name='notifications' trueLabel='On' />
-              <File accept='image/*' data-testid='profile-avatar' label='Avatar' maxSize={5 * 1024 * 1024} name='avatar' />
+              <File accept='image/*' data-testid='profile-avatar' maxSize={5 * 1024 * 1024} name='avatar' />
             </FieldGroup>
             <Submit className='ml-auto' data-testid='profile-submit'>
               Save

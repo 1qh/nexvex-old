@@ -5,7 +5,6 @@ import type { FunctionReturnType } from 'convex/server'
 import type { ComponentProps } from 'react'
 
 import { api } from '@a/be'
-import { fail } from '@a/fe/utils'
 import { cn } from '@a/ui'
 import {
   AlertDialog,
@@ -87,7 +86,6 @@ const Delete = ({ id, onOptimisticRemove }: { id: Blog['_id']; onOptimisticRemov
     const [open, setOpen] = useState(false),
       create = useMutation(api.blog.create),
       form = useForm({
-        onError: fail,
         onSubmit: async d => {
           await create({ ...d, published: false })
           return d
@@ -126,37 +124,17 @@ const Delete = ({ id, onOptimisticRemove }: { id: Blog['_id']; onOptimisticRemov
             render={({ Arr, Choose, File, Files, Submit, Text }) => (
               <>
                 <FieldGroup>
-                  <Text data-testid='blog-title' label='Title' name='title' placeholder='My awesome post' />
-                  <Choose data-testid='blog-category' label='Category' name='category' placeholder='Select' />
-                  <Text
-                    className='min-h-32'
-                    data-testid='blog-content'
-                    label='Content'
-                    multiline
-                    name='content'
-                    placeholder='Write...'
-                  />
-                  <File
-                    accept='image/*'
-                    data-testid='blog-cover-image'
-                    label='Cover Image'
-                    maxSize={5 * 1024 * 1024}
-                    name='coverImage'
-                  />
+                  <Text data-testid='blog-title' name='title' placeholder='My awesome post' />
+                  <Choose data-testid='blog-category' name='category' placeholder='Select' />
+                  <Text className='min-h-32' data-testid='blog-content' multiline name='content' placeholder='Write...' />
+                  <File accept='image/*' data-testid='blog-cover-image' maxSize={5 * 1024 * 1024} name='coverImage' />
                   <Files
                     accept='image/*,application/pdf'
                     data-testid='blog-attachments'
-                    label='Attachments'
                     maxSize={10 * 1024 * 1024}
                     name='attachments'
                   />
-                  <Arr
-                    data-testid='blog-tags'
-                    label='Tags'
-                    name='tags'
-                    placeholder='Add tag...'
-                    transform={s => s.toLowerCase()}
-                  />
+                  <Arr data-testid='blog-tags' name='tags' placeholder='Add tag...' transform={s => s.toLowerCase()} />
                 </FieldGroup>
                 <Submit className='ml-auto' data-testid='create-blog-submit' Icon={Send}>
                   Create

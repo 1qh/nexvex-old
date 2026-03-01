@@ -23,7 +23,6 @@ const JoinPage = ({ params }: { params: Promise<{ slug: string }> }) => {
     cancelRequest = useMutation(api.org.cancelJoinRequest),
     requestJoin = useMutation(api.org.requestJoin),
     form = useForm({
-      onError: fail,
       onSubmit: async d => {
         if (!org) return d
         await requestJoin({ message: d.message ?? undefined, orgId: org._id })

@@ -1,7 +1,6 @@
 'use client'
 
 import { api } from '@a/be'
-import { fail } from '@a/fe/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@a/ui/card'
 import { FieldGroup } from '@a/ui/field'
 import { Spinner } from '@a/ui/spinner'
@@ -22,7 +21,6 @@ const { StepForm, useStepper } = defineSteps(
       upsert = useMutation(api.orgProfile.upsert),
       create = useMutation(api.org.create),
       stepper = useStepper({
-        onError: fail,
         onSubmit: async d => {
           await upsert({ ...d.profile, ...d.preferences })
           await create({
@@ -72,9 +70,9 @@ const { StepForm, useStepper } = defineSteps(
                 id='profile'
                 render={({ File, Text }) => (
                   <FieldGroup>
-                    <Text label='Display Name' name='displayName' />
-                    <Text label='Bio' multiline name='bio' />
-                    <File accept='image/*' label='Avatar' name='avatar' />
+                    <Text name='displayName' />
+                    <Text multiline name='bio' />
+                    <File accept='image/*' name='avatar' />
                   </FieldGroup>
                 )}
               />
@@ -82,7 +80,7 @@ const { StepForm, useStepper } = defineSteps(
                 id='org'
                 render={({ Text }) => (
                   <FieldGroup>
-                    <Text label='Name' name='name' />
+                    <Text name='name' />
                     <Text label='URL Slug' name='slug' />
                   </FieldGroup>
                 )}
@@ -99,7 +97,7 @@ const { StepForm, useStepper } = defineSteps(
                 id='preferences'
                 render={({ Choose, Toggle }) => (
                   <FieldGroup>
-                    <Choose label='Theme' name='theme' />
+                    <Choose name='theme' />
                     <Toggle falseLabel='Off' name='notifications' trueLabel='On' />
                   </FieldGroup>
                 )}

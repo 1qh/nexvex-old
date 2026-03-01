@@ -48,6 +48,7 @@ test.describe('Authentication Failures', () => {
 
   test('login form shows different error for sign up vs sign in', async ({ page }) => {
     await page.goto('/login/email')
+    await page.locator('[name="email"]').waitFor({ state: 'visible' })
 
     await page.fill('[name="email"]', 'nonexistent@example.com')
     await page.fill('[name="password"]', 'testpassword123')

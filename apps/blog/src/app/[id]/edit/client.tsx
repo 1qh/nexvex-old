@@ -5,7 +5,6 @@ import type { FunctionReturnType } from 'convex/server'
 import type { ComponentProps } from 'react'
 
 import { api } from '@a/be'
-import { fail } from '@a/fe/utils'
 import { cn } from '@a/ui'
 import { FieldGroup } from '@a/ui/field'
 import { Label } from '@a/ui/label'
@@ -47,7 +46,6 @@ const Publish = ({ className, id, published, ...props }: ComponentProps<'div'> &
     const update = useMutation(api.blog.update),
       form = useForm({
         autoSave: { debounceMs: 2000, enabled: true },
-        onError: fail,
         onSubmit: async d => {
           await update({ id: blog._id, ...d, expectedUpdatedAt: blog.updatedAt })
           return d
@@ -70,29 +68,16 @@ const Publish = ({ className, id, published, ...props }: ComponentProps<'div'> &
           <>
             <Err error={form.error} />
             <FieldGroup className='gap-5'>
-              <Text data-testid='edit-title' label='Title' name='title' />
-              <Text className='min-h-64' data-testid='edit-content' label='Content' multiline name='content' />
-              <File
-                accept='image/*'
-                data-testid='edit-cover-image'
-                label='Cover Image'
-                maxSize={5 * 1024 * 1024}
-                name='coverImage'
-              />
+              <Text data-testid='edit-title' name='title' />
+              <Text className='min-h-64' data-testid='edit-content' multiline name='content' />
+              <File accept='image/*' data-testid='edit-cover-image' maxSize={5 * 1024 * 1024} name='coverImage' />
               <Files
                 accept='image/*,application/pdf'
                 data-testid='edit-attachments'
-                label='Attachments'
                 maxSize={10 * 1024 * 1024}
                 name='attachments'
               />
-              <Arr
-                data-testid='edit-tags'
-                label='Tags'
-                name='tags'
-                placeholder='Add tag...'
-                transform={s => s.toLowerCase()}
-              />
+              <Arr data-testid='edit-tags' name='tags' placeholder='Add tag...' transform={s => s.toLowerCase()} />
             </FieldGroup>
             <AutoSaveIndicator className='ml-auto block' data-testid='auto-save-indicator' lastSaved={form.lastSaved} />
           </>
@@ -103,7 +88,6 @@ const Publish = ({ className, id, published, ...props }: ComponentProps<'div'> &
   Setting = ({ blog }: { blog: NonNullable<FunctionReturnType<typeof api.blog.read>> }) => {
     const update = useMutation(api.blog.update),
       form = useForm({
-        onError: fail,
         onSubmit: async d => {
           await update({ id: blog._id, ...d })
           return d
@@ -121,7 +105,7 @@ const Publish = ({ className, id, published, ...props }: ComponentProps<'div'> &
         render={({ Choose, Submit, Toggle }) => (
           <>
             <FieldGroup className='gap-5'>
-              <Choose label='Category' name='category' />
+              <Choose name='category' />
               <Toggle falseLabel='Draft' name='published' trueLabel='Published' />
             </FieldGroup>
             <Submit>Save</Submit>

@@ -9,13 +9,15 @@ import { cn } from '@a/ui'
 import { Button } from '@a/ui/button'
 import { Dialog, DialogContent } from '@a/ui/dialog'
 import { useNavigationGuard } from 'next-navigation-guard'
-import { useEffect, useState } from 'react'
+import { use, useEffect, useState } from 'react'
 
 import type { FormReturn as BaseFormReturn, ConflictData } from '../react/form'
 import type { Api } from './fields'
 
+import { DevtoolsAutoMount } from '../react/devtools-panel'
 import { useForm as useBaseForm, useFormMutation as useBaseFormMutation } from '../react/form'
 import { fields, FormContext } from './fields'
+import { FileApiContext } from './file-field'
 
 const ConflictDialog = ({
   className,
@@ -119,7 +121,7 @@ const useWithGuard = <T extends Record<string, unknown>, S extends ZodObject<Zod
   useForm = <S extends ZodObject<ZodRawShape>>(opts: {
     autoSave?: { debounceMs: number; enabled: boolean }
     onConflict?: (data: ConflictData) => void
-    onError?: (e: unknown) => void
+    onError?: ((e: unknown) => void) | false
     onSubmit: (d: zinfer<S>, force?: boolean) => Promise<undefined | zinfer<S>> | undefined | zinfer<S>
     onSuccess?: () => void
     resetOnSuccess?: boolean
@@ -130,13 +132,30 @@ const useWithGuard = <T extends Record<string, unknown>, S extends ZodObject<Zod
     autoSave?: { debounceMs: number; enabled: boolean }
     mutation: FunctionReference<'mutation'>
     onConflict?: (data: ConflictData) => void
-    onError?: (e: unknown) => void
+    onError?: ((e: unknown) => void) | false
     onSuccess?: () => void
     resetOnSuccess?: boolean
     schema: S
     transform?: (d: zinfer<S>) => Record<string, unknown>
     values?: zinfer<S>
   }) => useWithGuard(useBaseFormMutation(opts)),
+  hasFileFields = (meta: Record<string, { kind: string }>): boolean => {
+    for (const k of Object.keys(meta)) {
+      const entry = meta[k]
+      if (entry && (entry.kind === 'file' || entry.kind === 'files')) return true
+    }
+    return false
+  },
+  isDev = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production',
+  FileFieldWarning = ({ meta }: { meta: Record<string, { kind: string }> }) => {
+    const fileCtx = use(FileApiContext)
+    if (isDev && hasFileFields(meta) && !fileCtx)
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[lazyconvex] Form schema has file fields but no FileApiProvider found. Wrap your app in <FileApiProvider> for file uploads to work.'
+      )
+    return null
+  },
   Form = <T extends Record<string, unknown>, S extends ZodObject<ZodRawShape>>({
     form: { conflict, error, fieldErrors, guard, instance, meta, resolveConflict, schema },
     render,
@@ -175,6 +194,8 @@ const useWithGuard = <T extends Record<string, unknown>, S extends ZodObject<Zod
           </div>
         </DialogContent>
       </Dialog>
+      <FileFieldWarning meta={meta} />
+      <DevtoolsAutoMount />
     </FormContext>
   ),
   AutoSaveIndicator = ({ className, lastSaved, ...props }: ComponentProps<'span'> & { lastSaved: null | number }) => {

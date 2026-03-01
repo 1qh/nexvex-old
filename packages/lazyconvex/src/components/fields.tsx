@@ -31,7 +31,9 @@ import type { Api, FieldKind, FieldMetaMap } from '../react/form'
 
 import { unwrapZod } from '../zod'
 
-const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ default: m.Calendar })), {
+const CAMEL_RE = /(?<lower>[a-z\d])(?<upper>[A-Z])/gu,
+  FIRST_CHAR_RE = /^./u,
+  Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ default: m.Calendar })), {
     loading: () => <div className='h-64 w-full animate-pulse rounded-md bg-muted' />,
     ssr: false
   }),
@@ -59,6 +61,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
     if (info.kind !== kind) throw new Error(`Field ${name} is not ${kind}`)
     return { form: ctx.form, info, schema: ctx.schema, serverErrors: ctx.serverErrors }
   },
+  deriveLabel = (name: string): string => name.replace(CAMEL_RE, '$1 $2').replace(FIRST_CHAR_RE, c => c.toUpperCase()),
   defaultEnumOptions = (schema: ZodObject<ZodRawShape>, name: string): { label: string; value: string }[] => {
     const { schema: inner } = unwrapZod(schema.shape[name])
     if (inner && 'options' in inner) {
@@ -98,7 +101,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       'data-testid'?: string
       disabled?: boolean
       inputClassName?: string
-      label?: string
+      label?: false | string
       name: string
       placeholder?: string
       tagClassName?: string
@@ -115,7 +118,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               errorId = `${f.name}-error`
             return (
               <Field {...props} data-invalid={inv} data-testid={tid}>
-                {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                 <div
                   className={cn(
                     'relative flex min-h-10 w-full flex-wrap items-center gap-0.75 rounded-md border border-input bg-transparent p-1 text-sm transition-[color,box-shadow] disabled:cursor-not-allowed disabled:opacity-50 has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring/50 dark:bg-background',
@@ -192,7 +195,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       ...props
     }: Omit<ComponentProps<typeof Field>, 'children'> & {
       'data-testid'?: string
-      label?: string
+      label?: false | string
       name: string
       options?: readonly { label: string; value: string }[]
       placeholder?: string
@@ -207,7 +210,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               errorId = `${f.name}-error`
             return (
               <Field {...props} data-invalid={inv} data-testid={tid}>
-                {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                 <Select name={f.name} onValueChange={v => f.handleChange(v)} value={f.state.value ?? ''}>
                   <SelectTrigger
                     aria-describedby={inv ? errorId : undefined}
@@ -237,7 +240,11 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       label,
       name,
       ...props
-    }: Omit<ComponentProps<typeof Field>, 'children'> & { 'data-testid'?: string; label?: string; name: string }) => {
+    }: Omit<ComponentProps<typeof Field>, 'children'> & {
+      'data-testid'?: string
+      label?: false | string
+      name: string
+    }) => {
       const { form } = useField(name, 'string')
       return (
         <form.Field name={name}>
@@ -248,7 +255,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               val = f.state.value ?? '#000000'
             return (
               <Field {...props} data-invalid={inv} data-testid={tid}>
-                {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                 <div className='flex gap-2'>
                   <input
                     aria-describedby={inv ? errorId : undefined}
@@ -292,7 +299,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
     }: Omit<ComponentProps<typeof Field>, 'children'> & {
       'data-testid'?: string
       emptyText?: string
-      label?: string
+      label?: false | string
       name: string
       options: readonly { label: string; value: string }[]
       placeholder?: string
@@ -310,7 +317,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               listId = `${f.name}-listbox`
             return (
               <Field {...props} data-invalid={inv} data-testid={tid}>
-                {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                 <Popover onOpenChange={setOpen} open={open}>
                   <PopoverTrigger asChild>
                     <Button
@@ -372,7 +379,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       clearable?: boolean
       'data-testid'?: string
       disabled?: boolean
-      label?: string
+      label?: false | string
       name: string
       placeholder?: string
     }) => {
@@ -387,7 +394,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               errorId = `${f.name}-error`
             return (
               <Field {...props} data-invalid={inv} data-testid={tid}>
-                {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                 <div className='flex gap-1'>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -459,7 +466,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       'data-testid'?: string
       disabled?: boolean
       dropClassName?: string
-      label?: string
+      label?: false | string
       maxSize?: number
       name: string
     }) => {
@@ -474,7 +481,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               disabled={disabled}
               dropClassName={dropClassName}
               field={f}
-              label={label}
+              label={label === false ? undefined : (label ?? deriveLabel(name))}
               maxSize={maxSize}
               {...props}
             />
@@ -499,7 +506,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       'data-testid'?: string
       disabled?: boolean
       dropClassName?: string
-      label?: string
+      label?: false | string
       max?: number
       maxSize?: number
       name: string
@@ -515,7 +522,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               disabled={disabled}
               dropClassName={dropClassName}
               field={f}
-              label={label}
+              label={label === false ? undefined : (label ?? deriveLabel(name))}
               max={max ?? info.max}
               maxSize={maxSize}
               multiple
@@ -534,7 +541,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       ...props
     }: Omit<ComponentProps<typeof Field>, 'children'> & {
       'data-testid'?: string
-      label?: string
+      label?: false | string
       name: string
       options: readonly { label: string; value: string }[]
       placeholder?: string
@@ -550,7 +557,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               errorId = `${f.name}-error`
             return (
               <Field {...props} data-invalid={inv} data-testid={tid}>
-                {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                 <Select
                   name={f.name}
                   onValueChange={v => {
@@ -612,7 +619,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       ...props
     }: Omit<ComponentProps<'input'>, 'form' | 'id' | 'key' | 'name' | 'onBlur' | 'onChange' | 'type' | 'value'> & {
       'data-testid'?: string
-      label?: string
+      label?: false | string
       name: string
     }) => {
       const { form } = useField(name, 'number')
@@ -624,7 +631,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               errorId = `${f.name}-error`
             return (
               <Field data-invalid={inv} data-testid={tid}>
-                {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                 <Input
                   aria-describedby={inv ? errorId : undefined}
                   aria-invalid={inv}
@@ -655,7 +662,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       ...props
     }: Omit<ComponentProps<typeof Field>, 'children'> & {
       'data-testid'?: string
-      label?: string
+      label?: false | string
       max?: number
       name: string
     }) => {
@@ -669,7 +676,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               val = f.state.value ?? 0
             return (
               <Field {...props} data-invalid={inv} data-testid={tid}>
-                {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                 <div className='flex gap-1'>
                   {Array.from({ length: max }, (_, i) => i + 1).map(i => (
                     <Star
@@ -701,7 +708,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       ...props
     }: Omit<ComponentProps<typeof Field>, 'children'> & {
       'data-testid'?: string
-      label?: string
+      label?: false | string
       max?: number
       min?: number
       name: string
@@ -718,7 +725,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
             return (
               <Field {...props} data-invalid={inv} data-testid={tid}>
                 <div className='flex items-center justify-between'>
-                  {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                  {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                   <span className='text-sm text-muted-foreground'>{val}</span>
                 </div>
                 <UISlider
@@ -775,7 +782,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       asyncDebounceMs?: number
       asyncValidate?: (value: string) => Promise<string | undefined>
       'data-testid'?: string
-      label?: string
+      label?: false | string
       maxLength?: number
       multiline?: boolean
       name: string
@@ -806,7 +813,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
             return (
               <Field data-invalid={inv} data-testid={tid}>
                 <div className='flex items-center justify-between'>
-                  {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                  {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                   <div className='flex items-center gap-2'>
                     {validating ? (
                       <div className='flex items-center gap-1 text-xs text-muted-foreground'>
@@ -848,7 +855,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
       ...props
     }: Omit<ComponentProps<typeof Field>, 'children'> & {
       'data-testid'?: string
-      label?: string
+      label?: false | string
       name: string
       placeholder?: string
     }) => {
@@ -861,7 +868,7 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
               errorId = `${f.name}-error`
             return (
               <Field {...props} data-invalid={inv} data-testid={tid}>
-                {label ? <FieldLabel htmlFor={f.name}>{label}</FieldLabel> : null}
+                {label === false ? null : <FieldLabel htmlFor={f.name}>{label ?? deriveLabel(name)}</FieldLabel>}
                 <Input
                   aria-describedby={inv ? errorId : undefined}
                   aria-invalid={inv}
@@ -927,4 +934,4 @@ const Calendar = dynamic(async () => import('@a/ui/calendar').then(m => ({ defau
 /** Exports form fields, context, and server error component. */
 export type { Api }
 
-export { fields, FormContext, ServerFieldError }
+export { deriveLabel, fields, FormContext, ServerFieldError }

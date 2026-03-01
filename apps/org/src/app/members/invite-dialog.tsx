@@ -3,7 +3,6 @@
 import type { Id } from '@a/be/model'
 
 import { api } from '@a/be'
-import { fail } from '@a/fe/utils'
 import { Button } from '@a/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@a/ui/dialog'
 import { useMutation } from 'convex/react'
@@ -22,7 +21,6 @@ const InviteDialog = ({ orgId }: InviteDialogProps) => {
   const [open, setOpen] = useState(false),
     sendInvite = useMutation(api.org.invite),
     form = useForm({
-      onError: fail,
       onSubmit: async d => {
         const result = await sendInvite({ ...d, orgId })
         if (!('token' in result)) return d
@@ -53,7 +51,7 @@ const InviteDialog = ({ orgId }: InviteDialogProps) => {
           form={form}
           render={({ Submit, Text, Toggle }) => (
             <>
-              <Text label='Email' name='email' placeholder='email@example.com' type='email' />
+              <Text name='email' placeholder='email@example.com' type='email' />
               <Toggle name='isAdmin' trueLabel='Invite as admin' />
               <Submit className='w-full'>Create invite link</Submit>
             </>

@@ -2,7 +2,6 @@
 
 import { api } from '@a/be'
 import { orgScoped } from '@a/be/t'
-import { fail } from '@a/fe/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@a/ui/card'
 import { FieldGroup } from '@a/ui/field'
 import { Form, useFormMutation } from 'lazyconvex/components'
@@ -16,7 +15,6 @@ const NewWikiPage = () => {
     { org } = useOrg(),
     form = useFormMutation({
       mutation: api.wiki.create,
-      onError: fail,
       onSuccess: () => {
         toast.success('Wiki page created')
         router.push('/wiki')
@@ -39,10 +37,10 @@ const NewWikiPage = () => {
             render={({ Choose, Submit, Text }) => (
               <>
                 <FieldGroup>
-                  <Text label='Title' name='title' placeholder='Page title' />
-                  <Text label='Slug' name='slug' placeholder='my-wiki-page' />
-                  <Text label='Content' multiline name='content' />
-                  <Choose label='Status' name='status' />
+                  <Text name='title' placeholder='Page title' />
+                  <Text name='slug' placeholder='my-wiki-page' />
+                  <Text multiline name='content' />
+                  <Choose name='status' />
                 </FieldGroup>
                 <Submit className='w-full'>Create wiki page</Submit>
               </>

@@ -28,7 +28,6 @@ const EditProjectForm = ({ projectId, taskCount }: { projectId: Id<'project'>; t
       remove = useOrgMutation(api.project.rm),
       form = useFormMutation({
         mutation: api.project.update,
-        onError: fail,
         onSuccess: () => {
           toast.success('Project updated')
           router.push(`/projects/${projectId}`)
@@ -62,9 +61,9 @@ const EditProjectForm = ({ projectId, taskCount }: { projectId: Id<'project'>; t
         render={({ Choose, Submit, Text }) => (
           <>
             <FieldGroup>
-              <Text label='Name' name='name' placeholder='Project name' />
-              <Text label='Description' multiline name='description' />
-              <Choose label='Status' name='status' />
+              <Text name='name' placeholder='Project name' />
+              <Text multiline name='description' />
+              <Choose name='status' />
             </FieldGroup>
             <div className='flex gap-2'>
               <Submit className='flex-1'>Save changes</Submit>

@@ -3,6 +3,7 @@
   "type": "module",
   "exports": {
     "./base-chat": "./src/base-chat.ts",
+    "./base-test": "./src/base-test.ts",
     "./base-page": "./src/base-page.ts",
     "./global-setup": "./src/global-setup.ts",
     "./global-teardown": "./src/global-teardown.ts",

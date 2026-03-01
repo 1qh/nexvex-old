@@ -93,8 +93,7 @@ test.describe
 
     test('can upload avatar image', async ({ profilePage }) => {
       await profilePage.fillProfile({ displayName: `Avatar ${Date.now()}` })
-      const input = profilePage.getAvatarInput()
-      await input.setInputFiles(path.join(import.meta.dirname, 'fixtures', 'test-avatar.png'))
+      await profilePage.uploadAvatar(path.join(import.meta.dirname, 'fixtures', 'test-avatar.png'))
       await expect(profilePage.getAvatarPreview()).toBeVisible({ timeout: 10_000 })
       await profilePage.submit()
       await expect(profilePage.getToast('Profile saved')).toBeVisible({ timeout: 5000 })
@@ -111,8 +110,7 @@ test.describe
       await profilePage.getAvatarRemoveButton().click()
       await expect(profilePage.getAvatarDropzone()).toBeVisible({ timeout: 5000 })
       await profilePage.fillProfile({ displayName: `Replace ${Date.now()}` })
-      const input = profilePage.getAvatarInput()
-      await input.setInputFiles(path.join(import.meta.dirname, 'fixtures', 'test-avatar-2.png'))
+      await profilePage.uploadAvatar(path.join(import.meta.dirname, 'fixtures', 'test-avatar-2.png'))
       await expect(profilePage.getAvatarPreview()).toBeVisible({ timeout: 10_000 })
       await profilePage.submit()
       await expect(profilePage.getToast('Profile saved')).toBeVisible({ timeout: 5000 })

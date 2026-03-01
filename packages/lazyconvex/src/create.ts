@@ -38,7 +38,8 @@ const owned = makeOwned({
 export { owned }
 `,
   LAZY_TS = `import { getAuthUserId } from '@convex-dev/auth/server'
-import { setup } from 'lazyconvex/server'
+import { makeFileUpload, setup } from 'lazyconvex/server'
+// import { auditLog, inputSanitize, slowQueryWarn } from 'lazyconvex/server'
 
 import { action, internalMutation, internalQuery, mutation, query } from './_generated/server'
 
@@ -47,11 +48,22 @@ const { crud, pq, q, m } = setup({
   getAuthUserId: getAuthUserId as (ctx: unknown) => Promise<null | string>,
   internalMutation,
   internalQuery,
+  // middleware: [auditLog(), slowQueryWarn(), inputSanitize()],
   mutation,
   query
 })
 
-export { crud, m, pq, q }
+const file = makeFileUpload({
+  action,
+  getAuthUserId: getAuthUserId as (ctx: unknown) => Promise<null | string>,
+  internalMutation,
+  internalQuery,
+  mutation,
+  namespace: 'file',
+  query
+})
+
+export { crud, file, m, pq, q }
 `,
   BLOG_TS = `import { crud } from './lazy'
 import { owned } from './t'
@@ -62,18 +74,36 @@ export const {
   rm, update
 } = crud('blog', owned.blog, { search: 'content' })
 `,
+  FILE_TS = `import { file } from './lazy'
+
+export const { info, upload } = file
+`,
+  GUARDED_API_TS = `import { guardApi } from 'lazyconvex'
+
+import { api as rawApi } from './convex/_generated/api'
+
+const api = guardApi(rawApi, ['blog', 'file', 'user'])
+
+export { api }
+`,
   PROVIDER_TSX = `'use client'
 import type { ReactNode } from 'react'
 
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
-import { ConvexErrorBoundary } from 'lazyconvex/components'
+import { ConvexErrorBoundary, FileApiProvider } from 'lazyconvex/components'
+
+import { api } from '../convex/_generated/api'
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL ?? '')
 
+const FILE_API = { info: api.file.info, upload: api.file.upload }
+
 const ConvexProvider = ({ children }: { children: ReactNode }) => (
   <ConvexErrorBoundary>
-    <ConvexAuthProvider client={convex}>{children}</ConvexAuthProvider>
+    <ConvexAuthProvider client={convex}>
+      <FileApiProvider value={FILE_API}>{children}</FileApiProvider>
+    </ConvexAuthProvider>
   </ConvexErrorBoundary>
 )
 
@@ -158,9 +188,11 @@ NEXT_PUBLIC_CONVEX_URL=
     ['schema.ts', SCHEMA_TS],
     ['t.ts', T_TS],
     ['lazy.ts', LAZY_TS],
+    ['file.ts', FILE_TS],
     ['blog.ts', BLOG_TS]
   ],
   FRONTEND_FILES: [string, string][] = [
+    ['guarded-api.ts', GUARDED_API_TS],
     ['convex-provider.tsx', PROVIDER_TSX],
     ['layout.tsx', LAYOUT_TSX],
     ['page.tsx', PAGE_TSX]

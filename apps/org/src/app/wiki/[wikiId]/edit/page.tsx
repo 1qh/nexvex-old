@@ -5,7 +5,6 @@ import type { Id } from '@a/be/model'
 
 import { api } from '@a/be'
 import { orgScoped } from '@a/be/t'
-import { fail } from '@a/fe/utils'
 import { Button } from '@a/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@a/ui/card'
 import { FieldGroup } from '@a/ui/field'
@@ -35,7 +34,6 @@ const wikiRestore = (api.wiki as typeof api.wiki & { restore: typeof api.wiki.rm
       form = useFormMutation({
         autoSave: { debounceMs: 2000, enabled: true },
         mutation: api.wiki.update,
-        onError: fail,
         schema: orgScoped.wiki,
         transform: d => ({ ...d, expectedUpdatedAt: wiki?.updatedAt, id: wikiId, orgId: org._id }),
         values: wiki ? pickValues(orgScoped.wiki, wiki) : undefined
@@ -53,10 +51,10 @@ const wikiRestore = (api.wiki as typeof api.wiki & { restore: typeof api.wiki.rm
         render={({ Choose, Text }) => (
           <>
             <FieldGroup>
-              <Text label='Title' name='title' placeholder='Page title' />
-              <Text label='Slug' name='slug' placeholder='my-wiki-page' />
-              <Text label='Content' multiline name='content' />
-              <Choose label='Status' name='status' />
+              <Text name='title' placeholder='Page title' />
+              <Text name='slug' placeholder='my-wiki-page' />
+              <Text multiline name='content' />
+              <Choose name='status' />
             </FieldGroup>
             <div className='flex items-center gap-2'>
               <AutoSaveIndicator data-testid='auto-save-indicator' lastSaved={form.lastSaved} />

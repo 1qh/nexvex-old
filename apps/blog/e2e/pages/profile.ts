@@ -31,6 +31,11 @@ class ProfilePage extends BasePage {
     return this.$('profile-avatar', 'input[type="file"]')
   }
 
+  public async uploadAvatar(filePath: string): Promise<void> {
+    const [fileChooser] = await Promise.all([this.page.waitForEvent('filechooser'), this.getAvatarDropzone().click()])
+    await fileChooser.setFiles(filePath)
+  }
+
   public getAvatarPreview(): Locator {
     return this.$('profile-avatar', 'img')
   }

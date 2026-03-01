@@ -1,4 +1,4 @@
-import { test as baseTest } from '@playwright/test'
+import { test as baseTest } from '@a/e2e/base-test'
 
 import ChatPage from './pages/chat'
 
@@ -14,4 +14,4 @@ const test = baseTest.extend<Fixtures>({
 })
 
 export { test }
-export { expect } from '@playwright/test'
+export { expect } from '@a/e2e/base-test'

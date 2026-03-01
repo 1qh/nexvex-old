@@ -1,7 +1,8 @@
-/* eslint-disable complexity */
+/* eslint-disable complexity, react-hooks/refs */
 /* oxlint-disable eslint/complexity */
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import type { DevCacheEntry, DevError, DevMutation, DevSubscription } from './devtools'
 
@@ -338,5 +339,32 @@ const POSITION_CLASSES: Record<Position, string> = {
     )
   }
 
+let autoMounted = false
+
+const DevtoolsAutoMount = (props: DevtoolsProps) => {
+  const containerRef = useRef<HTMLDivElement | null>(null),
+    [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return
+    if (autoMounted) return
+    autoMounted = true
+    const el = document.createElement('div')
+    el.id = 'lazyconvex-devtools-portal'
+    document.body.append(el)
+    containerRef.current = el
+    setMounted(true)
+    return () => {
+      autoMounted = false
+      el.remove()
+    }
+  }, [])
+
+  if (!(mounted && containerRef.current)) return null
+  return createPortal(<LazyConvexDevtools {...props} />, containerRef.current)
+}
+
 export default LazyConvexDevtools
+export { DevtoolsAutoMount }
 export type { DevtoolsProps }

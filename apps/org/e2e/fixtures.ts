@@ -1,4 +1,4 @@
-import { expect as baseExpect, test as baseTest } from '@playwright/test'
+import { expect, test as baseTest } from '@a/e2e/base-test'
 
 import OnboardingPage from './pages/onboarding'
 
@@ -13,4 +13,4 @@ const test = baseTest.extend<Fixtures>({
   }
 })
 
-export { baseExpect as expect, test }
+export { expect, test }

@@ -3,7 +3,6 @@
 import type { Doc } from '@a/be/model'
 
 import { api } from '@a/be'
-import { fail } from '@a/fe/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@a/ui/card'
 import { FieldGroup } from '@a/ui/field'
 import { useMutation } from 'convex/react'
@@ -23,7 +22,6 @@ const OrgSettingsForm = ({ org: o }: OrgSettingsFormProps) => {
   const router = useRouter(),
     update = useMutation(api.org.update),
     form = useForm({
-      onError: fail,
       onSubmit: async d => {
         await update({ data: d, orgId: o._id })
         toast.success('Settings updated')
@@ -50,8 +48,8 @@ const OrgSettingsForm = ({ org: o }: OrgSettingsFormProps) => {
           render={({ Submit, Text }) => (
             <>
               <FieldGroup>
-                <Text label='Name' name='name' />
-                <Text label='Slug' name='slug' />
+                <Text name='name' />
+                <Text name='slug' />
               </FieldGroup>
               <p className='text-xs text-muted-foreground'>/{slug}</p>
               <Submit>Save changes</Submit>

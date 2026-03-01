@@ -2,7 +2,6 @@
 
 import { api } from '@a/be'
 import { orgScoped } from '@a/be/t'
-import { fail } from '@a/fe/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@a/ui/card'
 import { FieldGroup } from '@a/ui/field'
 import { Form, useFormMutation } from 'lazyconvex/components'
@@ -16,7 +15,6 @@ const NewProjectPage = () => {
     { org } = useOrg(),
     form = useFormMutation({
       mutation: api.project.create,
-      onError: fail,
       onSuccess: () => {
         toast.success('Project created')
         router.push('/projects')
@@ -39,9 +37,9 @@ const NewProjectPage = () => {
             render={({ Choose, Submit, Text }) => (
               <>
                 <FieldGroup>
-                  <Text label='Name' name='name' placeholder='Project name' />
-                  <Text label='Description' multiline name='description' />
-                  <Choose label='Status' name='status' />
+                  <Text name='name' placeholder='Project name' />
+                  <Text multiline name='description' />
+                  <Choose name='status' />
                 </FieldGroup>
                 <Submit className='w-full'>Create project</Submit>
               </>

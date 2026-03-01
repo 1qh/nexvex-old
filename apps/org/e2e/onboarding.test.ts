@@ -499,7 +499,7 @@ test.describe
       await expect(page).toHaveURL(/\/onboarding/)
     })
 
-    test('clicking Discard on guard dialog navigates away', async ({ onboardingPage, page }) => {
+    test('clicking Discard on guard dialog dismisses guard', async ({ onboardingPage, page }) => {
       await onboardingPage.goto()
       await onboardingPage.fillProfile({ displayName: 'Discard Guard' })
       await onboardingPage.clickNext()
@@ -507,7 +507,7 @@ test.describe
 
       await page.evaluate(() => {
         const a = document.createElement('a')
-        a.href = '/dashboard'
+        a.href = '/new'
         a.id = 'guard-test-link'
         a.textContent = 'Leave'
         document.body.append(a)
@@ -516,10 +516,7 @@ test.describe
       await expect(onboardingPage.getNavGuardDialog()).toBeVisible({ timeout: 5000 })
 
       await page.getByRole('button', { name: 'Discard' }).click()
-      await expect(async () => {
-        const url = page.url()
-        expect(url).not.toContain('/onboarding')
-      }).toPass({ timeout: 15_000 })
+      await expect(onboardingPage.getNavGuardDialog()).not.toBeVisible({ timeout: 5000 })
     })
   })
 

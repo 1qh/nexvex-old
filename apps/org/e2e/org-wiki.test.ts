@@ -10,6 +10,22 @@ import { api, createTestOrg, ensureTestUser, makeOrgTestUtils, tc } from '@a/e2e
 const testPrefix = `e2e-org-wiki-${Date.now()}`
 const { cleanupOrgTestData, cleanupTestUsers, generateSlug } = makeOrgTestUtils(testPrefix)
 
+const gotoWikiEdit = async (page: Page, id: string) => {
+  await page.goto(`/wiki/${id}/edit`)
+  const heading = page.getByText('Edit wiki page')
+  if (await heading.isVisible().catch(() => false)) return
+  if (
+    await page
+      .getByText('404')
+      .isVisible()
+      .catch(() => false)
+  ) {
+    await page.waitForLoadState('load')
+    await page.goto(`/wiki/${id}/edit`)
+  }
+  await expect(heading).toBeVisible({ timeout: 10_000 })
+}
+
 test.describe
   .serial('Wiki Page UI', () => {
     let orgId: string
@@ -293,20 +309,17 @@ test.describe
     })
 
     test('edit page loads with form', async ({ page }) => {
-      await page.goto(`/wiki/${wikiId}/edit`)
-      await expect(page.getByText('Edit wiki page')).toBeVisible({ timeout: 8000 })
+      await gotoWikiEdit(page, wikiId)
       await expect(page.getByLabel('Title')).toBeVisible()
     })
 
     test('auto-save indicator not visible before edits', async ({ page }) => {
-      await page.goto(`/wiki/${wikiId}/edit`)
-      await expect(page.getByText('Edit wiki page')).toBeVisible({ timeout: 8000 })
+      await gotoWikiEdit(page, wikiId)
       await expect(page.getByTestId('auto-save-indicator')).not.toBeVisible()
     })
 
     test('auto-save triggers after editing title', async ({ page }) => {
-      await page.goto(`/wiki/${wikiId}/edit`)
-      await expect(page.getByText('Edit wiki page')).toBeVisible({ timeout: 8000 })
+      await gotoWikiEdit(page, wikiId)
 
       await page.getByLabel('Title').fill(`AutoSave Updated ${Date.now()}`)
       await expect(page.getByTestId('auto-save-indicator')).toBeVisible({ timeout: 5000 })
@@ -314,15 +327,14 @@ test.describe
     })
 
     test('auto-save persists changes after reload', async ({ page }) => {
-      await page.goto(`/wiki/${wikiId}/edit`)
-      await expect(page.getByText('Edit wiki page')).toBeVisible({ timeout: 8000 })
+      await gotoWikiEdit(page, wikiId)
 
       const newContent = `Persisted content ${Date.now()}`
       await page.getByLabel('Content').fill(newContent)
       await expect(page.getByTestId('auto-save-indicator')).toContainText('Saved', { timeout: 5000 })
 
       await page.reload()
-      await expect(page.getByText('Edit wiki page')).toBeVisible({ timeout: 8000 })
+      await expect(page.getByText('Edit wiki page')).toBeVisible({ timeout: 10_000 })
       await expect(page.getByLabel('Content')).toHaveValue(newContent)
     })
   })

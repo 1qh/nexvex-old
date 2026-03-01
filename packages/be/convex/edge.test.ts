@@ -3,47 +3,17 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: test fixtures
 import { describe, expect, test } from 'bun:test'
 import { convexTest } from 'convex-test'
+import { createTestContext } from 'lazyconvex/test'
+import { discoverModules } from 'lazyconvex/test/discover'
 
 import { api } from './_generated/api'
 import schema from './schema'
 
-type TestCtx = ReturnType<typeof t>
-const modules = {
-    '../lazy.ts': async () => import('../lazy'),
-    '../models.mock.ts': async () => import('../models.mock'),
+const modules = discoverModules('convex', {
     './_generated/api.js': async () => import('./_generated/api'),
-    './_generated/server.js': async () => import('./_generated/server'),
-    './auth.config.ts': async () => import('./auth.config'),
-    './auth.ts': async () => import('./auth'),
-    './blog.ts': async () => import('./blog'),
-    './blogprofile.ts': async () => import('./blogprofile'),
-    './chat.ts': async () => import('./chat'),
-    './file.ts': async () => import('./file'),
-    './http.ts': async () => import('./http'),
-    './message.ts': async () => import('./message'),
-    './movie.ts': async () => import('./movie'),
-    './org.ts': async () => import('./org'),
-    './orgprofile.ts': async () => import('./orgprofile'),
-    './project.ts': async () => import('./project'),
-    './schema.ts': async () => import('./schema'),
-    './task.ts': async () => import('./task'),
-    './testauth.ts': async () => import('./testauth'),
-    './tools/weather.ts': async () => import('./tools/weather'),
-    './user.ts': async () => import('./user'),
-    './wiki.ts': async () => import('./wiki')
-  },
+    './_generated/server.js': async () => import('./_generated/server')
+  }),
   t = () => convexTest(schema, modules),
-  mockUser = { email: 'test@example.com', name: 'Test User' },
-  createUser = async (ctx: TestCtx) =>
-    ctx.run(async c => {
-      const existing = await c.db
-        .query('users')
-        .filter(q => q.eq(q.field('email'), mockUser.email))
-        .first()
-      if (existing) return existing._id
-      return c.db.insert('users', { ...mockUser, emailVerificationTime: Date.now() })
-    }),
-  asIdentity = (ctx: TestCtx, userId: string) => ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
   movieData = {
     backdrop_path: '/backdrop.jpg',
     budget: 200_000_000,
@@ -65,7 +35,8 @@ describe('public child endpoints', () => {
   describe('message.pubList', () => {
     test('returns messages when parent chat is public', async () => {
       const ctx = t(),
-        userId = await createUser(ctx),
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         chatId = await ctx.run(async c =>
           c.db.insert('chat', { isPublic: true, title: 'Public Chat', updatedAt: Date.now(), userId })
         )
@@ -91,7 +62,8 @@ describe('public child endpoints', () => {
 
     test('returns empty when parent chat is not public', async () => {
       const ctx = t(),
-        userId = await createUser(ctx),
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         chatId = await ctx.run(async c =>
           c.db.insert('chat', { isPublic: false, title: 'Private Chat', updatedAt: Date.now(), userId })
         )
@@ -119,7 +91,8 @@ describe('public child endpoints', () => {
   describe('message.pubGet', () => {
     test('returns message when parent chat is public', async () => {
       const ctx = t(),
-        userId = await createUser(ctx),
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         chatId = await ctx.run(async c =>
           c.db.insert('chat', { isPublic: true, title: 'Public Get', updatedAt: Date.now(), userId })
         ),
@@ -137,7 +110,8 @@ describe('public child endpoints', () => {
 
     test('throws NOT_FOUND when parent chat is not public', async () => {
       const ctx = t(),
-        userId = await createUser(ctx),
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         chatId = await ctx.run(async c =>
           c.db.insert('chat', { isPublic: false, title: 'Private Get', updatedAt: Date.now(), userId })
         ),
@@ -371,12 +345,12 @@ describe('cache CRUD (movie)', () => {
 describe('child CRUD auth', () => {
   test('message.create requires authenticated user who owns parent', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       chatId = await ctx.run(async c =>
         c.db.insert('chat', { isPublic: false, title: 'Auth Chat', updatedAt: Date.now(), userId })
       ),
-      asUser = asIdentity(ctx, userId),
-      messageId = await asUser.mutation(api.message.create, {
+      messageId = await asUser(0).mutation(api.message.create, {
         chatId,
         parts: [{ text: 'Auth message', type: 'text' }],
         role: 'user'
@@ -386,7 +360,8 @@ describe('child CRUD auth', () => {
 
   test('message.list requires authenticated user who owns parent', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       chatId = await ctx.run(async c =>
         c.db.insert('chat', { isPublic: false, title: 'Auth List', updatedAt: Date.now(), userId })
       )
@@ -400,8 +375,7 @@ describe('child CRUD auth', () => {
       })
     })
 
-    const asUser = asIdentity(ctx, userId),
-      result = await asUser.query(api.message.list, { chatId })
+    const result = await asUser(0).query(api.message.list, { chatId })
     expect((result as unknown[]).length).toBe(1)
   })
 })
@@ -409,24 +383,22 @@ describe('child CRUD auth', () => {
 describe('blog CRUD edge cases', () => {
   test('bulk delete with empty array', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
-      asUser = asIdentity(ctx, userId),
-      result = await asUser.mutation(api.blog.bulkRm, { ids: [] })
+      { asUser } = await createTestContext(ctx),
+      result = await asUser(0).mutation(api.blog.bulkRm, { ids: [] })
     expect(result).toBeDefined()
   })
 
   test('bulk update with empty array', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
-      asUser = asIdentity(ctx, userId),
-      result = await asUser.mutation(api.blog.bulkUpdate, { data: { published: true }, ids: [] })
+      { asUser } = await createTestContext(ctx),
+      result = await asUser(0).mutation(api.blog.bulkUpdate, { data: { published: true }, ids: [] })
     expect(result).toBeDefined()
   })
 
   test('conflict detection on blog update', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
-      asUser = asIdentity(ctx, userId),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       postId = await ctx.run(async c =>
         c.db.insert('blog', {
           category: 'tech',
@@ -438,11 +410,11 @@ describe('blog CRUD edge cases', () => {
         })
       )
 
-    await asUser.mutation(api.blog.update, { id: postId, title: 'First Update' })
+    await asUser(0).mutation(api.blog.update, { id: postId, title: 'First Update' })
 
     let threw = false
     try {
-      await asUser.mutation(api.blog.update, { expectedUpdatedAt: 1, id: postId, title: 'Stale Update' })
+      await asUser(0).mutation(api.blog.update, { expectedUpdatedAt: 1, id: postId, title: 'Stale Update' })
     } catch (error) {
       threw = true
       expect(String(error)).toContain('CONFLICT')
@@ -452,7 +424,8 @@ describe('blog CRUD edge cases', () => {
 
   test('search returns matching results', async () => {
     const ctx = t(),
-      userId = await createUser(ctx)
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds
 
     await ctx.run(async c => {
       await c.db.insert('blog', {
@@ -465,11 +438,10 @@ describe('blog CRUD edge cases', () => {
       })
     })
 
-    const asUser = asIdentity(ctx, userId),
-      { page } = await asUser.query(api.blog.list, {
-        paginationOpts: { cursor: null, numItems: 10 },
-        where: { published: true }
-      })
+    const { page } = await asUser(0).query(api.blog.list, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      where: { published: true }
+    })
     expect(page.length).toBeGreaterThanOrEqual(1)
   })
 })
@@ -477,7 +449,8 @@ describe('blog CRUD edge cases', () => {
 describe('concurrent edit conflict detection', () => {
   test('stale expectedUpdatedAt from tab A rejected after tab B saves', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       postId = await ctx.run(async c =>
         c.db.insert('blog', {
           category: 'tech',
@@ -488,8 +461,7 @@ describe('concurrent edit conflict detection', () => {
           userId
         })
       ),
-      asUser = asIdentity(ctx, userId),
-      tabBResult = await asUser.mutation(api.blog.update, {
+      tabBResult = await asUser(0).mutation(api.blog.update, {
         expectedUpdatedAt: 1000,
         id: postId,
         title: 'Tab B Edit'
@@ -498,7 +470,7 @@ describe('concurrent edit conflict detection', () => {
 
     let threw = false
     try {
-      await asUser.mutation(api.blog.update, {
+      await asUser(0).mutation(api.blog.update, {
         expectedUpdatedAt: 1000,
         id: postId,
         title: 'Tab A Stale Edit'
@@ -512,7 +484,8 @@ describe('concurrent edit conflict detection', () => {
 
   test('fresh expectedUpdatedAt succeeds after prior edit', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       postId = await ctx.run(async c =>
         c.db.insert('blog', {
           category: 'tech',
@@ -523,13 +496,12 @@ describe('concurrent edit conflict detection', () => {
           userId
         })
       ),
-      asUser = asIdentity(ctx, userId),
-      firstEdit = await asUser.mutation(api.blog.update, {
+      firstEdit = await asUser(0).mutation(api.blog.update, {
         expectedUpdatedAt: 1000,
         id: postId,
         title: 'First Edit'
       }),
-      secondEdit = await asUser.mutation(api.blog.update, {
+      secondEdit = await asUser(0).mutation(api.blog.update, {
         expectedUpdatedAt: firstEdit.updatedAt,
         id: postId,
         title: 'Second Edit'
@@ -539,7 +511,8 @@ describe('concurrent edit conflict detection', () => {
 
   test('update without expectedUpdatedAt always succeeds', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       postId = await ctx.run(async c =>
         c.db.insert('blog', {
           category: 'tech',
@@ -549,11 +522,10 @@ describe('concurrent edit conflict detection', () => {
           updatedAt: 1000,
           userId
         })
-      ),
-      asUser = asIdentity(ctx, userId)
+      )
 
-    await asUser.mutation(api.blog.update, { id: postId, title: 'Edit 1' })
-    const result = await asUser.mutation(api.blog.update, { id: postId, title: 'Edit 2' })
+    await asUser(0).mutation(api.blog.update, { id: postId, title: 'Edit 1' })
+    const result = await asUser(0).mutation(api.blog.update, { id: postId, title: 'Edit 2' })
     expect(result.title).toBe('Edit 2')
   })
 })
@@ -561,19 +533,17 @@ describe('concurrent edit conflict detection', () => {
 describe('getOrCreate org', () => {
   test('creates org for user on first call', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
-      asUser = asIdentity(ctx, userId),
-      result = await asUser.mutation(api.org.getOrCreate, {})
+      { asUser } = await createTestContext(ctx),
+      result = await asUser(0).mutation(api.org.getOrCreate, {})
     expect(result.created).toBe(true)
     expect(result.orgId).toBeDefined()
   })
 
   test('returns existing org on second call', async () => {
     const ctx = t(),
-      userId = await createUser(ctx),
-      asUser = asIdentity(ctx, userId),
-      first = await asUser.mutation(api.org.getOrCreate, {}),
-      second = await asUser.mutation(api.org.getOrCreate, {})
+      { asUser } = await createTestContext(ctx),
+      first = await asUser(0).mutation(api.org.getOrCreate, {}),
+      second = await asUser(0).mutation(api.org.getOrCreate, {})
     expect(second.created).toBe(false)
     expect(second.orgId).toBe(first.orgId)
   })

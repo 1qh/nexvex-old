@@ -3,75 +3,24 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: test fixtures
 import { describe, expect, test } from 'bun:test'
 import { convexTest } from 'convex-test'
+import { createTestContext } from 'lazyconvex/test'
+import { discoverModules } from 'lazyconvex/test/discover'
 
 import { api } from './_generated/api'
 import schema from './schema'
 
-type TestCtx = ReturnType<typeof t>
-const modules = {
-    '../ai.ts': async () => import('../ai'),
-    '../lazy.ts': async () => import('../lazy'),
-    '../models.mock.ts': async () => import('../models.mock'),
+const modules = discoverModules('convex', {
     './_generated/api.js': async () => import('./_generated/api'),
-    './_generated/server.js': async () => import('./_generated/server'),
-    './auth.config.ts': async () => import('./auth.config'),
-    './auth.ts': async () => import('./auth'),
-    './blog.ts': async () => import('./blog'),
-    './chat.ts': async () => import('./chat'),
-    './file.ts': async () => import('./file'),
-    './http.ts': async () => import('./http'),
-    './message.ts': async () => import('./message'),
-    './mobileAi.ts': async () => import('./mobileAi'),
-    './movie.ts': async () => import('./movie'),
-    './org.ts': async () => import('./org'),
-    './blogProfile.ts': async () => import('./blogProfile'),
-    './orgProfile.ts': async () => import('./orgProfile'),
-    './project.ts': async () => import('./project'),
-    './schema.ts': async () => import('./schema'),
-    './task.ts': async () => import('./task'),
-    './testauth.ts': async () => import('./testauth'),
-    './tools/weather.ts': async () => import('./tools/weather'),
-    './user.ts': async () => import('./user'),
-    './wiki.ts': async () => import('./wiki')
-  },
-  t = () => convexTest(schema, modules),
-  mockUser = { email: 'test@example.com', name: 'Test User' },
-  mockUser2 = { email: 'other@example.com', name: 'Other User' },
-  mockUser3 = { email: 'editor@example.com', name: 'Editor User' },
-  createUserAndGetId = async (ctx: TestCtx) =>
-    ctx.run(async c => {
-      const existing = await c.db
-        .query('users')
-        .filter(q => q.eq(q.field('email'), mockUser.email))
-        .first()
-      if (existing) return existing._id
-      return c.db.insert('users', { ...mockUser, emailVerificationTime: Date.now() })
-    }),
-  createSecondUserAndGetId = async (ctx: TestCtx) =>
-    ctx.run(async c => {
-      const existing = await c.db
-        .query('users')
-        .filter(q => q.eq(q.field('email'), mockUser2.email))
-        .first()
-      if (existing) return existing._id
-      return c.db.insert('users', { ...mockUser2, emailVerificationTime: Date.now() })
-    }),
-  createThirdUserAndGetId = async (ctx: TestCtx) =>
-    ctx.run(async c => {
-      const existing = await c.db
-        .query('users')
-        .filter(q => q.eq(q.field('email'), mockUser3.email))
-        .first()
-      if (existing) return existing._id
-      return c.db.insert('users', { ...mockUser3, emailVerificationTime: Date.now() })
-    })
+    './_generated/server.js': async () => import('./_generated/server')
+  }),
+  t = () => convexTest(schema, modules)
 
 describe('crud factory', () => {
   describe('basic CRUD operations', () => {
     test('create and read a blog post', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds
 
       await ctx.run(async c => {
         await c.db.insert('blog', {
@@ -84,7 +33,7 @@ describe('crud factory', () => {
         })
       })
 
-      const { page: posts } = await asUser.query(api.blog.list, {
+      const { page: posts } = await asUser(0).query(api.blog.list, {
         paginationOpts: { cursor: null, numItems: 100 },
         where: { own: true }
       })
@@ -95,7 +44,8 @@ describe('crud factory', () => {
 
     test('update a blog post', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         postId = await ctx.run(async c =>
           c.db.insert('blog', {
             category: 'tech',
@@ -106,8 +56,7 @@ describe('crud factory', () => {
             userId
           })
         ),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
-        updated = await asUser.mutation(api.blog.update, {
+        updated = await asUser(0).mutation(api.blog.update, {
           id: postId,
           title: 'Updated Title'
         })
@@ -118,7 +67,8 @@ describe('crud factory', () => {
 
     test('delete a blog post', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         postId = await ctx.run(async c =>
           c.db.insert('blog', {
             category: 'tech',
@@ -128,11 +78,10 @@ describe('crud factory', () => {
             updatedAt: Date.now(),
             userId
           })
-        ),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
-      await asUser.mutation(api.blog.rm, { id: postId })
+        )
+      await asUser(0).mutation(api.blog.rm, { id: postId })
 
-      const { page: posts } = await asUser.query(api.blog.list, {
+      const { page: posts } = await asUser(0).query(api.blog.list, {
         paginationOpts: { cursor: null, numItems: 100 },
         where: { own: true }
       })
@@ -143,7 +92,8 @@ describe('crud factory', () => {
   describe('file cleanup', () => {
     test('cleans up old file when replaced', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         oldFileId = await ctx.run(async c => c.storage.store(new Blob(['old']))),
         newFileId = await ctx.run(async c => c.storage.store(new Blob(['new']))),
         postId = await ctx.run(async c =>
@@ -156,9 +106,8 @@ describe('crud factory', () => {
             updatedAt: Date.now(),
             userId
           })
-        ),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
-      await asUser.mutation(api.blog.update, { coverImage: newFileId, id: postId })
+        )
+      await asUser(0).mutation(api.blog.update, { coverImage: newFileId, id: postId })
 
       const oldFile = await ctx.run(async c => c.storage.getUrl(oldFileId))
       expect(oldFile).toBeNull()
@@ -166,7 +115,8 @@ describe('crud factory', () => {
 
     test('cleans up file when set to null', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         fileId = await ctx.run(async c => c.storage.store(new Blob(['data']))),
         postId = await ctx.run(async c =>
           c.db.insert('blog', {
@@ -178,16 +128,16 @@ describe('crud factory', () => {
             updatedAt: Date.now(),
             userId
           })
-        ),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
-      await asUser.mutation(api.blog.update, { coverImage: null, id: postId })
+        )
+      await asUser(0).mutation(api.blog.update, { coverImage: null, id: postId })
 
       const file = await ctx.run(async c => c.storage.getUrl(fileId))
       expect(file).toBeNull()
     })
     test('cleans up files on delete', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         fileId = await ctx.run(async c => c.storage.store(new Blob(['delete-me']))),
         postId = await ctx.run(async c =>
           c.db.insert('blog', {
@@ -199,9 +149,8 @@ describe('crud factory', () => {
             updatedAt: Date.now(),
             userId
           })
-        ),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
-      await asUser.mutation(api.blog.rm, { id: postId })
+        )
+      await asUser(0).mutation(api.blog.rm, { id: postId })
 
       const file = await ctx.run(async c => c.storage.getUrl(fileId))
       expect(file).toBeNull()
@@ -209,7 +158,8 @@ describe('crud factory', () => {
 
     test('preserves files not included in partial update', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         fileId = await ctx.run(async c => c.storage.store(new Blob(['keep-me']))),
         postId = await ctx.run(async c =>
           c.db.insert('blog', {
@@ -221,9 +171,8 @@ describe('crud factory', () => {
             updatedAt: Date.now(),
             userId
           })
-        ),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
-      await asUser.mutation(api.blog.update, { id: postId, title: 'New Title' })
+        )
+      await asUser(0).mutation(api.blog.update, { id: postId, title: 'New Title' })
 
       const file = await ctx.run(async c => c.storage.getUrl(fileId))
       expect(file).not.toBeNull()
@@ -233,7 +182,8 @@ describe('crud factory', () => {
   describe('cascade delete', () => {
     test('removes child messages when chat is deleted', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         chatId = await ctx.run(async c =>
           c.db.insert('chat', {
             isPublic: false,
@@ -266,8 +216,7 @@ describe('crud factory', () => {
       )
       expect(messagesBefore.length).toBe(2)
 
-      const asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
-      await asUser.mutation(api.chat.rm, { id: chatId })
+      await asUser(0).mutation(api.chat.rm, { id: chatId })
 
       const messagesAfter = await ctx.run(async c =>
         c.db
@@ -282,7 +231,8 @@ describe('crud factory', () => {
   describe('where clause parsing', () => {
     test('filters by single field', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx)
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds
 
       await ctx.run(async c => {
         await c.db.insert('blog', {
@@ -316,7 +266,8 @@ describe('crud factory', () => {
 
     test('filters with AND (multiple fields)', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx)
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds
 
       await ctx.run(async c => {
         await c.db.insert('blog', {
@@ -353,7 +304,8 @@ describe('crud factory', () => {
 
     test('filters with OR clause', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx)
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds
 
       await ctx.run(async c => {
         await c.db.insert('blog', {
@@ -396,7 +348,8 @@ describe('crud factory', () => {
   describe('withAuthor batch deduplication', () => {
     test('deduplicates author lookups for same user', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx)
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds
 
       await ctx.run(async c => {
         for (let i = 0; i < 5; i += 1)
@@ -413,7 +366,7 @@ describe('crud factory', () => {
       const { page: posts } = await ctx.query(api.blog.list, { paginationOpts: { cursor: null, numItems: 100 } })
       expect(posts.length).toBe(5)
 
-      for (const post of posts) expect(post.author?.name).toBe(mockUser.name)
+      for (const post of posts) expect(post.author?.name).toBe('Test User')
     })
   })
 
@@ -434,8 +387,8 @@ describe('crud factory', () => {
 
     test('throws NOT_FOUND when accessing other user data', async () => {
       const ctx = t(),
-        userId1 = await createUserAndGetId(ctx),
-        userId2 = await createSecondUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId1] = userIds,
         postId = await ctx.run(async c =>
           c.db.insert('blog', {
             category: 'tech',
@@ -445,12 +398,11 @@ describe('crud factory', () => {
             updatedAt: Date.now(),
             userId: userId1
           })
-        ),
-        asUser2 = ctx.withIdentity({ subject: userId2, tokenIdentifier: `test|${userId2}` })
+        )
       let threw = false
 
       try {
-        await asUser2.mutation(api.blog.update, { id: postId, title: 'Hacked' })
+        await asUser(1).mutation(api.blog.update, { id: postId, title: 'Hacked' })
       } catch (error) {
         threw = true
         expect(String(error)).toContain('NOT_FOUND')
@@ -463,8 +415,8 @@ describe('crud factory', () => {
   describe('ownership verification', () => {
     test('read with own: true verifies ownership', async () => {
       const ctx = t(),
-        userId1 = await createUserAndGetId(ctx),
-        userId2 = await createSecondUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId1] = userIds,
         postId = await ctx.run(async c =>
           c.db.insert('blog', {
             category: 'tech',
@@ -475,22 +427,21 @@ describe('crud factory', () => {
             userId: userId1
           })
         ),
-        asUser1 = ctx.withIdentity({ subject: userId1, tokenIdentifier: `test|${userId1}` }),
-        asUser2 = ctx.withIdentity({ subject: userId2, tokenIdentifier: `test|${userId2}` }),
-        readByOwner = await asUser1.query(api.blog.read, { id: postId, own: true })
+        readByOwner = await asUser(0).query(api.blog.read, { id: postId, own: true })
       expect(readByOwner).not.toBeNull()
       expect(readByOwner?.title).toBe('Read Own Check')
 
-      const readByNonOwner = await asUser2.query(api.blog.read, { id: postId, own: true })
+      const readByNonOwner = await asUser(1).query(api.blog.read, { id: postId, own: true })
       expect(readByNonOwner).toBeNull()
 
-      const readWithoutOwn = await asUser2.query(api.blog.read, { id: postId })
+      const readWithoutOwn = await asUser(1).query(api.blog.read, { id: postId })
       expect(readWithoutOwn).not.toBeNull()
     })
 
     test('read with own: true returns null for unauthenticated', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         postId = await ctx.run(async c =>
           c.db.insert('blog', {
             category: 'tech',
@@ -510,8 +461,8 @@ describe('crud factory', () => {
 
     test('own filter in where clause works', async () => {
       const ctx = t(),
-        userId1 = await createUserAndGetId(ctx),
-        userId2 = await createSecondUserAndGetId(ctx)
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId1, userId2] = userIds
 
       await ctx.run(async c => {
         await c.db.insert('blog', {
@@ -532,13 +483,12 @@ describe('crud factory', () => {
         })
       })
 
-      const asUser1 = ctx.withIdentity({ subject: userId1, tokenIdentifier: `test|${userId1}` }),
-        ownPosts = (
-          await asUser1.query(api.blog.list, {
-            paginationOpts: { cursor: null, numItems: 100 },
-            where: { own: true }
-          })
-        ).page
+      const ownPosts = (
+        await asUser(0).query(api.blog.list, {
+          paginationOpts: { cursor: null, numItems: 100 },
+          where: { own: true }
+        })
+      ).page
 
       expect(ownPosts.length).toBe(1)
       expect(ownPosts[0]?.title).toBe('User 1 Post')
@@ -548,7 +498,8 @@ describe('crud factory', () => {
   describe('bulk operations', () => {
     test('bulkRm deletes multiple posts', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         ids = await ctx.run(async c => {
           const results: string[] = []
           for (let i = 0; i < 3; i += 1) {
@@ -564,12 +515,11 @@ describe('crud factory', () => {
           }
           return results
         }),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
-        deleted = await asUser.mutation(api.blog.bulkRm, { ids })
+        deleted = await asUser(0).mutation(api.blog.bulkRm, { ids })
 
       expect(deleted).toBe(3)
 
-      const { page: remaining } = await asUser.query(api.blog.list, {
+      const { page: remaining } = await asUser(0).query(api.blog.list, {
         paginationOpts: { cursor: null, numItems: 100 },
         where: { own: true }
       })
@@ -578,7 +528,8 @@ describe('crud factory', () => {
 
     test('bulkUpdate updates multiple posts', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         ids = await ctx.run(async c => {
           const results: string[] = []
           for (let i = 0; i < 3; i += 1) {
@@ -594,8 +545,7 @@ describe('crud factory', () => {
           }
           return results
         }),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
-        updated = await asUser.mutation(api.blog.bulkUpdate, {
+        updated = await asUser(0).mutation(api.blog.bulkUpdate, {
           data: { title: 'Updated' },
           ids
         })
@@ -608,7 +558,8 @@ describe('crud factory', () => {
   describe('search operations', () => {
     test('search finds matching posts', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx)
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds
 
       await ctx.run(async c => {
         await c.db.insert('blog', {
@@ -639,7 +590,8 @@ describe('crud factory', () => {
 
     test('search is case insensitive', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx)
+        { userIds } = await createTestContext(ctx),
+        [userId] = userIds
 
       await ctx.run(async c => {
         await c.db.insert('blog', {
@@ -665,7 +617,8 @@ describe('childCrud factory', () => {
   describe('parent ownership verification', () => {
     test('can create message in own chat', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
         chatId = await ctx.run(async c =>
           c.db.insert('chat', {
             isPublic: false,
@@ -674,8 +627,7 @@ describe('childCrud factory', () => {
             userId
           })
         ),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
-        messageId = await asUser.mutation(api.message.create, {
+        messageId = await asUser(0).mutation(api.message.create, {
           chatId,
           parts: [{ text: 'Hello', type: 'text' }],
           role: 'user'
@@ -686,8 +638,8 @@ describe('childCrud factory', () => {
 
     test('cannot create message in other user chat', async () => {
       const ctx = t(),
-        userId1 = await createUserAndGetId(ctx),
-        userId2 = await createSecondUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId1] = userIds,
         chatId = await ctx.run(async c =>
           c.db.insert('chat', {
             isPublic: false,
@@ -695,12 +647,11 @@ describe('childCrud factory', () => {
             updatedAt: Date.now(),
             userId: userId1
           })
-        ),
-        asUser2 = ctx.withIdentity({ subject: userId2, tokenIdentifier: `test|${userId2}` })
+        )
       let threw = false
 
       try {
-        await asUser2.mutation(api.message.create, {
+        await asUser(1).mutation(api.message.create, {
           chatId,
           parts: [{ text: 'Intruder', type: 'text' }],
           role: 'user'
@@ -715,8 +666,8 @@ describe('childCrud factory', () => {
 
     test('cannot list messages from other user chat', async () => {
       const ctx = t(),
-        userId1 = await createUserAndGetId(ctx),
-        userId2 = await createSecondUserAndGetId(ctx),
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId1] = userIds,
         chatId = await ctx.run(async c =>
           c.db.insert('chat', {
             isPublic: false,
@@ -735,11 +686,10 @@ describe('childCrud factory', () => {
         })
       })
 
-      const asUser2 = ctx.withIdentity({ subject: userId2, tokenIdentifier: `test|${userId2}` })
       let threw = false
 
       try {
-        await asUser2.query(api.message.list, { chatId })
+        await asUser(1).query(api.message.list, { chatId })
       } catch (error) {
         threw = true
         expect(String(error)).toContain('NOT_AUTHORIZED')
@@ -988,7 +938,8 @@ describe('Zod integration', () => {
 describe('conflict detection', () => {
   test('update with matching expectedUpdatedAt succeeds', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       postId = await ctx.run(async c =>
         c.db.insert('blog', {
           category: 'tech',
@@ -999,8 +950,7 @@ describe('conflict detection', () => {
           userId
         })
       ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
-      updated = await asUser.mutation(api.blog.update, {
+      updated = await asUser(0).mutation(api.blog.update, {
         expectedUpdatedAt: 1000,
         id: postId,
         title: 'Updated'
@@ -1011,7 +961,8 @@ describe('conflict detection', () => {
 
   test('update with mismatched expectedUpdatedAt throws CONFLICT', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       postId = await ctx.run(async c =>
         c.db.insert('blog', {
           category: 'tech',
@@ -1021,12 +972,11 @@ describe('conflict detection', () => {
           updatedAt: 2000,
           userId
         })
-      ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      )
     let threw = false
 
     try {
-      await asUser.mutation(api.blog.update, {
+      await asUser(0).mutation(api.blog.update, {
         expectedUpdatedAt: 1000,
         id: postId,
         title: 'Should fail'
@@ -1043,7 +993,8 @@ describe('conflict detection', () => {
 describe('file cleanup with array fields', () => {
   test('cleans up removed files from attachments array', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       file1 = await ctx.run(async c => c.storage.store(new Blob(['file1']))),
       file2 = await ctx.run(async c => c.storage.store(new Blob(['file2']))),
       file3 = await ctx.run(async c => c.storage.store(new Blob(['file3']))),
@@ -1057,10 +1008,9 @@ describe('file cleanup with array fields', () => {
           updatedAt: Date.now(),
           userId
         })
-      ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      )
 
-    await asUser.mutation(api.blog.update, { attachments: [file2], id: postId })
+    await asUser(0).mutation(api.blog.update, { attachments: [file2], id: postId })
 
     const file1Url = await ctx.run(async c => c.storage.getUrl(file1)),
       file2Url = await ctx.run(async c => c.storage.getUrl(file2)),
@@ -1073,7 +1023,8 @@ describe('file cleanup with array fields', () => {
 
   test('cleans up all files on delete', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       file1 = await ctx.run(async c => c.storage.store(new Blob(['del1']))),
       file2 = await ctx.run(async c => c.storage.store(new Blob(['del2']))),
       postId = await ctx.run(async c =>
@@ -1086,10 +1037,9 @@ describe('file cleanup with array fields', () => {
           updatedAt: Date.now(),
           userId
         })
-      ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      )
 
-    await asUser.mutation(api.blog.rm, { id: postId })
+    await asUser(0).mutation(api.blog.rm, { id: postId })
 
     const file1Url = await ctx.run(async c => c.storage.getUrl(file1)),
       file2Url = await ctx.run(async c => c.storage.getUrl(file2))
@@ -1102,16 +1052,16 @@ describe('file cleanup with array fields', () => {
 describe('orgCrud ACL', () => {
   test('owner can always edit project', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-1', updatedAt: Date.now(), userId: ownerId })
       ),
-      projectId = await asOwner.mutation(api.project.create, {
+      projectId = await asUser(0).mutation(api.project.create, {
         name: 'Owner Project',
         orgId
       }),
-      updated = await asOwner.mutation(api.project.update, {
+      updated = await asUser(0).mutation(api.project.update, {
         id: projectId,
         name: 'Updated by Owner',
         orgId
@@ -1122,10 +1072,8 @@ describe('orgCrud ACL', () => {
 
   test('admin can always edit project', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      adminId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asAdmin = ctx.withIdentity({ subject: adminId, tokenIdentifier: `test|${adminId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, adminId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-2', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1134,11 +1082,11 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: true, orgId, updatedAt: Date.now(), userId: adminId })
     })
 
-    const projectId = await asOwner.mutation(api.project.create, {
+    const projectId = await asUser(0).mutation(api.project.create, {
         name: 'Admin Edit Project',
         orgId
       }),
-      updated = await asAdmin.mutation(api.project.update, {
+      updated = await asUser(1).mutation(api.project.update, {
         id: projectId,
         name: 'Updated by Admin',
         orgId
@@ -1149,9 +1097,8 @@ describe('orgCrud ACL', () => {
 
   test('creator can always edit own project', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-3', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1160,11 +1107,11 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const projectId = await asMember.mutation(api.project.create, {
+    const projectId = await asUser(1).mutation(api.project.create, {
         name: 'Member Project',
         orgId
       }),
-      updated = await asMember.mutation(api.project.update, {
+      updated = await asUser(1).mutation(api.project.update, {
         id: projectId,
         name: 'Updated by Creator',
         orgId
@@ -1175,10 +1122,8 @@ describe('orgCrud ACL', () => {
 
   test('editor in editors[] can update project', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-4', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1187,14 +1132,14 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const projectId = await asOwner.mutation(api.project.create, {
+    const projectId = await asUser(0).mutation(api.project.create, {
       name: 'Editable Project',
       orgId
     })
 
-    await asOwner.mutation(api.project.addEditor, { editorId: memberId, orgId, projectId })
+    await asUser(0).mutation(api.project.addEditor, { editorId: memberId, orgId, projectId })
 
-    const updated = await asMember.mutation(api.project.update, {
+    const updated = await asUser(1).mutation(api.project.update, {
       id: projectId,
       name: 'Updated by Editor',
       orgId
@@ -1205,10 +1150,8 @@ describe('orgCrud ACL', () => {
 
   test('non-editor member CANNOT update project', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-5', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1217,14 +1160,14 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const projectId = await asOwner.mutation(api.project.create, {
+    const projectId = await asUser(0).mutation(api.project.create, {
       name: 'Restricted Project',
       orgId
     })
     let threw = false
 
     try {
-      await asMember.mutation(api.project.update, {
+      await asUser(1).mutation(api.project.update, {
         id: projectId,
         name: 'Should Fail',
         orgId
@@ -1239,10 +1182,8 @@ describe('orgCrud ACL', () => {
 
   test('non-editor member CANNOT delete project', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-6', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1251,14 +1192,14 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const projectId = await asOwner.mutation(api.project.create, {
+    const projectId = await asUser(0).mutation(api.project.create, {
       name: 'Cannot Delete Project',
       orgId
     })
     let threw = false
 
     try {
-      await asMember.mutation(api.project.rm, { id: projectId, orgId })
+      await asUser(1).mutation(api.project.rm, { id: projectId, orgId })
     } catch (error) {
       threw = true
       expect(String(error)).toContain('FORBIDDEN')
@@ -1269,10 +1210,8 @@ describe('orgCrud ACL', () => {
 
   test('editor can toggle task on parent project', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-7', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1281,28 +1220,26 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const projectId = await asOwner.mutation(api.project.create, {
+    const projectId = await asUser(0).mutation(api.project.create, {
       name: 'Task Project',
       orgId
     })
 
-    await asOwner.mutation(api.project.addEditor, { editorId: memberId, orgId, projectId })
+    await asUser(0).mutation(api.project.addEditor, { editorId: memberId, orgId, projectId })
 
-    const taskId = await asOwner.mutation(api.task.create, {
+    const taskId = await asUser(0).mutation(api.task.create, {
         orgId,
         projectId,
         title: 'Toggle Me'
       }),
-      toggled = await asMember.mutation(api.task.toggle, { id: taskId, orgId })
+      toggled = await asUser(1).mutation(api.task.toggle, { id: taskId, orgId })
     expect((toggled as { completed?: boolean }).completed).toBe(true)
   })
 
   test('non-editor member CANNOT toggle task', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-8', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1311,11 +1248,11 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const projectId = await asOwner.mutation(api.project.create, {
+    const projectId = await asUser(0).mutation(api.project.create, {
         name: 'No Toggle Project',
         orgId
       }),
-      taskId = await asOwner.mutation(api.task.create, {
+      taskId = await asUser(0).mutation(api.task.create, {
         orgId,
         projectId,
         title: 'Cannot Toggle'
@@ -1323,7 +1260,7 @@ describe('orgCrud ACL', () => {
     let threw = false
 
     try {
-      await asMember.mutation(api.task.toggle, { id: taskId, orgId })
+      await asUser(1).mutation(api.task.toggle, { id: taskId, orgId })
     } catch (error) {
       threw = true
       expect(String(error)).toContain('FORBIDDEN')
@@ -1334,9 +1271,8 @@ describe('orgCrud ACL', () => {
 
   test('addEditor mutation works', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-9', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1345,19 +1281,18 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const projectId = await asOwner.mutation(api.project.create, {
+    const projectId = await asUser(0).mutation(api.project.create, {
         name: 'Add Editor Project',
         orgId
       }),
-      result = await asOwner.mutation(api.project.addEditor, { editorId: memberId, orgId, projectId })
+      result = await asUser(0).mutation(api.project.addEditor, { editorId: memberId, orgId, projectId })
     expect((result as { editors?: string[] }).editors).toContain(String(memberId))
   })
 
   test('removeEditor mutation works', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-10', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1366,24 +1301,21 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const projectId = await asOwner.mutation(api.project.create, {
+    const projectId = await asUser(0).mutation(api.project.create, {
       name: 'Remove Editor Project',
       orgId
     })
 
-    await asOwner.mutation(api.project.addEditor, { editorId: memberId, orgId, projectId })
-    const result = await asOwner.mutation(api.project.removeEditor, { editorId: memberId, orgId, projectId })
+    await asUser(0).mutation(api.project.addEditor, { editorId: memberId, orgId, projectId })
+    const result = await asUser(0).mutation(api.project.removeEditor, { editorId: memberId, orgId, projectId })
     expect((result as { editors?: string[] }).editors).toBeDefined()
     expect((result as { editors?: string[] }).editors).not.toContain(String(memberId))
   })
 
   test('non-admin cannot addEditor', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      editorId = await createThirdUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId, editorId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-11', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1393,14 +1325,14 @@ describe('orgCrud ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: editorId })
     })
 
-    const projectId = await asOwner.mutation(api.project.create, {
+    const projectId = await asUser(0).mutation(api.project.create, {
       name: 'No Add Editor Project',
       orgId
     })
     let threw = false
 
     try {
-      await asMember.mutation(api.project.addEditor, { editorId, orgId, projectId })
+      await asUser(1).mutation(api.project.addEditor, { editorId, orgId, projectId })
     } catch (error) {
       threw = true
       expect(String(error)).toContain('INSUFFICIENT_ORG_ROLE')
@@ -1411,20 +1343,19 @@ describe('orgCrud ACL', () => {
 
   test('addEditor rejects non-org-member', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      nonMemberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, nonMemberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-acl-12', updatedAt: Date.now(), userId: ownerId })
       ),
-      projectId = await asOwner.mutation(api.project.create, {
+      projectId = await asUser(0).mutation(api.project.create, {
         name: 'Reject Non-Member Project',
         orgId
       })
     let threw = false
 
     try {
-      await asOwner.mutation(api.project.addEditor, { editorId: nonMemberId, orgId, projectId })
+      await asUser(0).mutation(api.project.addEditor, { editorId: nonMemberId, orgId, projectId })
     } catch (error) {
       threw = true
       expect(String(error)).toContain('NOT_ORG_MEMBER')
@@ -1437,19 +1368,19 @@ describe('orgCrud ACL', () => {
 describe('wiki ACL', () => {
   test('wiki creator can update own wiki', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-1', updatedAt: Date.now(), userId: ownerId })
       ),
-      wikiId = await asOwner.mutation(api.wiki.create, {
+      wikiId = await asUser(0).mutation(api.wiki.create, {
         content: 'Original content',
         orgId,
         slug: 'test-wiki-1',
         status: 'draft',
         title: 'Test Wiki'
       }),
-      updated = await asOwner.mutation(api.wiki.update, {
+      updated = await asUser(0).mutation(api.wiki.update, {
         id: wikiId,
         orgId,
         title: 'Updated Wiki'
@@ -1460,10 +1391,8 @@ describe('wiki ACL', () => {
 
   test('editor in editors[] can update wiki', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-2', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1472,7 +1401,7 @@ describe('wiki ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const wikiId = await asOwner.mutation(api.wiki.create, {
+    const wikiId = await asUser(0).mutation(api.wiki.create, {
       content: 'Wiki content',
       orgId,
       slug: 'test-wiki-2',
@@ -1480,9 +1409,9 @@ describe('wiki ACL', () => {
       title: 'Editable Wiki'
     })
 
-    await asOwner.mutation(api.wiki.addEditor, { editorId: memberId, orgId, wikiId })
+    await asUser(0).mutation(api.wiki.addEditor, { editorId: memberId, orgId, wikiId })
 
-    const updated = await asMember.mutation(api.wiki.update, {
+    const updated = await asUser(1).mutation(api.wiki.update, {
       id: wikiId,
       orgId,
       title: 'Updated by Editor'
@@ -1493,10 +1422,8 @@ describe('wiki ACL', () => {
 
   test('non-editor member CANNOT update wiki', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-3', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1505,7 +1432,7 @@ describe('wiki ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const wikiId = await asOwner.mutation(api.wiki.create, {
+    const wikiId = await asUser(0).mutation(api.wiki.create, {
       content: 'Restricted wiki',
       orgId,
       slug: 'test-wiki-3',
@@ -1515,7 +1442,7 @@ describe('wiki ACL', () => {
     let threw = false
 
     try {
-      await asMember.mutation(api.wiki.update, {
+      await asUser(1).mutation(api.wiki.update, {
         id: wikiId,
         orgId,
         title: 'Should Fail'
@@ -1530,10 +1457,8 @@ describe('wiki ACL', () => {
 
   test('non-editor member CANNOT delete wiki', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-4', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1542,7 +1467,7 @@ describe('wiki ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const wikiId = await asOwner.mutation(api.wiki.create, {
+    const wikiId = await asUser(0).mutation(api.wiki.create, {
       content: 'Cannot delete',
       orgId,
       slug: 'test-wiki-4',
@@ -1552,7 +1477,7 @@ describe('wiki ACL', () => {
     let threw = false
 
     try {
-      await asMember.mutation(api.wiki.rm, { id: wikiId, orgId })
+      await asUser(1).mutation(api.wiki.rm, { id: wikiId, orgId })
     } catch (error) {
       threw = true
       expect(String(error)).toContain('FORBIDDEN')
@@ -1563,9 +1488,8 @@ describe('wiki ACL', () => {
 
   test('addEditor mutation works', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-5', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1574,23 +1498,22 @@ describe('wiki ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const wikiId = await asOwner.mutation(api.wiki.create, {
+    const wikiId = await asUser(0).mutation(api.wiki.create, {
         content: 'Add editor test',
         orgId,
         slug: 'test-wiki-5',
         status: 'draft',
         title: 'Add Editor Wiki'
       }),
-      result = await asOwner.mutation(api.wiki.addEditor, { editorId: memberId, orgId, wikiId })
+      result = await asUser(0).mutation(api.wiki.addEditor, { editorId: memberId, orgId, wikiId })
 
     expect((result as { editors?: string[] }).editors).toContain(String(memberId))
   })
 
   test('removeEditor mutation works', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-6', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1599,7 +1522,7 @@ describe('wiki ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const wikiId = await asOwner.mutation(api.wiki.create, {
+    const wikiId = await asUser(0).mutation(api.wiki.create, {
       content: 'Remove editor test',
       orgId,
       slug: 'test-wiki-6',
@@ -1607,8 +1530,8 @@ describe('wiki ACL', () => {
       title: 'Remove Editor Wiki'
     })
 
-    await asOwner.mutation(api.wiki.addEditor, { editorId: memberId, orgId, wikiId })
-    const result = await asOwner.mutation(api.wiki.removeEditor, { editorId: memberId, orgId, wikiId })
+    await asUser(0).mutation(api.wiki.addEditor, { editorId: memberId, orgId, wikiId })
+    const result = await asUser(0).mutation(api.wiki.removeEditor, { editorId: memberId, orgId, wikiId })
 
     expect((result as { editors?: string[] }).editors).toBeDefined()
     expect((result as { editors?: string[] }).editors).not.toContain(String(memberId))
@@ -1616,11 +1539,8 @@ describe('wiki ACL', () => {
 
   test('non-admin cannot addEditor', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      editorId = await createThirdUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
-      asMember = ctx.withIdentity({ subject: memberId, tokenIdentifier: `test|${memberId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId, editorId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-7', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1630,7 +1550,7 @@ describe('wiki ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: editorId })
     })
 
-    const wikiId = await asOwner.mutation(api.wiki.create, {
+    const wikiId = await asUser(0).mutation(api.wiki.create, {
       content: 'No add editor test',
       orgId,
       slug: 'test-wiki-7',
@@ -1640,7 +1560,7 @@ describe('wiki ACL', () => {
     let threw = false
 
     try {
-      await asMember.mutation(api.wiki.addEditor, { editorId, orgId, wikiId })
+      await asUser(1).mutation(api.wiki.addEditor, { editorId, orgId, wikiId })
     } catch (error) {
       threw = true
       expect(String(error)).toContain('INSUFFICIENT_ORG_ROLE')
@@ -1651,13 +1571,12 @@ describe('wiki ACL', () => {
 
   test('addEditor rejects non-org-member', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      nonMemberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, nonMemberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-8', updatedAt: Date.now(), userId: ownerId })
       ),
-      wikiId = await asOwner.mutation(api.wiki.create, {
+      wikiId = await asUser(0).mutation(api.wiki.create, {
         content: 'Reject non-member test',
         orgId,
         slug: 'test-wiki-8',
@@ -1667,7 +1586,7 @@ describe('wiki ACL', () => {
     let threw = false
 
     try {
-      await asOwner.mutation(api.wiki.addEditor, { editorId: nonMemberId, orgId, wikiId })
+      await asUser(0).mutation(api.wiki.addEditor, { editorId: nonMemberId, orgId, wikiId })
     } catch (error) {
       threw = true
       expect(String(error)).toContain('NOT_ORG_MEMBER')
@@ -1678,10 +1597,8 @@ describe('wiki ACL', () => {
 
   test('setEditors replaces all editors', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId1 = await createSecondUserAndGetId(ctx),
-      memberId2 = await createThirdUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId1, memberId2] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-9', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1691,7 +1608,7 @@ describe('wiki ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId2 })
     })
 
-    const wikiId = await asOwner.mutation(api.wiki.create, {
+    const wikiId = await asUser(0).mutation(api.wiki.create, {
       content: 'Set editors test',
       orgId,
       slug: 'test-wiki-9',
@@ -1699,8 +1616,8 @@ describe('wiki ACL', () => {
       title: 'Set Editors Wiki'
     })
 
-    await asOwner.mutation(api.wiki.addEditor, { editorId: memberId1, orgId, wikiId })
-    const result = await asOwner.mutation(api.wiki.setEditors, { editorIds: [memberId2], orgId, wikiId })
+    await asUser(0).mutation(api.wiki.addEditor, { editorId: memberId1, orgId, wikiId })
+    const result = await asUser(0).mutation(api.wiki.setEditors, { editorIds: [memberId2], orgId, wikiId })
 
     expect((result as { editors?: string[] }).editors).toContain(String(memberId2))
     expect((result as { editors?: string[] }).editors).not.toContain(String(memberId1))
@@ -1708,9 +1625,8 @@ describe('wiki ACL', () => {
 
   test('editors query returns resolved users', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      memberId = await createSecondUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId, memberId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-wiki-10', updatedAt: Date.now(), userId: ownerId })
       )
@@ -1719,7 +1635,7 @@ describe('wiki ACL', () => {
       await c.db.insert('orgMember', { isAdmin: false, orgId, updatedAt: Date.now(), userId: memberId })
     })
 
-    const wikiId = await asOwner.mutation(api.wiki.create, {
+    const wikiId = await asUser(0).mutation(api.wiki.create, {
       content: 'Editors query test',
       orgId,
       slug: 'test-wiki-10',
@@ -1727,12 +1643,12 @@ describe('wiki ACL', () => {
       title: 'Editors Query Wiki'
     })
 
-    await asOwner.mutation(api.wiki.addEditor, { editorId: memberId, orgId, wikiId })
-    const editors = await asOwner.query(api.wiki.editors, { orgId, wikiId })
+    await asUser(0).mutation(api.wiki.addEditor, { editorId: memberId, orgId, wikiId })
+    const editors = await asUser(0).query(api.wiki.editors, { orgId, wikiId })
 
     expect(editors.length).toBe(1)
-    expect(editors[0]?.name).toBe(mockUser2.name)
-    expect(editors[0]?.email).toBe(mockUser2.email)
+    expect(editors[0]?.name).toBe('Other User')
+    expect(editors[0]?.email).toBe('other@example.com')
   })
 })
 
@@ -1881,13 +1797,13 @@ describe('Zod introspection snapshots', () => {
 describe('uniqueCheck', () => {
   test('isSlugAvailable returns true for unique slug', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-unique-1', updatedAt: Date.now(), userId: ownerId })
       )
 
-    await asOwner.mutation(api.wiki.create, {
+    await asUser(0).mutation(api.wiki.create, {
       content: 'Unique check test',
       orgId,
       slug: 'taken-slug-u1',
@@ -1901,13 +1817,13 @@ describe('uniqueCheck', () => {
 
   test('isSlugAvailable returns false for duplicate slug', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-unique-2', updatedAt: Date.now(), userId: ownerId })
       )
 
-    await asOwner.mutation(api.wiki.create, {
+    await asUser(0).mutation(api.wiki.create, {
       content: 'Duplicate check test',
       orgId,
       slug: 'taken-slug-u2',
@@ -1921,12 +1837,12 @@ describe('uniqueCheck', () => {
 
   test('isSlugAvailable excludes current doc by id', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-unique-3', updatedAt: Date.now(), userId: ownerId })
       ),
-      wikiId = await asOwner.mutation(api.wiki.create, {
+      wikiId = await asUser(0).mutation(api.wiki.create, {
         content: 'Exclude check test',
         orgId,
         slug: 'taken-slug-u3',
@@ -1942,18 +1858,18 @@ describe('uniqueCheck', () => {
 describe('orgCascade', () => {
   test('deleting project cascades to delete tasks', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-cascade-1', updatedAt: Date.now(), userId: ownerId })
       ),
-      projectId = await asOwner.mutation(api.project.create, {
+      projectId = await asUser(0).mutation(api.project.create, {
         name: 'Cascade Project',
         orgId
       })
 
     for (let i = 0; i < 3; i += 1)
-      await asOwner.mutation(api.task.create, {
+      await asUser(0).mutation(api.task.create, {
         orgId,
         projectId,
         title: `Task ${i}`
@@ -1967,7 +1883,7 @@ describe('orgCascade', () => {
     )
     expect(tasksBefore.length).toBe(3)
 
-    await asOwner.mutation(api.project.rm, { id: projectId, orgId })
+    await asUser(0).mutation(api.project.rm, { id: projectId, orgId })
 
     const tasksAfter = await ctx.run(async c =>
       c.db
@@ -1982,13 +1898,13 @@ describe('orgCascade', () => {
 describe('orgCrud enrichment', () => {
   test('org list returns author and own fields', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-enrich-1', updatedAt: Date.now(), userId: ownerId })
       )
 
-    await asOwner.mutation(api.wiki.create, {
+    await asUser(0).mutation(api.wiki.create, {
       content: 'Enrichment test',
       orgId,
       slug: 'test-wiki-enrich-1',
@@ -1996,30 +1912,30 @@ describe('orgCrud enrichment', () => {
       title: 'Enriched Wiki'
     })
 
-    const result = await asOwner.query(api.wiki.list, { orgId, paginationOpts: { cursor: null, numItems: 10 } }),
+    const result = await asUser(0).query(api.wiki.list, { orgId, paginationOpts: { cursor: null, numItems: 10 } }),
       [wiki] = result.page
 
-    expect(wiki?.author?.name).toBe(mockUser.name)
+    expect(wiki?.author?.name).toBe('Test User')
     expect(wiki?.own).toBe(true)
   })
 
   test('org read returns author and own fields', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-enrich-2', updatedAt: Date.now(), userId: ownerId })
       ),
-      wikiId = await asOwner.mutation(api.wiki.create, {
+      wikiId = await asUser(0).mutation(api.wiki.create, {
         content: 'Read enrichment test',
         orgId,
         slug: 'test-wiki-enrich-2',
         status: 'draft',
         title: 'Read Enriched Wiki'
       }),
-      wiki = await asOwner.query(api.wiki.read, { id: wikiId, orgId })
+      wiki = await asUser(0).query(api.wiki.read, { id: wikiId, orgId })
 
-    expect(wiki?.author?.name).toBe(mockUser.name)
+    expect(wiki?.author?.name).toBe('Test User')
     expect(wiki?.own).toBe(true)
   })
 })
@@ -2027,14 +1943,14 @@ describe('orgCrud enrichment', () => {
 describe('rate limiting (sliding window)', () => {
   test('first request within window succeeds', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds
 
     await ctx.run(async c => {
       await c.db.insert('rateLimit', { count: 0, key: userId, table: 'blog', windowStart: Date.now() })
     })
 
-    const id = await asUser.mutation(api.blog.create, {
+    const id = await asUser(0).mutation(api.blog.create, {
       category: 'tech',
       content: 'Rate limit test',
       published: false,
@@ -2045,11 +1961,10 @@ describe('rate limiting (sliding window)', () => {
 
   test('requests up to max succeed', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      { asUser } = await createTestContext(ctx)
 
     for (let i = 0; i < 10; i += 1) {
-      const id = await asUser.mutation(api.blog.create, {
+      const id = await asUser(0).mutation(api.blog.create, {
         category: 'tech',
         content: `Rate limit test ${i}`,
         published: false,
@@ -2061,8 +1976,8 @@ describe('rate limiting (sliding window)', () => {
 
   test('request succeeds after window expires', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds
 
     await ctx.run(async c => {
       await c.db.insert('rateLimit', {
@@ -2073,7 +1988,7 @@ describe('rate limiting (sliding window)', () => {
       })
     })
 
-    const id = await asUser.mutation(api.blog.create, {
+    const id = await asUser(0).mutation(api.blog.create, {
       category: 'tech',
       content: 'After window expires',
       published: false,
@@ -2086,12 +2001,12 @@ describe('rate limiting (sliding window)', () => {
 describe('soft delete preserves children', () => {
   test('soft-deleting wiki does NOT hard-delete related data', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-softdel-1', updatedAt: Date.now(), userId: ownerId })
       ),
-      wikiId = await asOwner.mutation(api.wiki.create, {
+      wikiId = await asUser(0).mutation(api.wiki.create, {
         content: 'Soft delete test',
         orgId,
         slug: 'soft-del-wiki-1',
@@ -2099,7 +2014,7 @@ describe('soft delete preserves children', () => {
         title: 'Soft Delete Wiki'
       })
 
-    await asOwner.mutation(api.wiki.rm, { id: wikiId, orgId })
+    await asUser(0).mutation(api.wiki.rm, { id: wikiId, orgId })
 
     const doc = await ctx.run(async c => c.db.get(wikiId))
     expect(doc).not.toBeNull()
@@ -2109,13 +2024,13 @@ describe('soft delete preserves children', () => {
 
   test('soft-deleted wiki is excluded from list', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-softdel-2', updatedAt: Date.now(), userId: ownerId })
       )
 
-    await asOwner.mutation(api.wiki.create, {
+    await asUser(0).mutation(api.wiki.create, {
       content: 'Visible wiki',
       orgId,
       slug: 'soft-del-wiki-2a',
@@ -2123,7 +2038,7 @@ describe('soft delete preserves children', () => {
       title: 'Visible Wiki'
     })
 
-    const toDeleteId = await asOwner.mutation(api.wiki.create, {
+    const toDeleteId = await asUser(0).mutation(api.wiki.create, {
       content: 'Will be deleted',
       orgId,
       slug: 'soft-del-wiki-2b',
@@ -2131,21 +2046,21 @@ describe('soft delete preserves children', () => {
       title: 'Deleted Wiki'
     })
 
-    await asOwner.mutation(api.wiki.rm, { id: toDeleteId, orgId })
+    await asUser(0).mutation(api.wiki.rm, { id: toDeleteId, orgId })
 
-    const result = await asOwner.query(api.wiki.list, { orgId, paginationOpts: { cursor: null, numItems: 100 } })
+    const result = await asUser(0).query(api.wiki.list, { orgId, paginationOpts: { cursor: null, numItems: 100 } })
     expect(result.page.length).toBe(1)
     expect(result.page[0]?.title).toBe('Visible Wiki')
   })
 
   test('restore brings back soft-deleted wiki', async () => {
     const ctx = t(),
-      ownerId = await createUserAndGetId(ctx),
-      asOwner = ctx.withIdentity({ subject: ownerId, tokenIdentifier: `test|${ownerId}` }),
+      { asUser, userIds } = await createTestContext(ctx),
+      [ownerId] = userIds,
       orgId = await ctx.run(async c =>
         c.db.insert('org', { name: 'Test Org', slug: 'test-org-softdel-3', updatedAt: Date.now(), userId: ownerId })
       ),
-      wikiId = await asOwner.mutation(api.wiki.create, {
+      wikiId = await asUser(0).mutation(api.wiki.create, {
         content: 'Restore test',
         orgId,
         slug: 'soft-del-wiki-3',
@@ -2153,17 +2068,17 @@ describe('soft delete preserves children', () => {
         title: 'Restore Wiki'
       })
 
-    await asOwner.mutation(api.wiki.rm, { id: wikiId, orgId })
+    await asUser(0).mutation(api.wiki.rm, { id: wikiId, orgId })
 
-    const beforeRestore = await asOwner.query(api.wiki.list, {
+    const beforeRestore = await asUser(0).query(api.wiki.list, {
       orgId,
       paginationOpts: { cursor: null, numItems: 100 }
     })
     expect(beforeRestore.page.length).toBe(0)
 
-    await asOwner.mutation(api.wiki.restore, { id: wikiId, orgId })
+    await asUser(0).mutation(api.wiki.restore, { id: wikiId, orgId })
 
-    const afterRestore = await asOwner.query(api.wiki.list, {
+    const afterRestore = await asUser(0).query(api.wiki.list, {
       orgId,
       paginationOpts: { cursor: null, numItems: 100 }
     })
@@ -2175,7 +2090,8 @@ describe('soft delete preserves children', () => {
 describe('file cleanup resilience', () => {
   test('mutation succeeds even when file storage has issues', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       fileId = await ctx.run(async c => c.storage.store(new Blob(['test-data']))),
       postId = await ctx.run(async c =>
         c.db.insert('blog', {
@@ -2188,9 +2104,8 @@ describe('file cleanup resilience', () => {
           userId
         })
       ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
       newFileId = await ctx.run(async c => c.storage.store(new Blob(['new-data']))),
-      updated = await asUser.mutation(api.blog.update, { coverImage: newFileId, id: postId })
+      updated = await asUser(0).mutation(api.blog.update, { coverImage: newFileId, id: postId })
 
     expect(updated.coverImage).toBe(newFileId)
   })
@@ -2199,7 +2114,8 @@ describe('file cleanup resilience', () => {
 describe('search configuration', () => {
   test('search with where filter', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx)
+      { userIds } = await createTestContext(ctx),
+      [userId] = userIds
 
     await ctx.run(async c => {
       await c.db.insert('blog', {
@@ -2230,7 +2146,8 @@ describe('search configuration', () => {
 
   test('search is case insensitive by default', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx)
+      { userIds } = await createTestContext(ctx),
+      [userId] = userIds
 
     await ctx.run(async c => {
       await c.db.insert('blog', {
@@ -2252,7 +2169,8 @@ describe('search configuration', () => {
 
   test('search returns empty for no matches', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx)
+      { userIds } = await createTestContext(ctx),
+      [userId] = userIds
 
     await ctx.run(async c => {
       await c.db.insert('blog', {
@@ -2274,18 +2192,17 @@ describe('singletonCrud profile', () => {
   describe('basic flow', () => {
     test('get returns null when no profile exists', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
-        profile = await asUser.query(api.blogProfile.get, {})
+        { asUser } = await createTestContext(ctx),
+        profile = await asUser(0).query(api.blogProfile.get, {})
 
       expect(profile).toBeNull()
     })
 
     test('upsert creates profile on first call', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
-        result = await asUser.mutation(api.blogProfile.upsert, {
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds,
+        result = await asUser(0).mutation(api.blogProfile.upsert, {
           bio: 'Hello world',
           displayName: 'Test User',
           notifications: true,
@@ -2303,17 +2220,16 @@ describe('singletonCrud profile', () => {
 
     test('get returns the created profile', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser } = await createTestContext(ctx)
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         bio: 'My bio',
         displayName: 'Fetch Test',
         notifications: false,
         theme: 'dark'
       })
 
-      const profile = await asUser.query(api.blogProfile.get, {})
+      const profile = await asUser(0).query(api.blogProfile.get, {})
       expect(profile).not.toBeNull()
       expect(profile?.displayName).toBe('Fetch Test')
       expect(profile?.bio).toBe('My bio')
@@ -2323,32 +2239,31 @@ describe('singletonCrud profile', () => {
 
     test('get returns profile with userId matching authenticated user', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'Owner Check',
         notifications: true,
         theme: 'light'
       })
 
-      const profile = await asUser.query(api.blogProfile.get, {})
+      const profile = await asUser(0).query(api.blogProfile.get, {})
       expect(profile?.userId).toBe(userId)
     })
 
     test('upsert updates existing profile', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser } = await createTestContext(ctx)
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         bio: 'Original bio',
         displayName: 'Original Name',
         notifications: true,
         theme: 'system'
       })
 
-      const updated = await asUser.mutation(api.blogProfile.upsert, {
+      const updated = await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'Updated Name'
       })
 
@@ -2357,16 +2272,16 @@ describe('singletonCrud profile', () => {
 
     test('upsert does not create duplicate', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser, userIds } = await createTestContext(ctx),
+        [userId] = userIds
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'First',
         notifications: true,
         theme: 'system'
       })
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'Second'
       })
 
@@ -2384,19 +2299,18 @@ describe('singletonCrud profile', () => {
   describe('partial update semantics', () => {
     test('upsert with partial data preserves other fields', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser } = await createTestContext(ctx)
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         bio: 'Original bio',
         displayName: 'Original',
         notifications: true,
         theme: 'dark'
       })
 
-      await asUser.mutation(api.blogProfile.upsert, { bio: 'New bio' })
+      await asUser(0).mutation(api.blogProfile.upsert, { bio: 'New bio' })
 
-      const profile = await asUser.query(api.blogProfile.get, {})
+      const profile = await asUser(0).query(api.blogProfile.get, {})
       expect(profile?.bio).toBe('New bio')
       expect(profile?.displayName).toBe('Original')
       expect(profile?.theme).toBe('dark')
@@ -2405,16 +2319,15 @@ describe('singletonCrud profile', () => {
 
     test('upsert updates updatedAt timestamp', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser } = await createTestContext(ctx)
 
-      const first = await asUser.mutation(api.blogProfile.upsert, {
+      const first = await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'Timestamp Test',
         notifications: true,
         theme: 'system'
       })
 
-      const second = await asUser.mutation(api.blogProfile.upsert, { bio: 'Update' })
+      const second = await asUser(0).mutation(api.blogProfile.upsert, { bio: 'Update' })
       expect(second.updatedAt).toBeGreaterThanOrEqual(first.updatedAt)
     })
   })
@@ -2422,18 +2335,17 @@ describe('singletonCrud profile', () => {
   describe('file handling', () => {
     test('upsert with avatar stores file reference', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
+        { asUser } = await createTestContext(ctx),
         fileId = await ctx.run(async c => c.storage.store(new Blob(['avatar-data'])))
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         avatar: fileId,
         displayName: 'Avatar Test',
         notifications: true,
         theme: 'system'
       })
 
-      const profile = await asUser.query(api.blogProfile.get, {})
+      const profile = await asUser(0).query(api.blogProfile.get, {})
       expect(profile?.avatar).toBe(fileId)
       expect(profile?.avatarUrl).toBeDefined()
       expect(profile?.avatarUrl).not.toBeNull()
@@ -2441,34 +2353,32 @@ describe('singletonCrud profile', () => {
 
     test('get returns avatarUrl: null when avatar is null', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser } = await createTestContext(ctx)
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'No Avatar',
         notifications: true,
         theme: 'system'
       })
 
-      const profile = await asUser.query(api.blogProfile.get, {})
+      const profile = await asUser(0).query(api.blogProfile.get, {})
       expect(profile?.avatarUrl).toBeNull()
     })
 
     test('replacing avatar cleans up old file', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
+        { asUser } = await createTestContext(ctx),
         oldFileId = await ctx.run(async c => c.storage.store(new Blob(['old-avatar']))),
         newFileId = await ctx.run(async c => c.storage.store(new Blob(['new-avatar'])))
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         avatar: oldFileId,
         displayName: 'Replace Avatar',
         notifications: true,
         theme: 'system'
       })
 
-      await asUser.mutation(api.blogProfile.upsert, { avatar: newFileId })
+      await asUser(0).mutation(api.blogProfile.upsert, { avatar: newFileId })
 
       const oldFile = await ctx.run(async c => c.storage.getUrl(oldFileId))
       expect(oldFile).toBeNull()
@@ -2479,18 +2389,17 @@ describe('singletonCrud profile', () => {
 
     test('setting avatar to null cleans up old file', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` }),
+        { asUser } = await createTestContext(ctx),
         fileId = await ctx.run(async c => c.storage.store(new Blob(['remove-avatar'])))
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         avatar: fileId,
         displayName: 'Remove Avatar',
         notifications: true,
         theme: 'system'
       })
 
-      await asUser.mutation(api.blogProfile.upsert, { avatar: null })
+      await asUser(0).mutation(api.blogProfile.upsert, { avatar: null })
 
       const file = await ctx.run(async c => c.storage.getUrl(fileId))
       expect(file).toBeNull()
@@ -2534,16 +2443,15 @@ describe('singletonCrud profile', () => {
   describe('conflict detection', () => {
     test('upsert with correct expectedUpdatedAt succeeds', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser } = await createTestContext(ctx)
 
-      const created = await asUser.mutation(api.blogProfile.upsert, {
+      const created = await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'Conflict OK',
         notifications: true,
         theme: 'system'
       })
 
-      const updated = await asUser.mutation(api.blogProfile.upsert, {
+      const updated = await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'Updated OK',
         expectedUpdatedAt: created.updatedAt
       })
@@ -2553,10 +2461,9 @@ describe('singletonCrud profile', () => {
 
     test('upsert with stale expectedUpdatedAt throws CONFLICT', async () => {
       const ctx = t(),
-        userId = await createUserAndGetId(ctx),
-        asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+        { asUser } = await createTestContext(ctx)
 
-      await asUser.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'Conflict Test',
         notifications: true,
         theme: 'system'
@@ -2564,7 +2471,7 @@ describe('singletonCrud profile', () => {
 
       let threw = false
       try {
-        await asUser.mutation(api.blogProfile.upsert, {
+        await asUser(0).mutation(api.blogProfile.upsert, {
           displayName: 'Stale',
           expectedUpdatedAt: 1
         })
@@ -2580,42 +2487,36 @@ describe('singletonCrud profile', () => {
   describe('isolation', () => {
     test('user A profile is not visible to user B', async () => {
       const ctx = t(),
-        userId1 = await createUserAndGetId(ctx),
-        userId2 = await createSecondUserAndGetId(ctx),
-        asUser1 = ctx.withIdentity({ subject: userId1, tokenIdentifier: `test|${userId1}` }),
-        asUser2 = ctx.withIdentity({ subject: userId2, tokenIdentifier: `test|${userId2}` })
+        { asUser } = await createTestContext(ctx)
 
-      await asUser1.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'User A',
         notifications: true,
         theme: 'dark'
       })
 
-      const user2Profile = await asUser2.query(api.blogProfile.get, {})
+      const user2Profile = await asUser(1).query(api.blogProfile.get, {})
       expect(user2Profile).toBeNull()
     })
 
     test('user A and B can have independent profiles', async () => {
       const ctx = t(),
-        userId1 = await createUserAndGetId(ctx),
-        userId2 = await createSecondUserAndGetId(ctx),
-        asUser1 = ctx.withIdentity({ subject: userId1, tokenIdentifier: `test|${userId1}` }),
-        asUser2 = ctx.withIdentity({ subject: userId2, tokenIdentifier: `test|${userId2}` })
+        { asUser } = await createTestContext(ctx)
 
-      await asUser1.mutation(api.blogProfile.upsert, {
+      await asUser(0).mutation(api.blogProfile.upsert, {
         displayName: 'User A Profile',
         notifications: true,
         theme: 'dark'
       })
 
-      await asUser2.mutation(api.blogProfile.upsert, {
+      await asUser(1).mutation(api.blogProfile.upsert, {
         displayName: 'User B Profile',
         notifications: false,
         theme: 'light'
       })
 
-      const profile1 = await asUser1.query(api.blogProfile.get, {})
-      const profile2 = await asUser2.query(api.blogProfile.get, {})
+      const profile1 = await asUser(0).query(api.blogProfile.get, {})
+      const profile2 = await asUser(1).query(api.blogProfile.get, {})
 
       expect(profile1?.displayName).toBe('User A Profile')
       expect(profile1?.theme).toBe('dark')
@@ -2628,7 +2529,8 @@ describe('singletonCrud profile', () => {
 describe('mobileAi chat action', () => {
   test('generates assistant reply and saves it as a message', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       chatId = await ctx.run(async c =>
         c.db.insert('chat', {
           isPublic: false,
@@ -2636,21 +2538,20 @@ describe('mobileAi chat action', () => {
           updatedAt: Date.now(),
           userId
         })
-      ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      )
 
-    await asUser.mutation(api.message.create, {
+    await asUser(0).mutation(api.message.create, {
       chatId,
       parts: [{ text: 'Hello', type: 'text' }],
       role: 'user'
     })
 
-    const result = await asUser.action(api.mobileAi.chat, { chatId })
+    const result = await asUser(0).action(api.mobileAi.chat, { chatId })
     expect(result.type).toBe('text')
     expect(typeof result.text).toBe('string')
     expect(result.text.length).toBeGreaterThan(0)
 
-    const messages = await asUser.query(api.message.list, { chatId })
+    const messages = await asUser(0).query(api.message.list, { chatId })
     expect(messages.length).toBe(2)
     expect(messages[1]?.role).toBe('assistant')
     expect(messages[1]?.parts[0]?.type).toBe('text')
@@ -2658,7 +2559,8 @@ describe('mobileAi chat action', () => {
 
   test('builds history from multiple messages', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       chatId = await ctx.run(async c =>
         c.db.insert('chat', {
           isPublic: false,
@@ -2666,37 +2568,37 @@ describe('mobileAi chat action', () => {
           updatedAt: Date.now(),
           userId
         })
-      ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      )
 
-    await asUser.mutation(api.message.create, {
+    await asUser(0).mutation(api.message.create, {
       chatId,
       parts: [{ text: 'Hello', type: 'text' }],
       role: 'user'
     })
-    await asUser.mutation(api.message.create, {
+    await asUser(0).mutation(api.message.create, {
       chatId,
       parts: [{ text: 'Hi there!', type: 'text' }],
       role: 'assistant'
     })
-    await asUser.mutation(api.message.create, {
+    await asUser(0).mutation(api.message.create, {
       chatId,
       parts: [{ text: 'Tell me a joke', type: 'text' }],
       role: 'user'
     })
 
-    const result = await asUser.action(api.mobileAi.chat, { chatId })
+    const result = await asUser(0).action(api.mobileAi.chat, { chatId })
     expect(result.type).toBe('text')
     expect(result.text).toContain('bugs')
 
-    const messages = await asUser.query(api.message.list, { chatId })
+    const messages = await asUser(0).query(api.message.list, { chatId })
     expect(messages.length).toBe(4)
     expect(messages[3]?.role).toBe('assistant')
   })
 
   test('throws on empty chat (no messages)', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       chatId = await ctx.run(async c =>
         c.db.insert('chat', {
           isPublic: false,
@@ -2704,12 +2606,11 @@ describe('mobileAi chat action', () => {
           updatedAt: Date.now(),
           userId
         })
-      ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      )
 
     let threw = false
     try {
-      await asUser.action(api.mobileAi.chat, { chatId })
+      await asUser(0).action(api.mobileAi.chat, { chatId })
     } catch (actionError) {
       threw = true
       expect(String(actionError)).toContain('messages must not be empty')
@@ -2719,7 +2620,8 @@ describe('mobileAi chat action', () => {
 
   test('extracts only text parts from multi-part messages', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       fileId = await ctx.run(async c => c.storage.store(new Blob(['test image']))),
       chatId = await ctx.run(async c =>
         c.db.insert('chat', {
@@ -2728,8 +2630,7 @@ describe('mobileAi chat action', () => {
           updatedAt: Date.now(),
           userId
         })
-      ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      )
 
     await ctx.run(async c => {
       await c.db.insert('message', {
@@ -2744,7 +2645,7 @@ describe('mobileAi chat action', () => {
       })
     })
 
-    const result = await asUser.action(api.mobileAi.chat, { chatId })
+    const result = await asUser(0).action(api.mobileAi.chat, { chatId })
     expect(result.type).toBe('text')
     expect(typeof result.text).toBe('string')
     expect(result.text.length).toBeGreaterThan(0)
@@ -2752,7 +2653,8 @@ describe('mobileAi chat action', () => {
 
   test('mock model returns joke for joke request', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       chatId = await ctx.run(async c =>
         c.db.insert('chat', {
           isPublic: false,
@@ -2760,23 +2662,23 @@ describe('mobileAi chat action', () => {
           updatedAt: Date.now(),
           userId
         })
-      ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      )
 
-    await asUser.mutation(api.message.create, {
+    await asUser(0).mutation(api.message.create, {
       chatId,
       parts: [{ text: 'Tell me a joke', type: 'text' }],
       role: 'user'
     })
 
-    const result = await asUser.action(api.mobileAi.chat, { chatId })
+    const result = await asUser(0).action(api.mobileAi.chat, { chatId })
     expect(result.text).toContain('programmers')
     expect(result.text).toContain('bugs')
   })
 
   test('mock model returns greeting for hello', async () => {
     const ctx = t(),
-      userId = await createUserAndGetId(ctx),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
       chatId = await ctx.run(async c =>
         c.db.insert('chat', {
           isPublic: false,
@@ -2784,16 +2686,15 @@ describe('mobileAi chat action', () => {
           updatedAt: Date.now(),
           userId
         })
-      ),
-      asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+      )
 
-    await asUser.mutation(api.message.create, {
+    await asUser(0).mutation(api.message.create, {
       chatId,
       parts: [{ text: 'Hello there', type: 'text' }],
       role: 'user'
     })
 
-    const result = await asUser.action(api.mobileAi.chat, { chatId })
+    const result = await asUser(0).action(api.mobileAi.chat, { chatId })
     expect(result.text).toContain('Hello')
     expect(result.text).toContain('mock AI assistant')
   })

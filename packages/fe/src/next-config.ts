@@ -8,7 +8,9 @@ interface CreateNextConfigOptions {
 
 const isDev = process.env.NODE_ENV === 'development',
   BASE_IMG_SRC = "'self' data: blob: https://*.convex.cloud",
+  isPlaywright = process.env.PLAYWRIGHT === '1',
   createNextConfig = ({ experimental, imageDomains, imgSrc }: CreateNextConfigOptions = {}): NextConfig => ({
+    ...(isPlaywright && { devIndicators: false }),
     experimental: { ...experimental },
     headers: () => [
       {

@@ -26,6 +26,7 @@ import {
   isStringType,
   unwrapZod
 } from '../zod'
+import { defaultOnError } from './use-mutate'
 
 /** Discriminated kind of a form field derived from the Zod schema type. */
 type FieldKind = 'boolean' | 'date' | 'file' | 'files' | 'number' | 'string' | 'stringArray' | 'unknown'
@@ -141,7 +142,7 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
   }: {
     autoSave?: { debounceMs: number; enabled: boolean }
     onConflict?: (data: ConflictData) => void
-    onError?: (e: unknown) => void
+    onError?: ((e: unknown) => void) | false
     onSubmit: (d: output<S>, force?: boolean) => output<S> | Promise<output<S> | undefined> | undefined
     onSuccess?: () => void
     resetOnSuccess?: boolean
@@ -169,9 +170,10 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
           try {
             const coerced = coerceOptionals(schema, value),
               result = await onSubmit(coerced, forceSubmit),
-              newValues = resetOnSuccess && isRecord(result) ? result : value
+              returned = isRecord(result) ? result : coerced,
+              newValues = resetOnSuccess ? returned : value
             instance.reset(newValues)
-            if (resetOnSuccess && isRecord(result)) vRef.current = result
+            if (resetOnSuccess && isRecord(returned)) vRef.current = returned
             setForceSubmit(false)
             setLastSaved(Date.now())
             onSuccess?.()
@@ -186,7 +188,7 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
             if (errData?.fieldErrors) setFieldErrors(errData.fieldErrors)
             const submitErr = submitError(error)
             setEr(submitErr)
-            onError?.(submitErr)
+            if (onError !== false) (onError ?? defaultOnError)(submitErr)
           }
         },
         validators: { onSubmit: schema as unknown as StandardSchemaV1<output<S>, unknown> }
@@ -250,7 +252,7 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
     autoSave?: { debounceMs: number; enabled: boolean }
     mutation: FunctionReference<'mutation'>
     onConflict?: (data: ConflictData) => void
-    onError?: (e: unknown) => void
+    onError?: ((e: unknown) => void) | false
     onSuccess?: () => void
     resetOnSuccess?: boolean
     schema: S

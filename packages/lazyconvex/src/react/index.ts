@@ -12,6 +12,7 @@ export {
   updateSubscription,
   useDevErrors
 } from './devtools'
+export { DevtoolsAutoMount } from './devtools-panel'
 export { default as LazyConvexDevtools } from './devtools-panel'
 export type { DevtoolsProps } from './devtools-panel'
 export type { ErrorToastOptions, ToastFn } from './error-toast'
@@ -37,7 +38,7 @@ export { useBulkSelection } from './use-bulk-selection'
 export { useCacheEntry } from './use-cache'
 export { useInfiniteList } from './use-infinite-list'
 export { useList } from './use-list'
-export { useMutate } from './use-mutate'
+export { defaultOnError, useMutate } from './use-mutate'
 export { default as useOnlineStatus } from './use-online-status'
 export { useOptimisticMutation } from './use-optimistic'
 export type { PresenceRefs, PresenceUser, UsePresenceOptions, UsePresenceResult } from './use-presence'

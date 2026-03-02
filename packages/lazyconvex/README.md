@@ -156,7 +156,7 @@ type Validated = AssertSchema<typeof mySchema, 'owned'>
 //   ❌ if mySchema is OrgSchema → resolves to descriptive error string
 ```
 
-![Field type errors](docs/assets/field-errors.png)
+
 
 ### Browser Devtools Panel
 
@@ -171,9 +171,7 @@ Click any subscription row to expand and inspect its current args and data previ
 
 For standalone usage or customization:
 
-![Devtools button in app](docs/assets/devtools-button.png)
 
-![Devtools panel expanded](docs/assets/devtools-panel.png)
 
 ```tsx
 import { LazyConvexDevtools } from 'lazyconvex/react'
@@ -185,7 +183,7 @@ import { LazyConvexDevtools } from 'lazyconvex/react'
 
 Interactive component for previewing how schemas map to generated endpoints:
 
-![Schema playground](docs/assets/schema-playground.png)
+
 
 ```tsx
 import { SchemaPlayground } from 'lazyconvex/react'
@@ -419,6 +417,7 @@ bunx lazyconvex codegen-swift --schema packages/be/t.ts --convex packages/be/con
 | [Migration](docs/migration.md) | Incremental adoption, convert one table at a time, coexistence with raw Convex |
 | [Schema Evolution](docs/schema-evolution.md) | Adding, renaming, removing fields, type changes, deployment strategies |
 | [Ejecting](docs/ejecting.md) | Gradual replacement of factories with raw Convex, what you lose/keep |
+| [Recipes](docs/recipes.md) | 7 real-world composition patterns: blog+files, org+ACL, custom queries, presence, multi-step forms |
 
 ## Contributing
 

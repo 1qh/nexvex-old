@@ -6,6 +6,7 @@ import { ConvexError } from 'convex/values'
 import { array, boolean, date, number, object, optional, string, enum as zenum } from 'zod/v4'
 
 import type { AccessEntry, FactoryCall } from '../check'
+import type { CheckResult } from '../doctor'
 import type { DevtoolsProps } from '../react/devtools-panel'
 import type { MutationType, PendingMutation } from '../react/optimistic-store'
 import type { PlaygroundProps } from '../react/schema-playground'
@@ -84,7 +85,8 @@ import {
   ONE_YEAR_SECONDS,
   sleep
 } from '../constants'
-import { generateMarkdown } from '../docs-gen'
+import { extractJSDoc, generateMarkdown, resolveReExports } from '../docs-gen'
+import { calcHealthScore, checkDeps, checkEslintContent, checkRateLimit } from '../doctor'
 import { recommended as eslintRecommended, rules as eslintRules } from '../eslint'
 import { guardApi } from '../guard'
 import { diffSnapshots, isOptionalField as isOptionalRaw, parseFieldsFromBlock, parseSchemaContent } from '../migrate'
@@ -7594,5 +7596,157 @@ describe('lazyconvex add command', () => {
       const result = add(['--help'])
       expect(result).toEqual({ created: 0, skipped: 0 })
     })
+  })
+})
+
+describe('docs-gen', () => {
+  describe('extractJSDoc', () => {
+    test('extracts JSDoc before const declaration', () => {
+      const content = '/** Retries an async function with exponential backoff. */\nconst withRetry = async <T>() => {}'
+      expect(extractJSDoc(content, 'withRetry')).toBe('Retries an async function with exponential backoff.')
+    })
+
+    test('extracts JSDoc before export const declaration', () => {
+      const content = '/** Tracks selection state. */\nexport const useBulkSelection = () => {}'
+      expect(extractJSDoc(content, 'useBulkSelection')).toBe('Tracks selection state.')
+    })
+
+    test('returns empty string for symbol without JSDoc', () => {
+      const content = 'const plain = () => {}'
+      expect(extractJSDoc(content, 'plain')).toBe('')
+    })
+
+    test('returns empty string for missing symbol', () => {
+      const content = '/** Has doc. */\nconst other = 1'
+      expect(extractJSDoc(content, 'missing')).toBe('')
+    })
+
+    test('extracts JSDoc before interface', () => {
+      const content = '/** Config options. */\ninterface MyConfig { x: number }'
+      expect(extractJSDoc(content, 'MyConfig')).toBe('Config options.')
+    })
+
+    test('extracts JSDoc before type alias', () => {
+      const content = '/** A union type. */\ntype Status = "ok" | "error"'
+      expect(extractJSDoc(content, 'Status')).toBe('A union type.')
+    })
+  })
+
+  describe('resolveReExports', () => {
+    test('parses named re-exports', () => {
+      const content = `export { useBulkSelection } from './use-bulk-selection'`,
+        result = resolveReExports(content)
+      expect(result).toHaveLength(1)
+      expect(result[0]?.symbol).toBe('useBulkSelection')
+      expect(result[0]?.sourcePath).toBe('./use-bulk-selection')
+      expect(result[0]?.isDefault).toBe(false)
+      expect(result[0]?.isType).toBe(false)
+    })
+
+    test('parses default as re-exports', () => {
+      const content = `export { default as LazyConvexDevtools } from './devtools-panel'`,
+        result = resolveReExports(content)
+      expect(result).toHaveLength(1)
+      expect(result[0]?.symbol).toBe('LazyConvexDevtools')
+      expect(result[0]?.isDefault).toBe(true)
+    })
+
+    test('parses type re-exports', () => {
+      const content = `export type { DevtoolsProps } from './devtools-panel'`,
+        result = resolveReExports(content)
+      expect(result).toHaveLength(1)
+      expect(result[0]?.symbol).toBe('DevtoolsProps')
+      expect(result[0]?.isType).toBe(true)
+    })
+
+    test('parses multiple re-exports', () => {
+      const content = [
+          `export { useBulkSelection } from './use-bulk-selection'`,
+          `export { default as LazyConvexDevtools } from './devtools-panel'`,
+          `export type { DevtoolsProps } from './devtools-panel'`
+        ].join('\n'),
+        result = resolveReExports(content)
+      expect(result).toHaveLength(3)
+    })
+
+    test('returns empty for content without re-exports', () => {
+      expect(resolveReExports('const x = 1')).toEqual([])
+    })
+  })
+})
+
+describe('doctor', () => {
+  test('checkRateLimit — all have rateLimit', () => {
+    const calls: FactoryCall[] = [
+      { factory: 'crud', file: 'blog.ts', options: '{ rateLimit: {} }', table: 'blog' },
+      { factory: 'orgCrud', file: 'wiki.ts', options: '{ rateLimit: {} }', table: 'wiki' }
+    ]
+    expect(checkRateLimit(calls).status).toBe('pass')
+  })
+
+  test('checkRateLimit — some missing', () => {
+    const calls: FactoryCall[] = [
+      { factory: 'crud', file: 'blog.ts', options: '{ rateLimit: {} }', table: 'blog' },
+      { factory: 'crud', file: 'post.ts', options: '{}', table: 'post' }
+    ]
+    expect(checkRateLimit(calls).status).toBe('warn')
+  })
+
+  test('checkRateLimit — singletonCrud/cacheCrud skipped', () => {
+    const calls: FactoryCall[] = [
+      { factory: 'singletonCrud', file: 'p.ts', options: '', table: 'profile' },
+      { factory: 'cacheCrud', file: 'm.ts', options: '', table: 'movie' }
+    ]
+    expect(checkRateLimit(calls).status).toBe('pass')
+  })
+
+  test('checkEslintContent — with plugin', () => {
+    expect(checkEslintContent("import { recommended } from 'lazyconvex/eslint'").status).toBe('pass')
+  })
+
+  test('checkEslintContent — without plugin', () => {
+    expect(checkEslintContent('export default []').status).toBe('warn')
+  })
+
+  test('checkEslintContent — no file', () => {
+    expect(checkEslintContent().status).toBe('warn')
+  })
+
+  test('checkDeps — all present', () => {
+    expect(checkDeps({ dependencies: { convex: '1', lazyconvex: '2', zod: '3' } }).status).toBe('pass')
+  })
+
+  test('checkDeps — missing dep is fail', () => {
+    expect(checkDeps({ dependencies: { convex: '1', zod: '3' } }).status).toBe('fail')
+  })
+
+  test('checkDeps — devDependencies count', () => {
+    expect(checkDeps({ devDependencies: { convex: '1', lazyconvex: '2', zod: '3' } }).status).toBe('pass')
+  })
+
+  test('checkDeps — no package.json', () => {
+    expect(checkDeps().status).toBe('fail')
+  })
+
+  test('calcHealthScore — all pass', () => {
+    const results: CheckResult[] = [
+      { details: [], status: 'pass', title: 'A' },
+      { details: [], status: 'pass', title: 'B' }
+    ]
+    expect(calcHealthScore(results)).toBe(100)
+  })
+
+  test('calcHealthScore — warn deducts 5', () => {
+    expect(calcHealthScore([{ details: [], status: 'warn', title: 'W' }])).toBe(95)
+  })
+
+  test('calcHealthScore — fail deducts 15', () => {
+    expect(calcHealthScore([{ details: [], status: 'fail', title: 'F' }])).toBe(85)
+  })
+
+  test('calcHealthScore — minimum is 0', () => {
+    const fails: CheckResult[] = []
+    for (let i = 0; i < 10; i += 1) fails.push({ details: [], status: 'fail', title: `F${i}` })
+    expect(calcHealthScore(fails)).toBe(0)
   })
 })

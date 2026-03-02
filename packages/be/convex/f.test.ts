@@ -2699,3 +2699,129 @@ describe('mobileAi chat action', () => {
     expect(result.text).toContain('mock AI assistant')
   })
 })
+
+describe('custom blog endpoints (pq/q/m)', () => {
+  test('postStats returns category counts', async () => {
+    const ctx = t(),
+      { userIds } = await createTestContext(ctx),
+      [userId] = userIds
+
+    await ctx.run(async c => {
+      await c.db.insert('blog', {
+        category: 'tech',
+        content: 'Tech post 1',
+        published: true,
+        title: 'Tech 1',
+        updatedAt: Date.now(),
+        userId
+      })
+      await c.db.insert('blog', {
+        category: 'tech',
+        content: 'Tech post 2',
+        published: true,
+        title: 'Tech 2',
+        updatedAt: Date.now(),
+        userId
+      })
+      await c.db.insert('blog', {
+        category: 'life',
+        content: 'Life post 1',
+        published: true,
+        title: 'Life 1',
+        updatedAt: Date.now(),
+        userId
+      })
+    })
+
+    const stats = await ctx.query(api.blog.postStats, {})
+    expect(stats.length).toBe(2)
+    const techStat = stats.find((s: { category: string }) => s.category === 'tech'),
+      lifeStat = stats.find((s: { category: string }) => s.category === 'life')
+    expect((techStat as { count: number }).count).toBe(2)
+    expect((lifeStat as { count: number }).count).toBe(1)
+  })
+
+  test('authorPosts returns only published posts by user', async () => {
+    const ctx = t(),
+      { userIds } = await createTestContext(ctx),
+      [userId] = userIds
+
+    await ctx.run(async c => {
+      await c.db.insert('blog', {
+        category: 'tech',
+        content: 'Published 1',
+        published: true,
+        title: 'Published 1',
+        updatedAt: Date.now(),
+        userId
+      })
+      await c.db.insert('blog', {
+        category: 'life',
+        content: 'Published 2',
+        published: true,
+        title: 'Published 2',
+        updatedAt: Date.now(),
+        userId
+      })
+      await c.db.insert('blog', {
+        category: 'tech',
+        content: 'Draft post',
+        published: false,
+        title: 'Draft',
+        updatedAt: Date.now(),
+        userId
+      })
+    })
+
+    const posts = await ctx.query(api.blog.authorPosts, { userId })
+    expect(posts.length).toBe(2)
+    for (const p of posts) expect((p as Record<string, unknown>).published).toBe(true)
+  })
+
+  test('togglePublish flips the published flag', async () => {
+    const ctx = t(),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId] = userIds,
+      postId = await ctx.run(async c =>
+        c.db.insert('blog', {
+          category: 'tech',
+          content: 'Toggle test',
+          published: false,
+          title: 'Toggle Test',
+          updatedAt: Date.now(),
+          userId
+        })
+      ),
+      first = await asUser(0).mutation(api.blog.togglePublish, { id: postId })
+    expect(first.published).toBe(true)
+
+    const second = await asUser(0).mutation(api.blog.togglePublish, { id: postId })
+    expect(second.published).toBe(false)
+  })
+
+  test('togglePublish rejects non-owner', async () => {
+    const ctx = t(),
+      { asUser, userIds } = await createTestContext(ctx),
+      [userId1] = userIds,
+      postId = await ctx.run(async c =>
+        c.db.insert('blog', {
+          category: 'tech',
+          content: 'Not yours',
+          published: false,
+          title: 'Not Yours',
+          updatedAt: Date.now(),
+          userId: userId1
+        })
+      )
+    let threw = false
+
+    try {
+      await asUser(1).mutation(api.blog.togglePublish, { id: postId })
+    } catch (error) {
+      threw = true
+      expect(String(error)).toContain('NOT_OWNER')
+    }
+
+    expect(threw).toBe(true)
+  })
+})

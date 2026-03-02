@@ -201,11 +201,140 @@ const dim = (s: string) => `\u001B[2m${s}\u001B[0m`,
     }
     return lines.join('\n')
   },
+  reExportPat = /export\s+(?<typeKw>type\s+)?\{\s*(?<sym>(?:default\s+as\s+)?\w+)\s*\}\s*from\s*['"](?<src>[^'"]+)['"]/gu,
+  tsExtPat = /\.ts$/u,
+  leadingWsPat = /^\s+/u,
+  trailingWsPat = /\s+$/u,
+  jsdocStarPat = /^\s*\*\s?/gmu,
+  resolveReExports = (
+    indexContent: string
+  ): { isDefault: boolean; isType: boolean; sourcePath: string; symbol: string }[] => {
+    const results: { isDefault: boolean; isType: boolean; sourcePath: string; symbol: string }[] = []
+    let m = reExportPat.exec(indexContent)
+    while (m) {
+      const raw = m.groups?.sym ?? '',
+        src = m.groups?.src ?? '',
+        isType = (m.groups?.typeKw ?? '').trim() === 'type',
+        isDefault = raw.startsWith('default as'),
+        symbol = isDefault ? raw.replace('default as ', '').trim() : raw.trim()
+      if (symbol && src) results.push({ isDefault, isType, sourcePath: src, symbol })
+      m = reExportPat.exec(indexContent)
+    }
+    reExportPat.lastIndex = 0
+    return results
+  },
+  extractJSDoc = (fileContent: string, symbolName: string): string => {
+    const escaped = symbolName.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`),
+      patterns = [
+        new RegExp(`/\\*\\*([\\s\\S]*?)\\*/\\s*(?:export\\s+)?const\\s+${escaped}\\b`, 'u'),
+        new RegExp(`/\\*\\*([\\s\\S]*?)\\*/\\s*(?:export\\s+)?interface\\s+${escaped}\\b`, 'u'),
+        new RegExp(`/\\*\\*([\\s\\S]*?)\\*/\\s*(?:export\\s+)?type\\s+${escaped}\\b`, 'u')
+      ]
+    for (const pat of patterns) {
+      const match = pat.exec(fileContent)
+      if (match?.[1]) {
+        const raw = match[1].replace(jsdocStarPat, '').replace(leadingWsPat, '').replace(trailingWsPat, '')
+        if (raw) return raw
+      }
+    }
+    return ''
+  },
+  extractSignature = (fileContent: string, symbolName: string): string => {
+    const escaped = symbolName.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`),
+      constPat = new RegExp(`const\\s+${escaped}\\s*(?::\\s*([^=]+))?=\\s*(.+)`, 'u'),
+      constMatch = constPat.exec(fileContent)
+    if (constMatch) {
+      const annotation = constMatch[1]?.trim()
+      if (annotation) return annotation
+      const rhs = constMatch[2]?.trim() ?? '',
+        arrowIdx = rhs.indexOf('=>')
+      if (arrowIdx > 0) {
+        const params = rhs.slice(0, arrowIdx).trim()
+        if (params.startsWith('(')) return `${params} => ...`
+      }
+    }
+    const ifacePat = new RegExp(`interface\\s+${escaped}\\s*\\{([^}]*)\\}`, 'u'),
+      ifaceMatch = ifacePat.exec(fileContent)
+    if (ifaceMatch?.[1]) {
+      const keys: string[] = [],
+        fieldPat = /^\s*(?<field>\w+)\s*[:(]/gmu
+      let fm = fieldPat.exec(ifaceMatch[1])
+      while (fm) {
+        if (fm.groups?.field) keys.push(fm.groups.field)
+        fm = fieldPat.exec(ifaceMatch[1])
+      }
+      if (keys.length) return `{ ${keys.join(', ')} }`
+    }
+    return ''
+  },
+  ENTRY_POINTS: { label: string; path: string }[] = [
+    { label: 'lazyconvex', path: 'index.ts' },
+    { label: 'lazyconvex/schema', path: 'schema.ts' },
+    { label: 'lazyconvex/react', path: 'react/index.ts' },
+    { label: 'lazyconvex/server', path: 'server/index.ts' },
+    { label: 'lazyconvex/components', path: 'components/index.ts' },
+    { label: 'lazyconvex/next', path: 'next/index.ts' },
+    { label: 'lazyconvex/zod', path: 'zod.ts' },
+    { label: 'lazyconvex/seed', path: 'seed.ts' },
+    { label: 'lazyconvex/retry', path: 'retry.ts' },
+    { label: 'lazyconvex/eslint', path: 'eslint.ts' },
+    { label: 'lazyconvex/test', path: 'server/test.ts' }
+  ],
+  processEntryPoint = (ep: { label: string; path: string }, srcDir: string, lines: string[]): number => {
+    const indexPath = join(srcDir, ep.path)
+    if (!existsSync(indexPath)) return 0
+    const indexContent = readFileSync(indexPath, 'utf8'),
+      reExports = resolveReExports(indexContent)
+    if (!reExports.length) return 0
+    lines.push(`## ${ep.label}`, '')
+    lines.push('| Export | Kind | Description | Signature |')
+    lines.push('|--------|------|-------------|-----------|')
+    let count = 0
+    for (const re of reExports) {
+      const sourceFile = join(dirname(indexPath), `${re.sourcePath.replace(tsExtPat, '')}.ts`)
+      let doc = '',
+        sig = ''
+      if (existsSync(sourceFile)) {
+        const src = readFileSync(sourceFile, 'utf8')
+        doc = extractJSDoc(src, re.symbol)
+        sig = extractSignature(src, re.symbol)
+      }
+      if (!doc) doc = extractJSDoc(indexContent, re.symbol)
+      if (!sig) sig = extractSignature(indexContent, re.symbol)
+      const kind = re.isType ? 'type' : re.isDefault ? 'default' : 'named'
+      lines.push(`| \`${re.symbol}\` | ${kind} | ${doc} | ${sig ? `\`${sig}\`` : ''} |`)
+      count += 1
+    }
+    lines.push('')
+    return count
+  },
+  generateFullReference = (srcDir: string): string => {
+    const lines: string[] = [
+      '# lazyconvex \u2014 Full API Reference',
+      '',
+      '*Auto-generated by `lazyconvex docs --full`*',
+      ''
+    ]
+    let totalSymbols = 0
+    for (const ep of ENTRY_POINTS) totalSymbols += processEntryPoint(ep, srcDir, lines)
+    lines.push('---', '', `**${totalSymbols} exports** across ${ENTRY_POINTS.length} entry points.`)
+    return lines.join('\n')
+  },
   run = () => {
     const root = process.cwd(),
       flags = new Set(process.argv.slice(2))
 
     console.log(bold('\nlazyconvex docs\n'))
+
+    if (flags.has('--full')) {
+      const srcDir = join(root, 'src')
+      if (!existsSync(srcDir)) {
+        console.log(red('\u2717 Could not find src/ directory'))
+        process.exit(1)
+      }
+      console.log(generateFullReference(srcDir))
+      return
+    }
 
     const convexDir = findConvexDir(root)
     if (!convexDir) {
@@ -250,4 +379,4 @@ const dim = (s: string) => `\u001B[2m${s}\u001B[0m`,
 
 if (import.meta.main) run()
 
-export { generateMarkdown }
+export { extractJSDoc, generateFullReference, generateMarkdown, resolveReExports }

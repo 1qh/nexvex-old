@@ -23,6 +23,7 @@ export default defineSchema({
   ...({
     blog: ownedTable(owned.blog)
       .index('by_published', ['published'])
+      .index('by_category', ['category'])
       .searchIndex('search_field', { searchField: 'content' as never }),
     chat: ownedTable(owned.chat)
   } satisfies Record<keyof typeof owned, ReturnType<typeof ownedTable>>),

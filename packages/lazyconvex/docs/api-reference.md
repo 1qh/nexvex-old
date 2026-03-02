@@ -42,3 +42,15 @@ handleConvexError(error, {
 - **Bulk operations cap at 100 items** per call.
 - **CRUD factories use `as never` casts** at the Zod↔Convex type boundary internally. Consumer code is fully typesafe; boundaries are covered by 396 library unit tests.
 - **`anyApi` Proxy accepts arbitrary property names at runtime** — Convex's generated `api` object is typed as `FilterApi<typeof fullApi, ...>` (strict), but the runtime value is `anyApi` — a `Proxy` with `[key: string]` index signatures. TypeScript won't flag `api.blogprofile` (wrong casing) even if only `api.blogProfile` exists. Typos in module paths silently construct invalid function references that crash at runtime. Rely on E2E tests and Convex deploy errors to catch these.
+
+## Schema Playground
+
+Interactive component for previewing how schemas map to generated endpoints:
+
+![Schema playground](assets/schema-playground.png)
+
+```tsx
+import { SchemaPlayground } from 'lazyconvex/react'
+
+<SchemaPlayground className='my-8' />
+```

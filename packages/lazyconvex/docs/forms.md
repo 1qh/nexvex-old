@@ -40,6 +40,8 @@ What's happening:
 - `Toggle` knows `published` is a boolean field — using `<Text name='published' />` would be a type error
 - Zod validation runs on submit — `title.min(1)` enforces non-empty
 
+![Field type errors](assets/field-errors.png)
+
 ## 2. Add file upload
 
 Your schema has `coverImage: cvFile().nullable().optional()`. The `File` field handles upload automatically:

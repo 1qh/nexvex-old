@@ -158,3 +158,19 @@ crud('blog', owned.blog, { rateLimit: { max: 10, window: 60_000 } })
 ```
 
 `max` requests per `window` (ms) per authenticated user. Uses a single-row sliding window counter per user+table (no write amplification). Returns `RATE_LIMITED` error code when exceeded. Requires `...rateLimitTable()` in schema.
+
+## Browser Devtools Panel
+
+In dev mode, the devtools panel auto-mounts inside `<Form>` components. It tracks subscriptions, mutations, cache, and errors in real time.
+
+![Devtools button in app](assets/devtools-button.png)
+
+![Devtools panel expanded](assets/devtools-panel.png)
+
+For standalone usage:
+
+```tsx
+import { LazyConvexDevtools } from 'lazyconvex/react'
+
+<LazyConvexDevtools position='bottom-right' defaultTab='subs' />
+```

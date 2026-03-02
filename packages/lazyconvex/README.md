@@ -106,7 +106,7 @@ One line of config. 12 endpoints. Role-based access, editor ACL, soft delete wit
 | Swift codegen — typed native APIs from the same schema | 0 |
 | Typed error handling with discriminated result unions | 0 |
 | Rich error metadata (retryAfter, limit) for rate limiting | 0 |
-| Unified CLI — 7 commands (`init`, `add`, `check`, `codegen-swift`, `docs`, `migrate`, `viz`) | 0 |
+| Unified CLI — 8 commands (`init`, `add`, `check`, `doctor`, `codegen-swift`, `docs`, `migrate`, `viz`) | 0 |
 | Project health score (`lazyconvex check --health`) | 0 |
 | Schema preview (`lazyconvex check --schema`) | 0 |
 | Browser devtools panel (subscriptions, mutations, cache, errors) | 0 |
@@ -122,7 +122,7 @@ One line of config. 12 endpoints. Role-based access, editor ACL, soft delete wit
 | CLI table scaffolding (`lazyconvex add`) | 0 |
 | Live subscription data tracking in devtools | 0 |
 | Descriptive branded type error messages (`AssertSchema`, `SchemaTypeError`) | 0 |
-| ESLint plugin — 15 rules (`api-casing`, `form-field-exists`, `require-rate-limit`, ...) | 0 |
+| ESLint plugin — 16 rules (`api-casing`, `form-field-exists`, `require-rate-limit`, ...) | 0 |
 | Pre-built components (ConflictDialog, AutoSaveIndicator, OfflineIndicator, PermissionGuard) | 0 |
 | React hooks (`useSearch`, `usePresence`, `useBulkSelection`, `useInfiniteList`, ...) | 0 |
 | Server middleware (`composeMiddleware`, `inputSanitize`, `auditLog`, `slowQueryWarn`) | 0 |
@@ -191,6 +191,16 @@ import { SchemaPlayground } from 'lazyconvex/react'
 <SchemaPlayground className='my-8' />
 ```
 
+### CLI: `lazyconvex doctor`
+
+Run project-wide diagnostics with a health score:
+
+```bash
+lazyconvex doctor --convex-dir=convex --schema-file=t.ts
+```
+
+Checks 7 categories: schema consistency, endpoint coverage, index coverage, access levels, rate limiting, ESLint config, and dependency versions. Outputs pass/warn/fail for each check with a health score from 0–100.
+
 ### CLI: `lazyconvex add`
 
 Scaffold a new table with schema, endpoint, and page component in one command:
@@ -207,7 +217,7 @@ Generates 3 files per table: `convex/<name>-schema.ts`, `convex/<name>.ts`, `src
 
 ### ESLint Plugin
 
-15 rules to catch common mistakes at lint time:
+16 rules to catch common mistakes at lint time:
 
 ```js
 import { recommended } from 'lazyconvex/eslint'
@@ -218,6 +228,7 @@ export default [recommended]
 | Rule | Severity | What it catches |
 |------|----------|----------------|
 | `api-casing` | error | Wrong casing in `api.moduleName` references |
+| `discovery-check` | warn | Could not find convex/ directory or schema file |
 | `consistent-crud-naming` | error | CRUD export name doesn't match table |
 | `form-field-exists` | error | `<Text name='typo' />` — field not in schema |
 | `form-field-kind` | warn | `<Text>` on boolean field (should be `<Toggle>`) |
@@ -243,13 +254,13 @@ bun add lazyconvex
 
 | Import | What's inside |
 |--------|--------------|
-| `lazyconvex` | `guardApi` |
-| `lazyconvex/schema` | `makeOwned`, `makeOrgScoped`, `makeBase`, `makeSingleton`, `child`, `cvFile`, `cvFiles` |
+| `lazyconvex` | `guardApi`, `strictApi` |
+| `lazyconvex/schema` | `makeOwned`, `makeOrgScoped`, `makeBase`, `makeSingleton`, `child`, `cvFile`, `cvFiles`, `orgSchema` |
 | `lazyconvex/server` | `setup`, table helpers, `makeOrg`, `makePresence`, `makeFileUpload`, middleware, error handling |
-| `lazyconvex/react` | `useList`, `useSearch`, `usePresence`, `useBulkSelection`, `useMutate`, `LazyConvexDevtools`, `SchemaPlayground`, org hooks |
-| `lazyconvex/components` | `Form`, `ConflictDialog`, `AutoSaveIndicator`, `OfflineIndicator`, `PermissionGuard`, `defineSteps` |
-| `lazyconvex/next` | `getToken`, `isAuthenticated`, `setActiveOrgCookie`, `getActiveOrg`, `makeImageRoute` |
-| `lazyconvex/eslint` | `plugin`, `recommended`, 15 lint rules |
+| `lazyconvex/react` | `useList`, `useSearch`, `usePresence`, `useBulkSelection`, `useMutate`, `useInfiniteList`, `useUpload`, `useSoftDelete`, `useCacheEntry`, `useOptimisticMutation`, `useErrorToast`, `LazyConvexDevtools`, `SchemaPlayground`, org hooks |
+| `lazyconvex/components` | `Form`, `ConflictDialog`, `AutoSaveIndicator`, `OfflineIndicator`, `PermissionGuard`, `ConvexErrorBoundary`, `FileApiProvider`, `OrgAvatar`, `RoleBadge`, `EditorsSection`, `defineSteps` |
+| `lazyconvex/next` | `getToken`, `isAuthenticated`, `setActiveOrgCookie`, `clearActiveOrgCookie`, `getActiveOrg`, `makeImageRoute` |
+| `lazyconvex/eslint` | `plugin`, `recommended`, 16 lint rules |
 | `lazyconvex/zod` | `unwrapZod`, `cvFileKindOf`, `defaultValues`, `enumToOptions`, `pickValues`, `coerceOptionals` |
 | `lazyconvex/test` | `discoverModules`, `createTestContext`, `makeTestAuth`, `makeOrgTestCrud` |
 | `lazyconvex/seed` | `generateOne`, `generateSeed`, `generateFieldValue` |
@@ -366,12 +377,12 @@ Each wrapper brands schemas at the type level. Passing an owned schema to `orgCr
 
 ## Demo Apps
 
-4 apps × 3 platforms = 12 real-world demos with **1,457 tests** across all platforms:
+4 apps × 3 platforms = 12 real-world demos with **1,486 tests** across all platforms:
 
 | App | What it shows | Backend |
 |-----|---------------|---------|
 | [Movie](https://github.com/1qh/lazyconvex/tree/main/apps/movie) | Cache factory, TMDB integration, no-auth | [movie.ts](https://github.com/1qh/lazyconvex/blob/main/packages/be/convex/movie.ts) |
-| [Blog](https://github.com/1qh/lazyconvex/tree/main/apps/blog) | Owned CRUD, forms, file upload, pagination, profile | [blog.ts](https://github.com/1qh/lazyconvex/blob/main/packages/be/convex/blog.ts) |
+| [Blog](https://github.com/1qh/lazyconvex/tree/main/apps/blog) | Owned CRUD, forms, file upload, pagination, profile, custom pq/q/m escape hatches | [blog.ts](https://github.com/1qh/lazyconvex/blob/main/packages/be/convex/blog.ts) |
 | [Chat](https://github.com/1qh/lazyconvex/tree/main/apps/chat) | Child CRUD, public/auth split, AI streaming | [chat.ts](https://github.com/1qh/lazyconvex/blob/main/packages/be/convex/chat.ts) |
 | [Org](https://github.com/1qh/lazyconvex/tree/main/apps/org) | Multi-tenancy, ACL, soft delete, invites, onboarding | [wiki.ts](https://github.com/1qh/lazyconvex/blob/main/packages/be/convex/wiki.ts) |
 
@@ -382,8 +393,8 @@ Each wrapper brands schemas at the type level. Passing an owned schema to `orgCr
 | Web | Playwright E2E | 220 |
 | Desktop | Swift Testing + XCTest | 32 |
 | Mobile | Maestro (Skip) | 92 |
-| Backend | convex-test | 215 |
-| Library | bun:test | 898 |
+| Backend | convex-test | 219 |
+| Library | bun:test | 923 |
 
 ### Native Apps
 
@@ -425,7 +436,7 @@ The library is independently testable without the demo apps:
 
 ```bash
 cd packages/lazyconvex
-bun test          # 898 library-only tests, no Convex needed
+bun test          # 923 library-only tests, no Convex needed
 bun lint          # library-scoped linting
 bun typecheck     # library-only type checking
 ```

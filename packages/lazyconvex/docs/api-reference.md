@@ -4,13 +4,13 @@
 
 | Module | Key Exports |
 |--------|------------|
-| `lazyconvex` | `strictApi`, `guardApi` |
-| `lazyconvex/server` | `setup`, `ownedTable`, `orgTable`, `baseTable`, `singletonTable`, `childTable`, `orgChildTable`, `orgTables`, `uploadTables`, `rateLimitTable`, `orgCascade`, `ownedCascade`, `canEdit`, `getOrgMember`, `getOrgRole`, `requireOrgMember`, `requireOrgRole`, `handleConvexError`, `getErrorCode`, `getErrorMessage`, `checkRateLimit`, `checkSchema`, `makeOrg`, `makeFileUpload` |
-| `lazyconvex/test` | `makeTestAuth`, `makeOrgTestCrud`, `getOrgMembership`, `discoverModules`, `createTestContext`, `isTestMode` |
-| `lazyconvex/react` | `createOrgHooks`, `useForm`, `useFormMutation`, `useList`, `useOptimisticMutation`, `useSoftDelete`, `useUpload`, `useBulkSelection`, `useOnlineStatus`, `OrgProvider`, `useOrg`, `useActiveOrg`, `useMyOrgs`, `useOrgQuery`, `useOrgMutation`, `canEditResource`, `buildMeta`, `getMeta`, `useDevErrors`, `LazyConvexDevtools`, `useErrorToast`, `makeErrorHandler` |
+| `lazyconvex` | `guardApi`, `strictApi` |
+| `lazyconvex/server` | `setup`, `ownedTable`, `orgTable`, `baseTable`, `singletonTable`, `childTable`, `orgChildTable`, `orgTables`, `uploadTables`, `rateLimitTable`, `orgCascade`, `ownedCascade`, `canEdit`, `getOrgMember`, `getOrgRole`, `requireOrgMember`, `requireOrgRole`, `handleConvexError`, `getErrorCode`, `getErrorMessage`, `getErrorDetail`, `extractErrorData`, `isErrorCode`, `isMutationError`, `isRecord`, `matchError`, `checkRateLimit`, `checkSchema`, `makeOrg`, `makeFileUpload`, `makePresence`, `presenceTable`, `err`, `ok`, `fail`, `time`, `composeMiddleware`, `auditLog`, `inputSanitize`, `slowQueryWarn` |
+| `lazyconvex/test` | `makeTestAuth`, `makeOrgTestCrud`, `getOrgMembership`, `discoverModules`, `createTestContext`, `isTestMode`, `TEST_EMAIL` |
+| `lazyconvex/react` | `createOrgHooks`, `useForm`, `useFormMutation`, `useList`, `useSearch`, `useInfiniteList`, `usePresence`, `useOptimisticMutation`, `useSoftDelete`, `useUpload`, `useBulkSelection`, `useCacheEntry`, `useMutate`, `useOnlineStatus`, `useErrorToast`, `makeErrorHandler`, `OrgProvider`, `OptimisticProvider`, `useOrg`, `useActiveOrg`, `useMyOrgs`, `useOrgQuery`, `useOrgMutation`, `canEditResource`, `setActiveOrgCookieClient`, `buildMeta`, `getMeta`, `useDevErrors`, `LazyConvexDevtools`, `SchemaPlayground`, `usePendingMutations`, `defaultOnError` |
 | `lazyconvex/components` | `Form`, `defineSteps`, `EditorsSection`, `PermissionGuard`, `OfflineIndicator`, `OrgAvatar`, `RoleBadge`, `AutoSaveIndicator`, `ConflictDialog`, `ConvexErrorBoundary`, `FileApiProvider` |
 | `lazyconvex/schema` | `child`, `cvFile`, `cvFiles`, `makeBase`, `makeOrgScoped`, `makeOwned`, `makeSingleton`, `orgSchema` |
-| `lazyconvex/zod` | `pickValues`, `defaultValues`, `enumToOptions` |
+| `lazyconvex/zod` | `unwrapZod`, `cvFileKindOf`, `cvMetaOf`, `defaultValue`, `defaultValues`, `elementOf`, `enumToOptions`, `isArrayType`, `isBooleanType`, `isDateType`, `isNumberType`, `isOptionalField`, `isStringType`, `pickValues`, `coerceOptionals`, `requiredPartial` |
 | `lazyconvex/next` | `getActiveOrg`, `setActiveOrgCookie`, `clearActiveOrgCookie`, `getToken`, `isAuthenticated`, `makeImageRoute` |
 | `lazyconvex/retry` | `withRetry`, `fetchWithRetry` |
 
@@ -24,6 +24,14 @@
 | `CONFLICT` | Concurrent edit detected |
 | `RATE_LIMITED` | Too many requests |
 | `EDITOR_REQUIRED` | ACL edit permission required |
+| `FILE_TOO_LARGE` | File exceeds size limit |
+| `INVALID_FILE_TYPE` | File type not in allowlist |
+| `VALIDATION_FAILED` | Zod validation error |
+| `INSUFFICIENT_ORG_ROLE` | User lacks required org role |
+| `ALREADY_ORG_MEMBER` | User is already an org member |
+| `INVITE_EXPIRED` | Invite token has expired |
+| `INVALID_INVITE` | Invite token is invalid |
+| `ORG_SLUG_TAKEN` | Org slug already in use |
 
 ```tsx
 import { handleConvexError } from 'lazyconvex/server'

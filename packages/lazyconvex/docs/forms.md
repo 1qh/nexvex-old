@@ -237,3 +237,67 @@ The item disappears immediately. If the server rejects, it reappears with an err
 | `Submit` | — | Submit button with loading state |
 
 All components accept `label`, `placeholder`, `disabled`, and `className` props.
+
+## 9. Error handling
+
+**Validation errors** — Zod validation runs on submit. Field-level errors appear automatically:
+
+```tsx
+const form = useForm({
+  schema: owned.blog,
+  onSubmit: async d => { await create(d); return d }
+})
+```
+
+When `title.min(1)` fails, the `<Text name='title' />` field shows "Required" inline — no manual error wiring needed.
+
+**Mutation errors** — `useMutate` and `useFormMutation` show error toasts by default:
+
+```tsx
+const form = useFormMutation({
+  mutation: api.blog.create,
+  schema: owned.blog,
+})
+```
+
+If the mutation throws, a toast appears automatically. Customize or disable:
+
+```tsx
+const form = useFormMutation({
+  mutation: api.blog.create,
+  schema: owned.blog,
+  onError: e => toast.error(`Failed: ${e.message}`),
+})
+
+const form = useFormMutation({
+  mutation: api.blog.create,
+  schema: owned.blog,
+  onError: false,
+})
+```
+
+**Rate limit errors** — When `RATE_LIMITED` is returned, the default error toast shows "Too many requests". For custom UX:
+
+```tsx
+import { handleConvexError } from 'lazyconvex/server'
+
+const form = useFormMutation({
+  mutation: api.blog.create,
+  schema: owned.blog,
+  onError: e => handleConvexError(e, {
+    RATE_LIMITED: () => toast.error('Slow down — try again in a minute'),
+    CONFLICT: () => toast.error('Someone else edited this'),
+    default: () => toast.error('Something went wrong'),
+  }),
+})
+```
+
+**Error boundary** — Wrap pages with `ConvexErrorBoundary` to catch unhandled errors:
+
+```tsx
+import { ConvexErrorBoundary } from 'lazyconvex/components'
+
+<ConvexErrorBoundary>
+  <BlogEditor />
+</ConvexErrorBoundary>
+```

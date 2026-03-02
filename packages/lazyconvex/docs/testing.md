@@ -91,3 +91,168 @@ Set `CONVEX_TEST_MODE=true` when running tests:
   }
 }
 ```
+
+## Testing Soft Delete and Restore
+
+Tables with `softDelete: true` don't delete documents — they set `deletedAt`. The `restore` endpoint reverses this.
+
+```tsx
+test('soft delete and restore', async () => {
+  const ctx = convexTest(schema, modules)
+  const userId = await ctx.run(async c =>
+    c.db.insert('users', { email: 'test@example.com', emailVerificationTime: Date.now() })
+  )
+  const asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+
+  const id = await asUser.mutation(api.wiki.create, {
+    orgId, slug: 'test', status: 'draft', title: 'Test'
+  })
+
+  await asUser.mutation(api.wiki.rm, { id, orgId })
+
+  const deleted = await asUser.query(api.wiki.read, { id, orgId })
+  expect(deleted.deletedAt).toBeDefined()
+
+  await asUser.mutation(api.wiki.restore, { id, orgId })
+
+  const restored = await asUser.query(api.wiki.read, { id, orgId })
+  expect(restored.deletedAt).toBeUndefined()
+})
+```
+
+## Testing Rate Limiting
+
+Rate limiting is skipped when `CONVEX_TEST_MODE=true`. To test rate limits, either unset the env var or test against a deployed backend.
+
+```tsx
+test('rate limit blocks excessive requests', async () => {
+  const ctx = convexTest(schema, modules)
+  const userId = await ctx.run(async c =>
+    c.db.insert('users', { email: 'test@example.com', emailVerificationTime: Date.now() })
+  )
+  const asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+
+  for (let i = 0; i < 10; i++) {
+    await asUser.mutation(api.blog.create, {
+      title: `Post ${String(i)}`, content: 'Content', category: 'tech', published: true
+    })
+  }
+
+  let threw = false
+  try {
+    await asUser.mutation(api.blog.create, {
+      title: 'One too many', content: 'Content', category: 'tech', published: true
+    })
+  } catch (error) {
+    threw = true
+    expect(String(error)).toContain('RATE_LIMITED')
+  }
+  expect(threw).toBe(true)
+})
+```
+
+Note: this test only works when `CONVEX_TEST_MODE` is NOT set. `isTestMode()` bypasses rate limits, so the 11th request will succeed in test mode.
+
+## Testing Search
+
+Search tests require the `searchIndex` to be defined in your schema. `convex-test` supports search indexes — results match the same behavior as production.
+
+```tsx
+test('search returns matching results', async () => {
+  const ctx = convexTest(schema, modules)
+  const userId = await ctx.run(async c =>
+    c.db.insert('users', { email: 'test@example.com', emailVerificationTime: Date.now() })
+  )
+  const asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+
+  await asUser.mutation(api.blog.create, {
+    title: 'TypeScript Guide', content: 'Learn TypeScript basics', category: 'tech', published: true
+  })
+  await asUser.mutation(api.blog.create, {
+    title: 'Cooking Tips', content: 'Best pasta recipes', category: 'life', published: true
+  })
+
+  const results = await asUser.query(api.blog.search, { query: 'TypeScript' })
+  expect(results.length).toBe(1)
+  expect(results[0]?.title).toBe('TypeScript Guide')
+})
+```
+
+## Testing Error Cases
+
+Test both authorization (wrong user) and authentication (no user) failures to ensure your endpoints reject invalid access.
+
+```tsx
+test('update fails on non-owned document', async () => {
+  const ctx = convexTest(schema, modules)
+  const owner = await ctx.run(async c =>
+    c.db.insert('users', { email: 'owner@test.com', emailVerificationTime: Date.now() })
+  )
+  const other = await ctx.run(async c =>
+    c.db.insert('users', { email: 'other@test.com', emailVerificationTime: Date.now() })
+  )
+
+  const asOwner = ctx.withIdentity({ subject: owner, tokenIdentifier: `test|${owner}` })
+  const asOther = ctx.withIdentity({ subject: other, tokenIdentifier: `test|${other}` })
+
+  const id = await asOwner.mutation(api.blog.create, {
+    title: 'My Post', content: 'Content', category: 'tech', published: true
+  })
+
+  let threw = false
+  try {
+    await asOther.mutation(api.blog.update, { id, title: 'Hacked' })
+  } catch (error) {
+    threw = true
+    expect(String(error)).toContain('NOT_FOUND')
+  }
+  expect(threw).toBe(true)
+})
+
+test('unauthenticated access throws', async () => {
+  const ctx = convexTest(schema, modules)
+  let threw = false
+  try {
+    await ctx.mutation(api.blog.create, {
+      title: 'No Auth', content: 'Content', category: 'tech', published: true
+    })
+  } catch (error) {
+    threw = true
+    expect(String(error)).toContain('NOT_AUTHENTICATED')
+  }
+  expect(threw).toBe(true)
+})
+```
+
+## Testing Conflict Detection
+
+Pass `expectedUpdatedAt` to detect when another user has modified a document since you loaded it. The server returns `CONFLICT` if the timestamp doesn't match.
+
+```tsx
+test('concurrent edit triggers conflict', async () => {
+  const ctx = convexTest(schema, modules)
+  const userId = await ctx.run(async c =>
+    c.db.insert('users', { email: 'test@example.com', emailVerificationTime: Date.now() })
+  )
+  const asUser = ctx.withIdentity({ subject: userId, tokenIdentifier: `test|${userId}` })
+
+  const id = await asUser.mutation(api.blog.create, {
+    title: 'Original', content: 'Content', category: 'tech', published: true
+  })
+  const post = await asUser.query(api.blog.read, { id })
+  const staleTimestamp = post?.updatedAt
+
+  await asUser.mutation(api.blog.update, { id, title: 'Updated by user A' })
+
+  let threw = false
+  try {
+    await asUser.mutation(api.blog.update, {
+      id, title: 'Updated by user B', expectedUpdatedAt: staleTimestamp
+    })
+  } catch (error) {
+    threw = true
+    expect(String(error)).toContain('CONFLICT')
+  }
+  expect(threw).toBe(true)
+})
+```

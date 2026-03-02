@@ -43,6 +43,48 @@ handleConvexError(error, {
 })
 ```
 
+### Error Categories
+
+| Category | Codes | Client action |
+|----------|-------|---------------|
+| Retryable | `RATE_LIMITED`, `CONFLICT` | Retry after delay or prompt user |
+| Auth | `NOT_AUTHENTICATED`, `NOT_AUTHORIZED`, `INSUFFICIENT_ORG_ROLE` | Redirect to login or show permission UI |
+| Validation | `VALIDATION_FAILED`, `INVALID_WHERE` | Show field-level errors |
+| Not found | `NOT_FOUND`, `FILE_NOT_FOUND` | Show 404 or remove from UI |
+| Org | `ALREADY_ORG_MEMBER`, `INVITE_EXPIRED`, `INVALID_INVITE`, `ORG_SLUG_TAKEN` | Show contextual message |
+
+### Rate Limit Metadata
+
+When `RATE_LIMITED` is thrown, the error includes metadata with retry timing:
+
+```tsx
+import { getErrorDetail } from 'lazyconvex/server'
+
+handleConvexError(error, {
+  RATE_LIMITED: e => {
+    const detail = getErrorDetail(e)
+    if (detail?.retryAfter) {
+      toast.error(`Too many requests. Try again in ${Math.ceil(detail.retryAfter / 1000)}s`)
+    }
+  }
+})
+```
+
+### Error Boundary
+
+```tsx
+import { ConvexErrorBoundary } from 'lazyconvex/components'
+
+<ConvexErrorBoundary fallback={({ error, reset }) => (
+  <div>
+    <p>Something went wrong</p>
+    <button onClick={reset}>Try again</button>
+  </div>
+)}>
+  <App />
+</ConvexErrorBoundary>
+```
+
 ## Known Limitations
 
 - **Where clauses use runtime filtering** — `$gt`, `$lt`, `$between`, `or` use `.filter()`, not index lookups. Fine for <1,000 docs. For high-volume tables, use `pubIndexed`/`authIndexed` with Convex indexes. Pass `strictFilter: true` to `setup()` to throw instead of warn.

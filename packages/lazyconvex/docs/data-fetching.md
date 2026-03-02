@@ -159,6 +159,38 @@ crud('blog', owned.blog, { rateLimit: { max: 10, window: 60_000 } })
 
 `max` requests per `window` (ms) per authenticated user. Uses a single-row sliding window counter per user+table (no write amplification). Returns `RATE_LIMITED` error code when exceeded. Requires `...rateLimitTable()` in schema.
 
+## Performance & Scaling
+
+Where clauses (`$gt`, `$lt`, `$between`, `or`) use `.filter()` at the application level, not database indexes. This works well up to ~1,000 documents per table. Beyond that, queries slow down proportionally — Convex scans all rows then filters in-memory.
+
+| Query pattern | Uses index? | Scales to |
+|--------------|-------------|-----------|
+| `{ own: true }` | Yes (`by_user`) | Millions |
+| `{ category: 'tech' }` | No (runtime filter) | ~1,000 docs |
+| `{ price: { $gte: 100 } }` | No (runtime filter) | ~1,000 docs |
+| `{ or: [...] }` | No (runtime filter) | ~1,000 docs |
+| `pubIndexed` / `authIndexed` | Yes (custom index) | Millions |
+
+For high-volume tables, add Convex indexes and use `pubIndexed`/`authIndexed` instead of where clauses:
+
+```tsx
+blog: ownedTable(owned.blog).index('by_category', ['category'])
+
+const techPosts = useQuery(api.blog.pubIndexed, {
+  index: 'by_category', key: 'category', value: 'tech'
+})
+```
+
+Enable `strictFilter: true` in `setup()` to throw instead of warn when a filter set exceeds 1,000 docs. Recommended in production.
+
+Pagination best practices:
+
+- Start with small page sizes (`numItems: 20`)
+- `useList` handles cursor management and `loadMore` automatically
+- Avoid `.collect()` on large tables in custom queries
+
+Convex subscriptions are cleaned up automatically when components unmount. For manual subscriptions in custom hooks, ensure cleanup in the `useEffect` return.
+
 ## Browser Devtools Panel
 
 In dev mode, the devtools panel auto-mounts inside `<Form>` components. It tracks subscriptions, mutations, cache, and errors in real time.

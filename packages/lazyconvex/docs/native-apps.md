@@ -86,3 +86,57 @@ packages/lazyconvex/  Codegen CLI (codegen-swift.ts)
 ```
 
 All native apps share the same generated `Generated.swift` via SPM dependencies and symlinks.
+
+## Step-by-Step: Adding Swift Support
+
+1. Define your Zod schemas in a schema file (e.g., `convex/t.ts`)
+2. Write your CRUD endpoints using `crud()`, `orgCrud()`, etc.
+3. Run the codegen:
+
+```bash
+bunx lazyconvex codegen-swift \
+  --schema convex/t.ts \
+  --convex convex/ \
+  --output Generated.swift \
+  --mobile-output MobileAPI.swift
+```
+
+4. Add the generated file to your Swift package or Xcode project
+5. Conform your Convex client to `ConvexClientProtocol`
+6. Use the typed API wrappers:
+
+```swift
+let posts: PaginatedResult<Blog> = try await BlogAPI.list(client, numItems: 20)
+try await BlogAPI.create(client, category: .tech, content: "Hello", published: true, title: "Post")
+```
+
+## When Schema Changes
+
+1. Update your Zod schema (add/remove/rename fields)
+2. Re-run `bunx lazyconvex codegen-swift` with the same flags
+3. Swift compiler errors show you every call site that needs updating
+
+```
+error: extra argument 'oldField' in call
+error: missing argument for parameter 'newField' in call
+```
+
+Schema changes surface as compile errors in both TypeScript and Swift. No runtime crashes from stale API calls.
+
+Add codegen to your CI pipeline or as a pre-commit hook:
+
+```bash
+bunx lazyconvex codegen-swift --schema convex/t.ts --convex convex/ --output Generated.swift
+git diff --exit-code Generated.swift || echo "Generated.swift is out of date — run codegen"
+```
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `No such module 'ConvexCore'` | SPM dependency not resolved | Run `swift package resolve` |
+| Codegen produces empty file | Schema file path wrong | Verify `--schema` points to the file exporting `makeOwned()` etc. |
+| Enum case mismatch | Zod enum values changed | Re-run codegen and fix Swift call sites |
+| `Decodable` conformance error | New field added without optional | Make new fields optional in Zod schema or provide defaults |
+| `#if DESKTOP` code not compiling | Missing Swift flag | Add `-DDESKTOP` to your Swift build flags |
+| Mobile subscription not cleaning up | Missing `cancelSubscription` call | Use `cancelSubscription(&subscriptionID)` in cleanup |

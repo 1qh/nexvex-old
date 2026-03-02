@@ -106,7 +106,7 @@ One line of config. 12 endpoints. Role-based access, editor ACL, soft delete wit
 | Swift codegen — typed native APIs from the same schema | 0 |
 | Typed error handling with discriminated result unions | 0 |
 | Rich error metadata (retryAfter, limit) for rate limiting | 0 |
-| Unified CLI (`lazyconvex init`, `add`, `check`, `codegen-swift`) | 0 |
+| Unified CLI — 7 commands (`init`, `add`, `check`, `codegen-swift`, `docs`, `migrate`, `viz`) | 0 |
 | Project health score (`lazyconvex check --health`) | 0 |
 | Schema preview (`lazyconvex check --schema`) | 0 |
 | Browser devtools panel (subscriptions, mutations, cache, errors) | 0 |
@@ -122,7 +122,15 @@ One line of config. 12 endpoints. Role-based access, editor ACL, soft delete wit
 | CLI table scaffolding (`lazyconvex add`) | 0 |
 | Live subscription data tracking in devtools | 0 |
 | Descriptive branded type error messages (`AssertSchema`, `SchemaTypeError`) | 0 |
-
+| ESLint plugin — 15 rules (`api-casing`, `form-field-exists`, `require-rate-limit`, ...) | 0 |
+| Pre-built components (ConflictDialog, AutoSaveIndicator, OfflineIndicator, PermissionGuard) | 0 |
+| React hooks (`useSearch`, `usePresence`, `useBulkSelection`, `useInfiniteList`, ...) | 0 |
+| Server middleware (`composeMiddleware`, `inputSanitize`, `auditLog`, `slowQueryWarn`) | 0 |
+| Next.js server utilities (`getToken`, `setActiveOrgCookie`, `makeImageRoute`) | 0 |
+| Real-time presence tracking (`usePresence`, `makePresence`, `presenceTable`) | 0 |
+| Seed data generation (`generateOne`, `generateSeed`) | 0 |
+| Retry with exponential backoff (`withRetry`, `fetchWithRetry`) | 0 |
+| Zod introspection (`unwrapZod`, `cvFileKindOf`, `defaultValues`, `enumToOptions`, ...) | 0 |
 ## Developer Tools
 
 ### Type Error Messages
@@ -199,11 +207,55 @@ lazyconvex add movie --type=cache --fields="title:string,tmdb_id:number"
 
 Generates 3 files per table: `convex/<name>-schema.ts`, `convex/<name>.ts`, `src/app/<name>/page.tsx`. Skips existing files. Supports all 5 table types (owned, org, singleton, cache, child) with field types `string`, `boolean`, `number`, and `enum()`.
 
+### ESLint Plugin
+
+15 rules to catch common mistakes at lint time:
+
+```js
+import { recommended } from 'lazyconvex/eslint'
+
+export default [recommended]
+```
+
+| Rule | Severity | What it catches |
+|------|----------|----------------|
+| `api-casing` | error | Wrong casing in `api.moduleName` references |
+| `consistent-crud-naming` | error | CRUD export name doesn't match table |
+| `form-field-exists` | error | `<Text name='typo' />` — field not in schema |
+| `form-field-kind` | warn | `<Text>` on boolean field (should be `<Toggle>`) |
+| `no-duplicate-crud` | error | Same table registered in two `crud()` calls |
+| `no-empty-search-config` | error | `search: {}` with no field or index |
+| `no-raw-fetch-in-server-component` | warn | `fetch()` in server component (use action) |
+| `no-unlimited-file-size` | warn | File upload without size limit |
+| `no-unprotected-mutation` | warn | Mutation without rate limiting |
+| `no-unsafe-api-cast` | warn | `api as typeof api` bypassing guard |
+| `prefer-useList` | warn | Raw `useQuery` where `useList` fits |
+| `prefer-useOrgQuery` | warn | `useQuery` where `useOrgQuery` fits |
+| `require-connection` | error | Missing `await connection()` before `preloadQuery` |
+| `require-error-boundary` | warn | Page without `<ConvexErrorBoundary>` |
+| `require-rate-limit` | warn | `crud()` without `rateLimit` option |
+
 ## Install
 
 ```bash
 bun add lazyconvex
 ```
+
+## Entry Points
+
+| Import | What's inside |
+|--------|--------------|
+| `lazyconvex` | `guardApi` |
+| `lazyconvex/schema` | `makeOwned`, `makeOrgScoped`, `makeBase`, `makeSingleton`, `child`, `cvFile`, `cvFiles` |
+| `lazyconvex/server` | `setup`, table helpers, `makeOrg`, `makePresence`, `makeFileUpload`, middleware, error handling |
+| `lazyconvex/react` | `useList`, `useSearch`, `usePresence`, `useBulkSelection`, `useMutate`, `LazyConvexDevtools`, `SchemaPlayground`, org hooks |
+| `lazyconvex/components` | `Form`, `ConflictDialog`, `AutoSaveIndicator`, `OfflineIndicator`, `PermissionGuard`, `defineSteps` |
+| `lazyconvex/next` | `getToken`, `isAuthenticated`, `setActiveOrgCookie`, `getActiveOrg`, `makeImageRoute` |
+| `lazyconvex/eslint` | `plugin`, `recommended`, 15 lint rules |
+| `lazyconvex/zod` | `unwrapZod`, `cvFileKindOf`, `defaultValues`, `enumToOptions`, `pickValues`, `coerceOptionals` |
+| `lazyconvex/test` | `discoverModules`, `createTestContext`, `makeTestAuth`, `makeOrgTestCrud` |
+| `lazyconvex/seed` | `generateOne`, `generateSeed`, `generateFieldValue` |
+| `lazyconvex/retry` | `withRetry`, `fetchWithRetry` |
 
 ## Type Safety
 

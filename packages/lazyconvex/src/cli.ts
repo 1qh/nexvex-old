@@ -8,6 +8,7 @@ const bold = (s: string) => `\u001B[1m${s}\u001B[0m`,
   dim = (s: string) => `\u001B[2m${s}\u001B[0m`,
   red = (s: string) => `\u001B[31m${s}\u001B[0m`,
   COMMANDS: Record<string, { description: string; script: string }> = {
+    add: { description: 'Add a new table/endpoint to your project', script: 'add.ts' },
     check: { description: 'Validate schema/factory consistency', script: 'check.ts' },
     'codegen-swift': { description: 'Generate typed Swift APIs from schema', script: 'codegen-swift.ts' },
     docs: { description: 'Generate API documentation', script: 'docs-gen.ts' },
@@ -33,6 +34,9 @@ else if (!(cmd in COMMANDS)) {
 } else if (cmd === 'init') {
   const { init } = await import('./create')
   init(rest)
+} else if (cmd === 'add') {
+  const { add } = await import('./add')
+  add(rest)
 } else {
   const entry = COMMANDS[cmd]
   if (!entry) process.exit(1)

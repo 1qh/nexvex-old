@@ -422,7 +422,20 @@ type WhereOf<S extends ZodRawShape> = WhereGroupOf<S> & {
 type WithUrls<D> = D & { [K in keyof D as UrlKey<K, D[K]>]: UrlVal<D[K]> }
 // eslint-disable-next-line @typescript-eslint/naming-convention
 declare const __brand: unique symbol
+/** Validates a schema has the expected brand, returning the schema type on success or an error message type on failure. */
+type AssertSchema<T, Expected extends keyof BrandLabelMap> =
+  DetectBrand<T> extends Expected ? T : SchemaTypeError<Expected, DetectBrand<T> & keyof BrandLabelMap>
 type BaseSchema<T extends ZodRawShape> = SchemaBrand<'base'> & ZodObject<T>
+/** Readable brand name for error messages. */
+interface BrandLabelMap {
+  base: 'BaseSchema (from makeBase())'
+  org: 'OrgSchema (from makeOrgScoped())'
+  owned: 'OwnedSchema (from makeOwned())'
+  singleton: 'SingletonSchema (from makeSingleton())'
+  unbranded: 'plain ZodObject (not branded)'
+}
+/** Detects the brand key from a schema type, returning 'unbranded' for plain ZodObject. */
+type DetectBrand<T> = T extends SchemaBrand<infer K> ? K : 'unbranded'
 type OrgSchema<T extends ZodRawShape> = SchemaBrand<'org'> & ZodObject<T>
 /** Minimal user shape used across org operations, containing id, name, email, and image. */
 interface OrgUserLike {
@@ -433,6 +446,7 @@ interface OrgUserLike {
   name?: string
 }
 type OwnedSchema<T extends ZodRawShape> = SchemaBrand<'owned'> & ZodObject<T>
+
 interface SchemaBrand<K extends string> {
   readonly [__brand]: K
   readonly __hint: SchemaHint<K>
@@ -444,6 +458,11 @@ interface SchemaHintMap {
   owned: 'Created by makeOwned() → use crud() + ownedTable()'
   singleton: 'Created by makeSingleton() → use singletonCrud() + singletonTable()'
 }
+/** Produces a descriptive compile-time error message when the wrong schema brand is passed. */
+type SchemaTypeError<
+  Expected extends keyof BrandLabelMap,
+  Got extends keyof BrandLabelMap
+> = `Schema mismatch: expected ${BrandLabelMap[Expected]}, got ${BrandLabelMap[Got]}. ${Expected extends keyof SchemaHintMap ? SchemaHintMap[Expected] : ''}`
 interface SingletonCrudResult<S extends ZodRawShape> {
   get: RegisteredQuery<'public', Rec, null | SingletonDoc<S>>
   upsert: RegisteredMutation<'public', Rec, SingletonDoc<S>>
@@ -458,12 +477,16 @@ export type {
   Ab,
   /** Context object for action functions with query and mutation execution. */
   ActionCtxLike,
+  /** Validates a schema has the expected brand, producing a descriptive error on mismatch. */
+  AssertSchema,
   /** Author information containing user metadata like name, email, and image. */
   AuthorInfo,
   /** Base builders for query and mutation functions. */
   BaseBuilders,
   /** Schema branded as base type for cache CRUD operations. */
   BaseSchema,
+  /** Readable brand labels for error messages. */
+  BrandLabelMap,
   /** Builders for cache CRUD operations. */
   CacheBuilders,
   /** Result type for cache CRUD factory with all generated endpoints. */
@@ -500,6 +523,8 @@ export type {
   DbLike,
   /** Read-only database interface. */
   DbReadLike,
+  /** Detects the brand key ('owned' | 'org' | 'base' | 'singleton' | 'unbranded') from a schema type. */
+  DetectBrand,
   /** Base document type with id, creation time, and update timestamp. */
   DocBase,
   /** Document enriched with author info, ownership flag, and file URLs. */
@@ -561,6 +586,8 @@ export type {
   /** Schema brand marker for type safety. */
   SchemaBrand,
   /** Search builder interface for full-text search. */
+  /** Produces a descriptive compile-time error message for schema brand mismatches. */
+  SchemaTypeError,
   SearchLike,
   /** Configuration for setup function with builders and hooks. */
   SetupConfig,

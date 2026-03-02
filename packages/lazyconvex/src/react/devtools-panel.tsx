@@ -76,7 +76,8 @@ const POSITION_CLASSES: Record<Position, string> = {
     )
   },
   SubRow = ({ sub }: { sub: DevSubscription }) => {
-    const stale = isStale(sub),
+    const [expanded, setExpanded] = useState(false),
+      stale = isStale(sub),
       slow = isSlow(sub),
       statusColor =
         sub.status === 'loaded'
@@ -89,18 +90,46 @@ const POSITION_CLASSES: Record<Position, string> = {
       statusLabel = stale ? 'stale' : sub.status,
       latencyLabel = sub.latencyMs > 0 ? `${sub.latencyMs}ms` : ''
     return (
-      <li className='flex items-center gap-2 border-b border-zinc-800 px-3 py-2 text-xs last:border-b-0'>
-        <span
-          className={`size-1.5 shrink-0 rounded-full ${sub.status === 'loaded' ? (stale ? 'bg-yellow-400' : 'bg-emerald-400') : sub.status === 'error' ? 'bg-red-400' : 'bg-blue-400'}`}
-        />
-        <span className='min-w-0 flex-1 truncate font-mono text-zinc-300'>{sub.query}</span>
-        {latencyLabel ? (
-          <span className={`shrink-0 font-mono tabular-nums ${slow ? 'text-orange-400' : 'text-zinc-500'}`}>
-            {latencyLabel}
-          </span>
+      <li className='border-b border-zinc-800 last:border-b-0'>
+        <button
+          className='flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-800/50'
+          onClick={() => setExpanded(v => !v)}
+          type='button'>
+          <span
+            className={`size-1.5 shrink-0 rounded-full ${sub.status === 'loaded' ? (stale ? 'bg-yellow-400' : 'bg-emerald-400') : sub.status === 'error' ? 'bg-red-400' : 'bg-blue-400'}`}
+          />
+          <span className='min-w-0 flex-1 truncate font-mono text-zinc-300'>{sub.query}</span>
+          {latencyLabel ? (
+            <span className={`shrink-0 font-mono tabular-nums ${slow ? 'text-orange-400' : 'text-zinc-500'}`}>
+              {latencyLabel}
+            </span>
+          ) : null}
+          <span className={`shrink-0 font-mono ${statusColor}`}>{statusLabel}</span>
+          <span className='shrink-0 text-zinc-500 tabular-nums'>{sub.updateCount}x</span>
+          {sub.renderCount > 0 ? (
+            <span className='shrink-0 font-mono text-zinc-600' title='Render count'>
+              R{sub.renderCount}
+            </span>
+          ) : null}
+          {sub.resultCount > 0 ? (
+            <span className='shrink-0 font-mono text-zinc-600' title='Result count'>
+              {sub.resultCount} items
+            </span>
+          ) : null}
+          <span className='shrink-0 text-zinc-500/40'>{expanded ? '\u25B2' : '\u25BC'}</span>
+        </button>
+        {expanded ? (
+          <div className='space-y-1 bg-zinc-900/50 px-3 py-2 text-xs'>
+            <p className='font-mono text-zinc-500'>args: {sub.args}</p>
+            {sub.dataPreview ? (
+              <p className='max-h-32 overflow-y-auto font-mono break-all whitespace-pre-wrap text-zinc-400'>
+                {sub.dataPreview}...
+              </p>
+            ) : (
+              <p className='font-mono text-zinc-600'>No data yet</p>
+            )}
+          </div>
         ) : null}
-        <span className={`shrink-0 font-mono ${statusColor}`}>{statusLabel}</span>
-        <span className='shrink-0 text-zinc-500 tabular-nums'>{sub.updateCount}x</span>
       </li>
     )
   },

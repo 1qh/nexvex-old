@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import type { PendingMutation } from './optimistic-store'
 
-import { trackSubscription, untrackSubscription, updateSubscription } from './devtools'
+import { trackSubscription, untrackSubscription, updateSubscription, updateSubscriptionData } from './devtools'
 import { usePendingMutations } from './optimistic-store'
 
 type ListItems<F extends PaginatedQueryReference> = FunctionReturnType<F>['page']
@@ -95,6 +95,12 @@ const classifyPending = (pending: PendingMutation[]) => {
             : 'loading'
       updateSubscription(subIdRef.current, devStatus)
     }, [status, results])
+
+    useEffect(() => {
+      if (!(isDev && subIdRef.current)) return
+      const preview = results.length > 0 ? JSON.stringify(results[0]).slice(0, 200) : ''
+      updateSubscriptionData(subIdRef.current, results, preview)
+    }, [results])
 
     const items = useMemo(
       () => (isOptimistic ? applyOptimistic(results as Rec[], pending) : results),

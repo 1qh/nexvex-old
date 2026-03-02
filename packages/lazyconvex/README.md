@@ -106,10 +106,10 @@ One line of config. 12 endpoints. Role-based access, editor ACL, soft delete wit
 | Swift codegen — typed native APIs from the same schema | 0 |
 | Typed error handling with discriminated result unions | 0 |
 | Rich error metadata (retryAfter, limit) for rate limiting | 0 |
-| Unified CLI (`lazyconvex init`, `check`, `codegen-swift`) | 0 |
+| Unified CLI (`lazyconvex init`, `add`, `check`, `codegen-swift`) | 0 |
 | Project health score (`lazyconvex check --health`) | 0 |
 | Schema preview (`lazyconvex check --schema`) | 0 |
-| Browser devtools panel (customizable position, tabs) | 0 |
+| Browser devtools panel (subscriptions, mutations, cache, errors) | 0 |
 | Interactive schema playground component | 0 |
 | JSDoc on all public exports | 0 |
 | Auto-derived field labels from field name | 0 |
@@ -119,18 +119,49 @@ One line of config. 12 endpoints. Role-based access, editor ACL, soft delete wit
 | Guarded API wrapper — runtime typo detection | 0 |
 | Test utilities (`discoverModules`, `createTestContext`) | 0 |
 | CLI scaffold with best-practice defaults | 0 |
+| CLI table scaffolding (`lazyconvex add`) | 0 |
+| Live subscription data tracking in devtools | 0 |
+| Descriptive branded type error messages (`AssertSchema`, `SchemaTypeError`) | 0 |
 
 ## Developer Tools
 
 ### Type Error Messages
 
-Schema mismatches surface as clear compile-time errors:
+Schema mismatches surface as clear compile-time errors with descriptive messages:
+
+```tsx
+// Without lazyconvex branded types:
+//   "Type 'ZodObject<...>' is not assignable to 'ZodObject<...>'"
+
+// With lazyconvex AssertSchema:
+//   "Schema mismatch: expected OwnedSchema (from makeOwned()),
+//    got OrgSchema (from makeOrgScoped())."
+```
+
+Use `AssertSchema<T, Expected>` in your own code to enforce schema brands:
+
+```tsx
+import type { AssertSchema, DetectBrand, SchemaTypeError } from 'lazyconvex/server'
+
+type Validated = AssertSchema<typeof mySchema, 'owned'>
+//   ✅ if mySchema is OwnedSchema → resolves to the schema type
+//   ❌ if mySchema is OrgSchema → resolves to descriptive error string
+```
 
 ![Field type errors](docs/assets/field-errors.png)
 
 ### Browser Devtools Panel
 
-In dev mode, the devtools panel auto-mounts inside `<Form>` components — no import needed. For standalone usage or customization:
+In dev mode, the devtools panel auto-mounts inside `<Form>` components — no import needed. The panel tracks:
+
+- **Subscriptions**: Active queries with args, data preview, render count, result count, latency
+- **Mutations**: Name, args, duration, status (pending/success/error)
+- **Cache**: Table, key, hit/miss counts, stale state
+- **Errors**: Full error details with retry info and rate limit metadata
+
+Click any subscription row to expand and inspect its current args and data preview.
+
+For standalone usage or customization:
 
 ![Devtools button in app](docs/assets/devtools-button.png)
 
@@ -139,7 +170,7 @@ In dev mode, the devtools panel auto-mounts inside `<Form>` components — no im
 ```tsx
 import { LazyConvexDevtools } from 'lazyconvex/react'
 
-<LazyConvexDevtools position='bottom-right' defaultTab='errors' />
+<LazyConvexDevtools position='bottom-right' defaultTab='subs' />
 ```
 
 ### Schema Playground
@@ -153,6 +184,20 @@ import { SchemaPlayground } from 'lazyconvex/react'
 
 <SchemaPlayground className='my-8' />
 ```
+
+### CLI: `lazyconvex add`
+
+Scaffold a new table with schema, endpoint, and page component in one command:
+
+```bash
+lazyconvex add todo --fields="title:string,done:boolean"
+lazyconvex add wiki --type=org --fields="title:string,content:string,status:enum(draft,published)"
+lazyconvex add message --type=child --parent=chat --fields="text:string"
+lazyconvex add profile --type=singleton --fields="displayName:string,bio:string?"
+lazyconvex add movie --type=cache --fields="title:string,tmdb_id:number"
+```
+
+Generates 3 files per table: `convex/<name>-schema.ts`, `convex/<name>.ts`, `src/app/<name>/page.tsx`. Skips existing files. Supports all 5 table types (owned, org, singleton, cache, child) with field types `string`, `boolean`, `number`, and `enum()`.
 
 ## Install
 
@@ -253,7 +298,7 @@ Everything works out of the box. Opt out only when needed.
 | Devtools panel | Auto-mounts in dev mode inside forms | Manual `<LazyConvexDevtools>` for customization |
 | File upload warning | Console warning if file fields lack `<FileApiProvider>` | Add the provider |
 | Form data return | Forms auto-return submitted data for reset | Return custom data from `onSubmit` |
-| Devtools tracking | Mutations and cache access tracked in dev panel | Dev mode only |
+| Devtools tracking | Mutations, subscriptions, and cache tracked in dev panel | Dev mode only |
 
 `bunx lazyconvex init` scaffolds new projects with all defaults pre-configured: guarded API wrapper, `FileApiProvider`, `ConvexErrorBoundary`, and commented middleware examples.
 
@@ -271,7 +316,7 @@ Each wrapper brands schemas at the type level. Passing an owned schema to `orgCr
 
 ## Demo Apps
 
-4 apps × 3 platforms = 12 real-world demos with **1,381 tests** across all platforms:
+4 apps × 3 platforms = 12 real-world demos with **1,457 tests** across all platforms:
 
 | App | What it shows | Backend |
 |-----|---------------|---------|
@@ -288,7 +333,7 @@ Each wrapper brands schemas at the type level. Passing an owned schema to `orgCr
 | Desktop | Swift Testing + XCTest | 32 |
 | Mobile | Maestro (Skip) | 92 |
 | Backend | convex-test | 215 |
-| Library | bun:test | 822 |
+| Library | bun:test | 898 |
 
 ### Native Apps
 
@@ -329,7 +374,7 @@ The library is independently testable without the demo apps:
 
 ```bash
 cd packages/lazyconvex
-bun test          # 822 library-only tests, no Convex needed
+bun test          # 898 library-only tests, no Convex needed
 bun lint          # library-scoped linting
 bun typecheck     # library-only type checking
 ```

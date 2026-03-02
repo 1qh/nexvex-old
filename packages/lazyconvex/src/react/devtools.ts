@@ -39,11 +39,14 @@ interface DevMutation {
 /** Tracks a real-time subscription's lifecycle and latency in devtools. */
 interface DevSubscription {
   args: string
+  dataPreview: string
   firstResultAt: number
   id: number
   lastUpdate: number
   latencyMs: number
   query: string
+  renderCount: number
+  resultCount: number
   startedAt: number
   status: 'error' | 'loaded' | 'loading'
   updateCount: number
@@ -92,11 +95,14 @@ const notify = () => {
     nextId += 1
     subStore.set(id, {
       args: args ? JSON.stringify(args) : '{}',
+      dataPreview: '',
       firstResultAt: 0,
       id,
       lastUpdate: 0,
       latencyMs: 0,
       query,
+      renderCount: 0,
+      resultCount: 0,
       startedAt: Date.now(),
       status: 'loading',
       updateCount: 0
@@ -121,6 +127,15 @@ const notify = () => {
   /** Removes a subscription from devtools tracking. */
   untrackSubscription = (id: number) => {
     subStore.delete(id)
+    notify()
+  },
+  /** Updates the data preview for a tracked subscription. */
+  updateSubscriptionData = (id: number, data: unknown[], preview: string) => {
+    const sub = subStore.get(id)
+    if (!sub) return
+    sub.dataPreview = preview
+    sub.resultCount = data.length
+    sub.renderCount += 1
     notify()
   },
   /** Begins tracking a mutation in devtools, returns its tracking ID. */
@@ -212,5 +227,6 @@ export {
   trackSubscription,
   untrackSubscription,
   updateSubscription,
+  updateSubscriptionData,
   useDevErrors
 }

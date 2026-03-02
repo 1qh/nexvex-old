@@ -10,6 +10,7 @@ export {
   trackSubscription,
   untrackSubscription,
   updateSubscription,
+  updateSubscriptionData,
   useDevErrors
 } from './devtools'
 export { DevtoolsAutoMount } from './devtools-panel'

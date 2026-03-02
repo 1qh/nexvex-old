@@ -17,7 +17,9 @@ import type { UseSearchOptions, UseSearchResult } from '../react/use-search'
 import type { ConvexErrorData, MutationFail, MutationOk, MutationResult } from '../server/helpers'
 import type { OrgCrudOptions } from '../server/org-crud'
 import type {
+  AssertSchema,
   BaseSchema,
+  BrandLabelMap,
   CacheCrudResult,
   CacheHookCtx,
   CacheHooks,
@@ -27,6 +29,7 @@ import type {
   CrudHooks,
   CrudOptions,
   CrudResult,
+  DetectBrand,
   ErrorCode,
   GlobalHookCtx,
   GlobalHooks,
@@ -39,11 +42,22 @@ import type {
   OwnedSchema,
   RateLimitConfig,
   Rec,
+  SchemaTypeError,
   SetupConfig,
   SingletonSchema,
   WhereOf
 } from '../server/types'
 
+import {
+  add,
+  defaultFields,
+  fieldToZod,
+  genEndpointContent,
+  genPageContent,
+  genSchemaContent,
+  parseAddFlags,
+  parseFieldDef
+} from '../add'
 import {
   accessForFactory,
   checkIndexCoverage,
@@ -83,7 +97,8 @@ import {
   trackMutation,
   trackSubscription,
   untrackSubscription,
-  updateSubscription
+  updateSubscription,
+  updateSubscriptionData
 } from '../react/devtools'
 import { makeErrorHandler } from '../react/error-toast'
 import { buildMeta, getMeta } from '../react/form'
@@ -1032,6 +1047,169 @@ describe('branded schema type enforcement', () => {
     test('upsert accepts valid fields', () => {
       const valid: ProfileInput = { displayName: 'ok', theme: 'dark' }
       expect(valid).toBeDefined()
+    })
+  })
+})
+
+describe('branded schema error messages (SchemaTypeError)', () => {
+  const ownedSchemas = makeOwned({
+      blog: object({ content: string(), published: boolean(), title: string() })
+    }),
+    orgSchemas = makeOrgScoped({
+      wiki: object({ content: string(), slug: string(), title: string() })
+    }),
+    baseSchemas = makeBase({
+      movie: object({ title: string(), tmdb_id: number() })
+    }),
+    singletonSchemas = makeSingleton({
+      profile: object({ bio: string().optional(), displayName: string() })
+    }),
+    plainSchema = object({ name: string() })
+
+  describe('DetectBrand extracts correct brand', () => {
+    test('DetectBrand<OwnedSchema> is owned', () => {
+      type Result = DetectBrand<typeof ownedSchemas.blog>
+      const check: Result = 'owned'
+      expect(check).toBe('owned')
+    })
+
+    test('DetectBrand<OrgSchema> is org', () => {
+      type Result = DetectBrand<typeof orgSchemas.wiki>
+      const check: Result = 'org'
+      expect(check).toBe('org')
+    })
+
+    test('DetectBrand<BaseSchema> is base', () => {
+      type Result = DetectBrand<typeof baseSchemas.movie>
+      const check: Result = 'base'
+      expect(check).toBe('base')
+    })
+
+    test('DetectBrand<SingletonSchema> is singleton', () => {
+      type Result = DetectBrand<typeof singletonSchemas.profile>
+      const check: Result = 'singleton'
+      expect(check).toBe('singleton')
+    })
+
+    test('DetectBrand<plain ZodObject> is unbranded', () => {
+      type Result = DetectBrand<typeof plainSchema>
+      const check: Result = 'unbranded'
+      expect(check).toBe('unbranded')
+    })
+  })
+
+  describe('SchemaTypeError produces descriptive messages', () => {
+    test('owned expected, org got', () => {
+      type Err = SchemaTypeError<'owned', 'org'>
+      const msg: Err =
+        'Schema mismatch: expected OwnedSchema (from makeOwned()), got OrgSchema (from makeOrgScoped()). Created by makeOwned() \u2192 use crud() + ownedTable()'
+      expect(msg).toContain('Schema mismatch')
+    })
+
+    test('org expected, owned got', () => {
+      type Err = SchemaTypeError<'org', 'owned'>
+      const msg: Err =
+        'Schema mismatch: expected OrgSchema (from makeOrgScoped()), got OwnedSchema (from makeOwned()). Created by makeOrgScoped() \u2192 use orgCrud() + orgTable()'
+      expect(msg).toContain('Schema mismatch')
+    })
+
+    test('base expected, singleton got', () => {
+      type Err = SchemaTypeError<'base', 'singleton'>
+      const msg: Err =
+        'Schema mismatch: expected BaseSchema (from makeBase()), got SingletonSchema (from makeSingleton()). Created by makeBase() \u2192 use cacheCrud() + baseTable()'
+      expect(msg).toContain('Schema mismatch')
+    })
+
+    test('singleton expected, unbranded got', () => {
+      type Err = SchemaTypeError<'singleton', 'unbranded'>
+      const msg: Err =
+        'Schema mismatch: expected SingletonSchema (from makeSingleton()), got plain ZodObject (not branded). Created by makeSingleton() \u2192 use singletonCrud() + singletonTable()'
+      expect(msg).toContain('Schema mismatch')
+    })
+
+    test('owned expected, unbranded got', () => {
+      type Err = SchemaTypeError<'owned', 'unbranded'>
+      const msg: Err =
+        'Schema mismatch: expected OwnedSchema (from makeOwned()), got plain ZodObject (not branded). Created by makeOwned() \u2192 use crud() + ownedTable()'
+      expect(msg).toContain('Schema mismatch')
+    })
+  })
+
+  describe('AssertSchema passes correct brand through', () => {
+    test('AssertSchema with matching owned brand returns schema type', () => {
+      type Result = AssertSchema<typeof ownedSchemas.blog, 'owned'>
+      const s: Result = ownedSchemas.blog
+      expect(s).toBeDefined()
+    })
+
+    test('AssertSchema with matching org brand returns schema type', () => {
+      type Result = AssertSchema<typeof orgSchemas.wiki, 'org'>
+      const s: Result = orgSchemas.wiki
+      expect(s).toBeDefined()
+    })
+
+    test('AssertSchema with matching base brand returns schema type', () => {
+      type Result = AssertSchema<typeof baseSchemas.movie, 'base'>
+      const s: Result = baseSchemas.movie
+      expect(s).toBeDefined()
+    })
+
+    test('AssertSchema with matching singleton brand returns schema type', () => {
+      type Result = AssertSchema<typeof singletonSchemas.profile, 'singleton'>
+      const s: Result = singletonSchemas.profile
+      expect(s).toBeDefined()
+    })
+  })
+
+  describe('AssertSchema rejects wrong brand with error message type', () => {
+    test('AssertSchema rejects org schema when owned expected', () => {
+      type Result = AssertSchema<typeof orgSchemas.wiki, 'owned'>
+      // @ts-expect-error - AssertSchema produces error string type, not the schema type
+      const s: Result = orgSchemas.wiki
+      expect(s).toBeDefined()
+    })
+
+    test('AssertSchema rejects owned schema when org expected', () => {
+      type Result = AssertSchema<typeof ownedSchemas.blog, 'org'>
+      // @ts-expect-error - AssertSchema produces error string type, not the schema type
+      const s: Result = ownedSchemas.blog
+      expect(s).toBeDefined()
+    })
+
+    test('AssertSchema rejects plain ZodObject when owned expected', () => {
+      type Result = AssertSchema<typeof plainSchema, 'owned'>
+      // @ts-expect-error - AssertSchema produces error string type, not the schema type
+      const s: Result = plainSchema
+      expect(s).toBeDefined()
+    })
+
+    test('AssertSchema rejects owned schema when base expected', () => {
+      type Result = AssertSchema<typeof ownedSchemas.blog, 'base'>
+      // @ts-expect-error - AssertSchema produces error string type, not the schema type
+      const s: Result = ownedSchemas.blog
+      expect(s).toBeDefined()
+    })
+
+    test('AssertSchema rejects base schema when singleton expected', () => {
+      type Result = AssertSchema<typeof baseSchemas.movie, 'singleton'>
+      // @ts-expect-error - AssertSchema produces error string type, not the schema type
+      const s: Result = baseSchemas.movie
+      expect(s).toBeDefined()
+    })
+
+    test('AssertSchema rejects singleton schema when owned expected', () => {
+      type Result = AssertSchema<typeof singletonSchemas.profile, 'owned'>
+      // @ts-expect-error - AssertSchema produces error string type, not the schema type
+      const s: Result = singletonSchemas.profile
+      expect(s).toBeDefined()
+    })
+  })
+
+  describe('BrandLabelMap completeness', () => {
+    test('BrandLabelMap has all 5 entries', () => {
+      type Keys = keyof BrandLabelMap
+      const keys: Keys[] = ['owned', 'org', 'base', 'singleton', 'unbranded']
+      expect(keys).toHaveLength(5)
     })
   })
 })
@@ -3618,6 +3796,73 @@ describe('devtools subscription tracking', () => {
     const id = trackSubscription('api.test.list')
     untrackSubscription(id)
     expect(() => untrackSubscription(id)).not.toThrow()
+  })
+})
+
+describe('devtools subscription data tracking', () => {
+  test('updateSubscriptionData updates preview and counts', () => {
+    const id = trackSubscription('api.blog.list'),
+      data = [
+        { _id: '1', title: 'Hello' },
+        { _id: '2', title: 'World' }
+      ],
+      preview = JSON.stringify(data[0]).slice(0, 200)
+    updateSubscriptionData(id, data, preview)
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
+  })
+
+  test('updateSubscriptionData increments renderCount', () => {
+    const id = trackSubscription('api.blog.list')
+    updateSubscriptionData(id, [{ _id: '1' }], '{}')
+    updateSubscriptionData(id, [{ _id: '1' }, { _id: '2' }], '{}')
+    updateSubscriptionData(id, [{ _id: '1' }, { _id: '2' }, { _id: '3' }], '{}')
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
+  })
+
+  test('updateSubscriptionData on missing id is no-op', () => {
+    expect(() => updateSubscriptionData(999_999, [], '')).not.toThrow()
+  })
+
+  test('subscription initializes with empty dataPreview', () => {
+    const id = trackSubscription('api.test.list')
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
+  })
+
+  test('subscription initializes with zero renderCount', () => {
+    const id = trackSubscription('api.test.list')
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
+  })
+
+  test('subscription initializes with zero resultCount', () => {
+    const id = trackSubscription('api.test.list')
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
+  })
+
+  test('updateSubscriptionData updates resultCount', () => {
+    const id = trackSubscription('api.blog.list')
+    updateSubscriptionData(id, [{ _id: '1' }, { _id: '2' }, { _id: '3' }], 'preview')
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
+  })
+
+  test('updateSubscriptionData with empty data', () => {
+    const id = trackSubscription('api.blog.list')
+    updateSubscriptionData(id, [], '')
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
+  })
+
+  test('multiple data updates preserve subscription', () => {
+    const id = trackSubscription('api.blog.list')
+    for (let i = 0; i < 10; i += 1) updateSubscriptionData(id, [{ _id: String(i) }], `item-${i}`)
+
+    expect(id).toBeGreaterThan(0)
+    untrackSubscription(id)
   })
 })
 
@@ -7070,5 +7315,284 @@ const org = makeOrgScoped({
   test('crud with search adds pub.search endpoint', () => {
     const endpoints = endpointsForFactory({ factory: 'crud', file: '', options: "{ search: 'title' }", table: 't' })
     expect(endpoints).toContain('pub.search')
+  })
+})
+
+describe('lazyconvex add command', () => {
+  describe('parseFieldDef', () => {
+    test('parses simple string field', () => {
+      const f = parseFieldDef('title:string')
+      expect(f).toEqual({ name: 'title', optional: false, type: 'string' })
+    })
+
+    test('parses boolean field', () => {
+      const f = parseFieldDef('done:boolean')
+      expect(f).toEqual({ name: 'done', optional: false, type: 'boolean' })
+    })
+
+    test('parses number field', () => {
+      const f = parseFieldDef('count:number')
+      expect(f).toEqual({ name: 'count', optional: false, type: 'number' })
+    })
+
+    test('parses optional field', () => {
+      const f = parseFieldDef('bio:string?')
+      expect(f).toEqual({ name: 'bio', optional: true, type: 'string' })
+    })
+
+    test('parses enum field', () => {
+      const f = parseFieldDef('status:enum(draft,published,archived)')
+      expect(f).toEqual({ name: 'status', optional: false, type: { enum: ['draft', 'published', 'archived'] } })
+    })
+
+    test('parses optional enum field', () => {
+      const f = parseFieldDef('priority:enum(low,medium,high)?')
+      expect(f).toEqual({ name: 'priority', optional: true, type: { enum: ['low', 'medium', 'high'] } })
+    })
+
+    test('returns null for invalid field', () => {
+      expect(parseFieldDef('invalid')).toBeNull()
+    })
+
+    test('returns null for unknown type', () => {
+      expect(parseFieldDef('title:unknown')).toBeNull()
+    })
+  })
+
+  describe('parseAddFlags', () => {
+    test('parses table name from positional arg', () => {
+      const flags = parseAddFlags(['todo'])
+      expect(flags.name).toBe('todo')
+      expect(flags.type).toBe('owned')
+    })
+
+    test('parses --type flag', () => {
+      const flags = parseAddFlags(['wiki', '--type=org'])
+      expect(flags.type).toBe('org')
+    })
+
+    test('parses --fields flag', () => {
+      const flags = parseAddFlags(['todo', '--fields=title:string,done:boolean'])
+      expect(flags.fields).toHaveLength(2)
+      expect(flags.fields[0]?.name).toBe('title')
+      expect(flags.fields[1]?.name).toBe('done')
+    })
+
+    test('parses --parent flag', () => {
+      const flags = parseAddFlags(['message', '--type=child', '--parent=chat'])
+      expect(flags.parent).toBe('chat')
+      expect(flags.type).toBe('child')
+    })
+
+    test('parses --convex-dir flag', () => {
+      const flags = parseAddFlags(['todo', '--convex-dir=my-convex'])
+      expect(flags.convexDir).toBe('my-convex')
+    })
+
+    test('parses --app-dir flag', () => {
+      const flags = parseAddFlags(['todo', '--app-dir=app'])
+      expect(flags.appDir).toBe('app')
+    })
+
+    test('parses --help flag', () => {
+      const flags = parseAddFlags(['--help'])
+      expect(flags.help).toBe(true)
+    })
+
+    test('default type is owned', () => {
+      const flags = parseAddFlags(['todo'])
+      expect(flags.type).toBe('owned')
+    })
+
+    test('default convexDir is convex', () => {
+      const flags = parseAddFlags(['todo'])
+      expect(flags.convexDir).toBe('convex')
+    })
+
+    test('default appDir is src/app', () => {
+      const flags = parseAddFlags(['todo'])
+      expect(flags.appDir).toBe('src/app')
+    })
+  })
+
+  describe('fieldToZod', () => {
+    test('string field', () => {
+      expect(fieldToZod({ name: 'title', optional: false, type: 'string' })).toBe('string()')
+    })
+
+    test('boolean field', () => {
+      expect(fieldToZod({ name: 'done', optional: false, type: 'boolean' })).toBe('boolean()')
+    })
+
+    test('number field', () => {
+      expect(fieldToZod({ name: 'count', optional: false, type: 'number' })).toBe('number()')
+    })
+
+    test('optional field', () => {
+      expect(fieldToZod({ name: 'bio', optional: true, type: 'string' })).toBe('string().optional()')
+    })
+
+    test('enum field', () => {
+      const result = fieldToZod({ name: 'status', optional: false, type: { enum: ['draft', 'published'] } })
+      expect(result).toBe("zenum(['draft', 'published'])")
+    })
+
+    test('optional enum field', () => {
+      const result = fieldToZod({ name: 'priority', optional: true, type: { enum: ['low', 'high'] } })
+      expect(result).toBe("zenum(['low', 'high']).optional()")
+    })
+  })
+
+  describe('defaultFields', () => {
+    test('owned has title and content', () => {
+      const fields = defaultFields('owned')
+      expect(fields).toHaveLength(2)
+      expect(fields[0]?.name).toBe('title')
+      expect(fields[1]?.name).toBe('content')
+    })
+
+    test('org has title and content', () => {
+      const fields = defaultFields('org')
+      expect(fields).toHaveLength(2)
+    })
+
+    test('child has text', () => {
+      const fields = defaultFields('child')
+      expect(fields).toHaveLength(1)
+      expect(fields[0]?.name).toBe('text')
+    })
+
+    test('singleton has displayName and bio', () => {
+      const fields = defaultFields('singleton')
+      expect(fields).toHaveLength(2)
+      expect(fields[0]?.name).toBe('displayName')
+      expect(fields[1]?.optional).toBe(true)
+    })
+
+    test('cache has title and externalId', () => {
+      const fields = defaultFields('cache')
+      expect(fields).toHaveLength(2)
+      expect(fields[1]?.name).toBe('externalId')
+    })
+  })
+
+  describe('genSchemaContent', () => {
+    test('generates owned schema', () => {
+      const content = genSchemaContent('blog', 'owned', [{ name: 'title', optional: false, type: 'string' }])
+      expect(content).toContain('makeOwned')
+      expect(content).toContain('owned')
+      expect(content).toContain('blog')
+      expect(content).toContain('string()')
+    })
+
+    test('generates org schema', () => {
+      const content = genSchemaContent('wiki', 'org', [{ name: 'title', optional: false, type: 'string' }])
+      expect(content).toContain('makeOrgScoped')
+      expect(content).toContain('orgScoped')
+    })
+
+    test('generates singleton schema', () => {
+      const content = genSchemaContent('profile', 'singleton', [{ name: 'displayName', optional: false, type: 'string' }])
+      expect(content).toContain('makeSingleton')
+      expect(content).toContain('singletons')
+    })
+
+    test('generates base schema for cache', () => {
+      const content = genSchemaContent('movie', 'cache', [{ name: 'title', optional: false, type: 'string' }])
+      expect(content).toContain('makeBase')
+      expect(content).toContain('base')
+    })
+
+    test('generates child schema', () => {
+      const content = genSchemaContent('message', 'child', [{ name: 'text', optional: false, type: 'string' }])
+      expect(content).toContain('child')
+      expect(content).toContain('messageChild')
+      expect(content).toContain('foreignKey')
+    })
+
+    test('includes enum import when needed', () => {
+      const content = genSchemaContent('blog', 'owned', [
+        { name: 'status', optional: false, type: { enum: ['draft', 'published'] } }
+      ])
+      expect(content).toContain('enum as zenum')
+      expect(content).toContain("zenum(['draft', 'published'])")
+    })
+
+    test('includes optional fields', () => {
+      const content = genSchemaContent('blog', 'owned', [{ name: 'bio', optional: true, type: 'string' }])
+      expect(content).toContain('.optional()')
+    })
+  })
+
+  describe('genEndpointContent', () => {
+    test('generates owned endpoint', () => {
+      const content = genEndpointContent('blog', 'owned', '')
+      expect(content).toContain('crud')
+      expect(content).toContain('owned.blog')
+      expect(content).toContain('pub: { list, read }')
+    })
+
+    test('generates org endpoint', () => {
+      const content = genEndpointContent('wiki', 'org', '')
+      expect(content).toContain('orgCrud')
+      expect(content).toContain('orgScoped.wiki')
+      expect(content).toContain('addEditor')
+    })
+
+    test('generates singleton endpoint', () => {
+      const content = genEndpointContent('profile', 'singleton', '')
+      expect(content).toContain('singletonCrud')
+      expect(content).toContain('singletons.profile')
+      expect(content).toContain('get, upsert')
+    })
+
+    test('generates cache endpoint', () => {
+      const content = genEndpointContent('movie', 'cache', '')
+      expect(content).toContain('cacheCrud')
+      expect(content).toContain('base.movie')
+      expect(content).toContain('invalidate')
+    })
+
+    test('generates child endpoint', () => {
+      const content = genEndpointContent('message', 'child', 'chat')
+      expect(content).toContain('childCrud')
+      expect(content).toContain('messageChild')
+    })
+  })
+
+  describe('genPageContent', () => {
+    test('generates list page for owned type', () => {
+      const content = genPageContent('blog', 'owned')
+      expect(content).toContain('useList')
+      expect(content).toContain('api.blog.list')
+      expect(content).toContain('loadMore')
+      expect(content).toContain('export default')
+    })
+
+    test('generates singleton page', () => {
+      const content = genPageContent('profile', 'singleton')
+      expect(content).toContain('useQuery')
+      expect(content).toContain('api.profile.get')
+      expect(content).toContain('export default')
+    })
+
+    test('generates page for org type', () => {
+      const content = genPageContent('wiki', 'org')
+      expect(content).toContain('useList')
+      expect(content).toContain('api.wiki.list')
+    })
+
+    test('generates page for cache type', () => {
+      const content = genPageContent('movie', 'cache')
+      expect(content).toContain('useList')
+      expect(content).toContain('api.movie.list')
+    })
+  })
+
+  describe('add function', () => {
+    test('add with --help returns zero counts', () => {
+      const result = add(['--help'])
+      expect(result).toEqual({ created: 0, skipped: 0 })
+    })
   })
 })

@@ -673,6 +673,7 @@ const checkAclPermission = (doc: Rec, userId: string, membership: { isAdmin: boo
     const { acl, aclFrom, cascade, mutation: rawMut, query: rawQry, table } = config,
       mutation = rawMut as unknown as (opts: Rec) => Rec,
       query = rawQry as unknown as (opts: Rec) => Rec,
+      /** biome-ignore lint/nursery/useNullishCoalescing: boolean OR */
       hasAcl = acl || Boolean(aclFrom),
       createAsUser = mutation({
         /** biome-ignore lint/suspicious/noExplicitAny: test generic */

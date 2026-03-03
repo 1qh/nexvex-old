@@ -16,7 +16,7 @@ const getClient = () => new ConvexHttpClient(process.env.CONVEX_URL ?? process.e
   },
   extractErrorCode = (e: unknown): null | { code: string } => {
     if (e instanceof Error) {
-      const match = /\{"code":"([^"]+)"[^}]*\}/.exec(e.message)
+      const match = /\{"code":"([^"]+)"[^}]*\}/u.exec(e.message)
       if (match?.[1]) return { code: match[1] }
       if (e.message.includes('ArgumentValidationError') || e.message.includes('does not match validator'))
         return { code: 'VALIDATION_ERROR' }

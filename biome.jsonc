@@ -1,0 +1,28 @@
+{
+  "$schema": "https://biomejs.dev/schemas/latest/schema.json",
+  "extends": ["lintmax/biome"],
+  "files": {
+    "includes": ["**", "!!**/mobile/maestro"]
+  },
+  "overrides": [
+    {
+      "includes": ["**/e2e/**", "**/maestro/**"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noAwaitInLoops": "off"
+          },
+          "suspicious": {
+            "noEmptyBlockStatements": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/**"],
+      "linter": {
+        "enabled": false
+      }
+    }
+  ]
+}

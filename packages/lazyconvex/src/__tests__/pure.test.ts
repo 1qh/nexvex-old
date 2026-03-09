@@ -6153,6 +6153,25 @@ describe('middleware', () => {
     test('handles multiple script tags', () => {
       expect(sanitizeString('a<script>1</script>b<script>2</script>c')).toBe('abc')
     })
+
+    test('removes javascript: protocol URIs', () => {
+      expect(sanitizeString('javascript: alert(1)')).toBe(' alert(1)')
+    })
+
+    test('removes data: text/html URIs', () => {
+      expect(sanitizeString('data: text/html, <script>x</script>')).toBe(', ')
+    })
+
+    test('removes dangerous HTML tags', () => {
+      expect(sanitizeString('<iframe src="evil.com"></iframe>')).toBe('')
+      expect(sanitizeString('<object data="x">')).toBe('')
+      expect(sanitizeString('<embed src="x">')).toBe('')
+    })
+
+    test('removes HTML-encoded angle brackets', () => {
+      expect(sanitizeString('&#x3c;script&#x3e;')).toBe('script')
+      expect(sanitizeString('&#60;script&#62;')).toBe('script')
+    })
   })
 
   describe('sanitizeRec', () => {

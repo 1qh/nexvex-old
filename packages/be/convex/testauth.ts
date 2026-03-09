@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop */
 /** biome-ignore-all lint/performance/noAwaitInLoops: sequential deletes */
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { v } from 'convex/values'
@@ -86,7 +85,7 @@ const testAuth = makeTestAuth({
     args: {},
     handler: async ctx => {
       if (!isTestMode()) return { count: 0, done: true }
-      const u = ctx.db
+      const u = await ctx.db
         .query('users')
         .filter(q => q.eq(q.field('email'), TEST_EMAIL))
         .first()
@@ -129,12 +128,20 @@ const testAuth = makeTestAuth({
           editors = parent ? ((parent as { editors?: string[] }).editors ?? []) : []
         if (!editors.some(eid => eid === userId)) return { code: 'FORBIDDEN' }
       }
-      await ctx.db.patch(id, { completed: !(task as { completed?: boolean }).completed, updatedAt: Date.now() } as never)
+      await ctx.db.patch(id, {
+        completed: !(task as { completed?: boolean }).completed,
+        updatedAt: Date.now()
+      } as never)
       return ctx.db.get(id)
     }
   }),
   assignTaskAsUser = mutation({
-    args: { assigneeId: v.optional(v.id('users')), id: v.id('task'), orgId: v.id('org'), userId: v.id('users') },
+    args: {
+      assigneeId: v.optional(v.id('users')),
+      id: v.id('task'),
+      orgId: v.id('org'),
+      userId: v.id('users')
+    },
     handler: async (ctx, { assigneeId, id, orgId, userId }) => {
       if (!isTestMode()) return null
       const task = await ctx.db.get(id)
@@ -142,7 +149,10 @@ const testAuth = makeTestAuth({
       const membership = await getOrgMembership(ctx.db as never, orgId, userId)
       if (!membership) return { code: 'NOT_ORG_MEMBER' }
       if (!membership.isAdmin) return { code: 'INSUFFICIENT_ORG_ROLE' }
-      await ctx.db.patch(id, { assigneeId: assigneeId ?? null, updatedAt: Date.now() } as never)
+      await ctx.db.patch(id, {
+        assigneeId: assigneeId ?? null,
+        updatedAt: Date.now()
+      } as never)
       return ctx.db.get(id)
     }
   }),

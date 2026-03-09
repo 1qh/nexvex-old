@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/style/noProcessEnv: env detection */
 'use client'
 
 import type { FunctionReference, OptionalRestArgs } from 'convex/server'
@@ -67,6 +68,7 @@ const useCacheEntry = <Q extends QueryRef, A extends ActionRef>({
     if (!isStale) return
     loadingRef.current = true
     setIsLoading(true)
+    // biome-ignore lint/nursery/noFloatingPromises: fire-and-forget cache refresh
     fireLoad({
       args: argsRef.current ?? {},
       load: load as (a: Record<string, unknown>) => Promise<unknown>,
@@ -85,6 +87,7 @@ const useCacheEntry = <Q extends QueryRef, A extends ActionRef>({
       if (loadingRef.current) return
       loadingRef.current = true
       setIsLoading(true)
+      // biome-ignore lint/nursery/noFloatingPromises: fire-and-forget cache refresh
       fireLoad({
         args: argsRef.current ?? {},
         load: load as (a: Record<string, unknown>) => Promise<unknown>,

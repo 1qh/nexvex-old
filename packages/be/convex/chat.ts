@@ -7,6 +7,7 @@ export const {
   pub: { read: pubRead },
   rm,
   update
+  // eslint-disable-next-line lazyconvex/require-rate-limit -- demo backend keeps default write throughput
 } = crud('chat', owned.chat, {
   cascade: [{ foreignKey: 'chatId', table: 'message' }],
   pub: { where: { isPublic: true } }

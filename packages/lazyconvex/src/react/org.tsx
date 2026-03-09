@@ -121,25 +121,31 @@ const OrgProvider = <O extends OrgDoc, M>({ children, membership, org, role }: O
   /** Sets the active org ID and slug as client-side cookies. */
   setActiveOrgCookieClient = ({ orgId, slug }: { orgId: string; slug: string }) => {
     const maxAge = ONE_YEAR_SECONDS
+    /* oxlint-disable unicorn/no-document-cookie */
+    // biome-ignore lint/suspicious/noDocumentCookie: cookie management
     document.cookie = `${ACTIVE_ORG_COOKIE}=${orgId}; path=/; max-age=${maxAge}`
+    // biome-ignore lint/suspicious/noDocumentCookie: cookie management
     document.cookie = `${ACTIVE_ORG_SLUG_COOKIE}=${slug}; path=/; max-age=${maxAge}`
+    /* oxlint-enable unicorn/no-document-cookie */
   },
-  /** Manages the active org selection, reading from cookies and providing set/clear callbacks. */
   useActiveOrg = <O extends OrgDoc>(orgGetQuery: FunctionReference<'query'>) => {
     const [activeOrgId, setActiveOrgId] = useState<null | string>(getActiveOrgIdFromCookie),
       activeOrg = useQuery(orgGetQuery, activeOrgId ? { orgId: activeOrgId } : 'skip') as null | O | undefined,
-      setActiveOrg = useCallback(
-        (org: OrgDoc) => {
-          setActiveOrgCookieClient({ orgId: org._id, slug: org.slug })
-          setActiveOrgId(org._id)
-        },
-        [setActiveOrgId]
-      ),
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      setActiveOrg = useCallback((org: OrgDoc) => {
+        setActiveOrgCookieClient({ orgId: org._id, slug: org.slug })
+        setActiveOrgId(org._id)
+      }, []),
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
       clearActiveOrg = useCallback(() => {
+        /* oxlint-disable unicorn/no-document-cookie */
+        // biome-ignore lint/suspicious/noDocumentCookie: cookie management
         document.cookie = `${ACTIVE_ORG_COOKIE}=; path=/; max-age=0`
+        // biome-ignore lint/suspicious/noDocumentCookie: cookie management
         document.cookie = `${ACTIVE_ORG_SLUG_COOKIE}=; path=/; max-age=0`
+        /* oxlint-enable unicorn/no-document-cookie */
         setActiveOrgId(null)
-      }, [setActiveOrgId])
+      }, [])
 
     return {
       activeOrg: activeOrg ?? null,

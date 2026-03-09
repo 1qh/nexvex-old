@@ -29,12 +29,12 @@ const DEFAULT_DEBOUNCE_MS = 300,
   ): UseSearchResult<FunctionReturnType<F> | undefined> => {
     const debounceMs = options?.debounceMs ?? DEFAULT_DEBOUNCE_MS,
       minLength = options?.minLength ?? DEFAULT_MIN_LENGTH,
-      [query, setQueryRaw] = useState(''),
+      [query, setQuery] = useState(''),
       [debouncedQuery, setDebouncedQuery] = useState(''),
       timerRef = useRef<null | ReturnType<typeof setTimeout>>(null),
-      setQuery = useCallback(
+      setSearchQuery = useCallback(
         (q: string) => {
-          setQueryRaw(q)
+          setQuery(q)
           if (timerRef.current) clearTimeout(timerRef.current)
           timerRef.current = setTimeout(() => setDebouncedQuery(q), debounceMs)
         },
@@ -57,7 +57,7 @@ const DEFAULT_DEBOUNCE_MS = 300,
       isSearching,
       query,
       results: shouldSearch ? results : (undefined as FunctionReturnType<F> | undefined),
-      setQuery
+      setQuery: setSearchQuery
     }
   }
 

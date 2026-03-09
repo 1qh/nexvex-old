@@ -20,6 +20,7 @@ const EmailLoginPage = () => {
         const fd = new FormData(ev.currentTarget)
         // oxlint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks
         signIn('password', fd).catch((signInError: unknown) => {
+          // eslint-disable-next-line no-console
           console.error(signInError)
           let m: string
           if (signInError instanceof ConvexError && signInError.data === 'INVALID_PASSWORD')
@@ -29,10 +30,9 @@ const EmailLoginPage = () => {
           setPending(false)
         })
       }}>
-      <Input autoComplete='email' id='email' name='email' placeholder='Email' />
+      <Input autoComplete='email' name='email' placeholder='Email' />
       <Input
         autoComplete={login ? 'current-password' : 'new-password'}
-        id='password'
         name='password'
         placeholder='Password'
         type='password'

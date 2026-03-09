@@ -169,7 +169,7 @@ const submitError = (e: unknown): Error => new Error(getErrorMessage(e), { cause
           setFieldErrors({})
           try {
             const coerced = coerceOptionals(schema, value),
-              result = await onSubmit(coerced, forceSubmit),
+              result = await Promise.resolve(onSubmit(coerced, forceSubmit)),
               returned = isRecord(result) ? result : coerced,
               newValues = resetOnSuccess ? returned : value
             instance.reset(newValues)

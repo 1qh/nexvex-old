@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/useAwait: promise-function-async conflict */
 'use server'
 import type { FunctionReference } from 'convex/server'
 import type { NextRequest } from 'next/server'
@@ -117,6 +118,7 @@ const IMAGE_TYPES = new Set(['image/gif', 'image/jpeg', 'image/png', 'image/svg+
             pipeline: sharp(buffer),
             thumbnail: thumbnail ?? false
           }),
+          // biome-ignore lint/nursery/useAwaitThenable: sharp pipeline.toBuffer() returns a thenable
           outputBuffer = await pipeline.toBuffer(),
           outputMime = thumbnail ? 'image/webp' : options?.format ? formatToMime[options.format] : contentType
         return new NextResponse(new Uint8Array(outputBuffer), {

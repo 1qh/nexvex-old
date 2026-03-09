@@ -31,6 +31,7 @@ const useInfiniteList = <F extends PaginatedQueryReference>(query: F, ...rest: I
     isLoadingMore = status === 'LoadingMore',
     canLoad = status === 'CanLoadMore',
     pageSize = opts?.pageSize ?? DEFAULT_PAGE_SIZE,
+    // eslint-disable-next-line @eslint-react/no-unnecessary-use-callback
     handleIntersect = useCallback(
       (entries: IntersectionObserverEntry[]) => {
         const [entry] = entries

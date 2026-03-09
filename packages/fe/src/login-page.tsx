@@ -15,8 +15,12 @@ const LoginPage = ({ emailLoginPath = '/login/email', redirectTo = '/' }: LoginP
     <div className='m-auto space-y-2'>
       <Button
         className='group rounded-full pr-5! tracking-tight transition-all duration-300 hover:scale-105 hover:gap-1 hover:pl-2 active:scale-90'
+        // oxlint-disable-next-line promise/prefer-await-to-then
         onClick={() => {
-          signIn('google', { redirectTo })
+          signIn('google', { redirectTo }).catch((error: unknown) => {
+            // eslint-disable-next-line no-console
+            console.error(error)
+          })
         }}>
         Continue with Google
       </Button>

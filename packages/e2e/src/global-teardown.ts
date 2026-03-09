@@ -1,3 +1,5 @@
+/** biome-ignore-all lint/style/noProcessEnv: env detection in test teardown */
+/* eslint-disable no-console */
 import { execSync } from 'node:child_process'
 
 const globalTeardown = () => {

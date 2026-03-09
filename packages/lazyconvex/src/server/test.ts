@@ -1,6 +1,8 @@
+/** biome-ignore-all lint/suspicious/useAwait: promise-function-async conflict */
 /** biome-ignore-all lint/complexity/useMaxParams: test helpers */
 /** biome-ignore-all lint/performance/noAwaitInLoops: sequential deletes */
-/* eslint-disable no-await-in-loop, @typescript-eslint/max-params, @typescript-eslint/prefer-nullish-coalescing */
+/* eslint-disable @typescript-eslint/max-params, @typescript-eslint/prefer-nullish-coalescing */
+/* eslint-disable max-depth */
 import type { GenericDataModel, MutationBuilder, QueryBuilder } from 'convex/server'
 
 import { v } from 'convex/values'
@@ -167,7 +169,7 @@ const TEST_EMAIL = 'test@playwright.local',
           const users = await ctx.db.query('users').collect()
           let count = 0
           for (const u of users)
-            if ((u.email as string)?.startsWith(emailPrefix) && u.email !== TEST_EMAIL) {
+            if ((u.email as string).startsWith(emailPrefix) && u.email !== TEST_EMAIL) {
               await ctx.db.delete(u._id as string)
               count += 1
             }
@@ -594,6 +596,7 @@ const TEST_EMAIL = 'test@playwright.local',
       }),
       getJoinRequest = query({
         args: { requestId: v.id('orgJoinRequest') },
+        // biome-ignore lint/suspicious/useAwait: convex handler interface requires async
         handler: async (ctx: { db: DbLike }, { requestId }: { requestId: string }) => {
           if (!isTestMode()) return null
           return ctx.db.get(requestId)

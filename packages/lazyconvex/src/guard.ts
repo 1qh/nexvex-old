@@ -1,5 +1,6 @@
 type AnyApi = Record<string, Record<string, unknown>>
 
+// biome-ignore lint/style/noProcessEnv: env detection
 const GUARD_ACTIVE = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production',
   /** Finds a case-insensitive match for a module name. */
   findSuggestion = (modules: string[], name: string): string | undefined => {

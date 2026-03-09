@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+/* eslint-disable no-console */
 
 /** biome-ignore-all lint/style/noProcessEnv: cli */
 /** biome-ignore-all lint/performance/noAwaitInLoops: sequential */
@@ -181,7 +182,7 @@ const dim = (s: string) => `\u001B[2m${s}\u001B[0m`,
       lines.push(`**Factory:** \`${call.factory}\` · **File:** \`${call.file}\``)
       if (desc) lines.push('', desc)
       lines.push('')
-      if (fields?.length) {
+      if (fields !== undefined && fields.length > 0) {
         lines.push('### Schema Fields', '')
         lines.push('| Field | Type |')
         lines.push('|-------|------|')
@@ -243,7 +244,7 @@ const dim = (s: string) => `\u001B[2m${s}\u001B[0m`,
     const escaped = symbolName.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`),
       constPat = new RegExp(`const\\s+${escaped}\\s*(?::\\s*([^=]+))?=\\s*(.+)`, 'u'),
       constMatch = constPat.exec(fileContent)
-    if (constMatch) {
+    if (constMatch !== null) {
       const annotation = constMatch[1]?.trim()
       if (annotation) return annotation
       const rhs = constMatch[2]?.trim() ?? '',
@@ -368,7 +369,8 @@ const dim = (s: string) => `\u001B[2m${s}\u001B[0m`,
         fields = tableFields.get(call.table)
       total += eps.length
       console.log(`${bold(call.table)} ${dim(`(${call.factory})`)} ${dim(`\u2014 ${call.file}`)}`)
-      if (fields?.length) console.log(`  ${dim('fields:')} ${fields.map(f => `${f.name}: ${f.type}`).join(', ')}`)
+      if (fields !== undefined && fields.length > 0)
+        console.log(`  ${dim('fields:')} ${fields.map(f => `${f.name}: ${f.type}`).join(', ')}`)
 
       console.log(`  ${dim('endpoints:')} ${eps.join(', ')}`)
       console.log('')

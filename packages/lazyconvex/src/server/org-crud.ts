@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop */
 // biome-ignore-all lint/performance/noAwaitInLoops: x
 import type { ZodObject, ZodRawShape } from 'zod/v4'
 
@@ -420,7 +419,7 @@ const getEditors = (doc: Rec): string[] => (doc.editors as string[] | undefined)
           for (let i = 0; i < editorIds.length; i += 1) {
             const u = users[i] as null | Rec,
               eid = editorIds[i]
-            if (u && eid) result.push({ email: (u.email as string) ?? '', name: (u.name as string) ?? '', userId: eid })
+            if (u && eid) result.push({ email: u.email as string, name: u.name as string, userId: eid })
           }
           return result
         })

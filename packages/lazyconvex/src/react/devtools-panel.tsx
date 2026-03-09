@@ -228,6 +228,7 @@ const POSITION_CLASSES: Record<Position, string> = {
       [tab, setTab] = useState<TabId>(defaultTab),
       [showWaterfall, setShowWaterfall] = useState(false)
 
+    // biome-ignore lint/style/noProcessEnv: env detection
     if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return null
 
     const errorCount = errors.length,
@@ -247,7 +248,7 @@ const POSITION_CLASSES: Record<Position, string> = {
           title='LazyConvex DevTools'
           type='button'>
           {count > 0 ? (
-            <span className='text-sm font-bold'>{count > MAX_BADGE ? `${MAX_BADGE}+` : count}</span>
+            <span className='text-sm font-bold'>{count > MAX_BADGE ? `${MAX_BADGE}+` : String(count)}</span>
           ) : pendingCount > 0 ? (
             <span className='text-sm font-bold'>{pendingCount}</span>
           ) : staleCount > 0 ? (
@@ -376,6 +377,7 @@ const DevtoolsAutoMount = (props: DevtoolsProps) => {
 
   useEffect(() => {
     if (typeof document === 'undefined') return
+    // biome-ignore lint/style/noProcessEnv: env detection
     if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return
     if (autoMounted) return
     autoMounted = true

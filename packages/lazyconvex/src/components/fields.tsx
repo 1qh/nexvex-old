@@ -405,6 +405,7 @@ const CAMEL_RE = /(?<lower>[a-z\d])(?<upper>[A-Z])/gu,
                         id={f.name}
                         variant='outline'>
                         <CalendarIcon className='mr-2 size-4' />
+                        {/* biome-ignore lint/nursery/noLeakedRender: ternary with string values is safe */}
                         {dateVal ? format(dateVal, 'PPP') : placeholder}
                       </Button>
                     </PopoverTrigger>
@@ -794,7 +795,7 @@ const CAMEL_RE = /(?<lower>[a-z\d])(?<upper>[A-Z])/gu,
             asyncValidate
               ? {
                   onChangeAsync: async ({ value }: { value: string }) => {
-                    const error = await asyncValidate(value ?? '')
+                    const error = await asyncValidate(value)
                     return error
                   }
                 }

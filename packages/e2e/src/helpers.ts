@@ -1,9 +1,6 @@
-/* eslint-disable no-await-in-loop */
-import type { Page } from '@playwright/test'
-
 import { api, ensureTestUser, tc } from './org-helpers'
 
-const login = async (_page: Page) => {
+const login = async () => {
     await ensureTestUser()
   },
   cleanupTestData = async () => {

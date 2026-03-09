@@ -146,10 +146,12 @@ const useWithGuard = <T extends Record<string, unknown>, S extends ZodObject<Zod
     }
     return false
   },
+  // biome-ignore lint/style/noProcessEnv: env detection
   isDev = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production',
   FileFieldWarning = ({ meta }: { meta: Record<string, { kind: string }> }) => {
     const fileCtx = use(FileApiContext)
     if (isDev && hasFileFields(meta) && !fileCtx)
+      // eslint-disable-next-line no-console
       console.warn(
         '[lazyconvex] Form schema has file fields but no FileApiProvider found. Wrap your app in <FileApiProvider> for file uploads to work.'
       )
@@ -165,6 +167,7 @@ const useWithGuard = <T extends Record<string, unknown>, S extends ZodObject<Zod
     render: (f: TypedFields<T>) => ReactNode
     showError?: boolean
   }) => (
+    // eslint-disable-next-line @eslint-react/no-unstable-context-value
     <FormContext value={{ form: instance as Api<Record<string, unknown>>, meta, schema, serverErrors: fieldErrors }}>
       <form
         {...props}
@@ -204,11 +207,13 @@ const useWithGuard = <T extends Record<string, unknown>, S extends ZodObject<Zod
       calcAgo = () => (lastSaved ? Math.round((Date.now() - lastSaved) / MS_PER_SECOND) : 0),
       [ago, setAgo] = useState(calcAgo)
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: calcAgo depends on lastSaved
     useEffect(() => {
       if (!lastSaved) return
       setAgo(calcAgo())
       const id = setInterval(() => setAgo(calcAgo()), REFRESH_INTERVAL)
       return () => clearInterval(id)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lastSaved])
 
     if (!lastSaved) return null

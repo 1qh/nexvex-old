@@ -1,4 +1,5 @@
 /* oxlint-disable eslint/max-statements, eslint/complexity, max-depth */
+/* eslint-disable max-depth */
 interface FactoryCall {
   factory: string
   file: string
@@ -76,7 +77,7 @@ const wrapperFactories = ['makeOwned', 'makeOrgScoped', 'makeSingleton', 'makeBa
     for (const factory of allFactories) {
       const pat = factory === 'child' ? new RegExp(childSchemaPat.source, 'gu') : new RegExp(`${factory}\\(\\{`, 'gu')
       let fm = pat.exec(content)
-      while (fm) {
+      while (fm !== null) {
         const startBlock = fm.index + fm[0].length
         if (factory === 'child') {
           const lookback = Math.max(0, fm.index - 50)
@@ -97,7 +98,7 @@ const wrapperFactories = ['makeOwned', 'makeOrgScoped', 'makeSingleton', 'makeBa
           const block = content.slice(startBlock, pos - 1),
             pp = new RegExp(objPropPat.source, 'gu')
           let pm = pp.exec(block)
-          while (pm) {
+          while (pm !== null) {
             const tableName = pm.groups?.pname ?? 'unknown',
               objStart = block.indexOf('{', pm.index + pm[0].length - 1) + 1,
               fields = parseObjectFields(block, objStart)

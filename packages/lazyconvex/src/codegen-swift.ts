@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 /* eslint-disable complexity */
+/* eslint-disable max-depth */
 /* oxlint-disable eslint/max-statements, eslint/complexity */
 import type { ZodType } from 'zod/v4'
 
@@ -577,7 +578,7 @@ const splitTopLevel = (input: string, delimiter: string): string[] => {
     let expr = rawExpr.trim(),
       isOptional = false,
       isNullable = false
-    while (true)
+    for (;;)
       if (expr.endsWith('.optional()')) {
         expr = expr.slice(0, -'.optional()'.length).trim()
         isOptional = true

@@ -1,4 +1,7 @@
+/** biome-ignore-all lint/style/noProcessEnv: test env overrides */
+/** biome-ignore-all lint/suspicious/useAwait: async test stubs intentionally match Promise-shaped APIs */
 /* eslint-disable @typescript-eslint/naming-convention */
+/* eslint-disable no-console */
 import type { GenericTableInfo, RegisteredQuery } from 'convex/server'
 
 import { describe, expect, test } from 'bun:test'
@@ -7505,35 +7508,35 @@ describe('lazyconvex add command', () => {
 
   describe('genEndpointContent', () => {
     test('generates owned endpoint', () => {
-      const content = genEndpointContent('blog', 'owned', '')
+      const content = genEndpointContent('blog', 'owned')
       expect(content).toContain('crud')
       expect(content).toContain('owned.blog')
       expect(content).toContain('pub: { list, read }')
     })
 
     test('generates org endpoint', () => {
-      const content = genEndpointContent('wiki', 'org', '')
+      const content = genEndpointContent('wiki', 'org')
       expect(content).toContain('orgCrud')
       expect(content).toContain('orgScoped.wiki')
       expect(content).toContain('addEditor')
     })
 
     test('generates singleton endpoint', () => {
-      const content = genEndpointContent('profile', 'singleton', '')
+      const content = genEndpointContent('profile', 'singleton')
       expect(content).toContain('singletonCrud')
       expect(content).toContain('singletons.profile')
       expect(content).toContain('get, upsert')
     })
 
     test('generates cache endpoint', () => {
-      const content = genEndpointContent('movie', 'cache', '')
+      const content = genEndpointContent('movie', 'cache')
       expect(content).toContain('cacheCrud')
       expect(content).toContain('base.movie')
       expect(content).toContain('invalidate')
     })
 
     test('generates child endpoint', () => {
-      const content = genEndpointContent('message', 'child', 'chat')
+      const content = genEndpointContent('message', 'child')
       expect(content).toContain('childCrud')
       expect(content).toContain('messageChild')
     })

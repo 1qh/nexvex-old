@@ -3,6 +3,7 @@ import { orgCascade } from 'lazyconvex/server'
 import { orgCrud } from '../lazy'
 import { orgScoped } from '../t'
 
+// eslint-disable-next-line lazyconvex/require-rate-limit -- demo backend keeps default write throughput
 export const { addEditor, bulkRm, create, editors, list, read, removeEditor, rm, setEditors, update } = orgCrud(
   'project',
   orgScoped.project,

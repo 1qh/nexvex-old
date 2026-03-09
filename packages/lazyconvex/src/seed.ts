@@ -67,7 +67,7 @@ const ALPHA = 'abcdefghijklmnopqrstuvwxyz',
   /** Extracts enum options from a Zod schema. */
   getEnumOptions = (schema: ZodType): readonly string[] | undefined => {
     const opts = (schema as { options?: readonly string[] }).options
-    return opts?.length ? opts : undefined
+    return opts && opts.length > 0 ? opts : undefined
   },
   /** Generates a random string value for a Zod schema field. */
   generateStringValue = (base: undefined | ZodType): string => {

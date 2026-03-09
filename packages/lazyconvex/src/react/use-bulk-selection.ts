@@ -68,6 +68,7 @@ const useBulkSelection = ({
                       if (onError) onError(restoreError)
                     }
                   }
+                  // biome-ignore lint/nursery/noFloatingPromises: fire-and-forget restore flow
                   run()
                 }
               },

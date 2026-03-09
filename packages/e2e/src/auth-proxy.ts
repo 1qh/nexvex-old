@@ -4,7 +4,9 @@ const BACKEND_API = 'http://127.0.0.1:3212',
   BACKEND_WS = 'ws://127.0.0.1:3212',
   SITE_URL = 'http://127.0.0.1:3211'
 
+// oxlint-disable-next-line no-empty-function
 process.on('uncaughtException', () => {})
+// oxlint-disable-next-line no-empty-function
 process.on('unhandledRejection', () => {})
 
 serve({
@@ -46,7 +48,7 @@ serve({
     close: ws => {
       try {
         const d = ws.data as Record<string, unknown>
-        ;(d.upstream as WebSocket)?.close()
+        if (d.upstream) (d.upstream as WebSocket).close()
       } catch {}
     },
     message: (ws, message) => {
@@ -55,7 +57,7 @@ serve({
         if (d.ready && d.upstream) {
           ;(d.upstream as WebSocket).send(message)
         } else {
-          d.queue = d.queue ?? []
+          d.queue ??= []
           ;(d.queue as (ArrayBuffer | Buffer | string)[]).push(message)
         }
       } catch {}

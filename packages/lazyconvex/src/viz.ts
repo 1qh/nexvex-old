@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+/* eslint-disable no-console */
 
 /** biome-ignore-all lint/style/noProcessEnv: cli */
 /** biome-ignore-all lint/performance/noAwaitInLoops: sequential */
@@ -91,7 +92,7 @@ const isSchemaFile = (content: string): boolean => {
     for (const factory of wrapperFactories) {
       const pat = new RegExp(`${factory}\\(\\{`, 'gu')
       let fm = pat.exec(content)
-      while (fm) {
+      while (fm !== null) {
         let depth = 1,
           pos = fm.index + fm[0].length
         while (pos < content.length && depth > 0) {
@@ -102,7 +103,7 @@ const isSchemaFile = (content: string): boolean => {
         const outerBlock = content.slice(fm.index + fm[0].length, pos - 1),
           propPat = /(?<tname>\w+)\s*:\s*object\(\{/gu
         let pm = propPat.exec(outerBlock)
-        while (pm) {
+        while (pm !== null) {
           const start = pm.index + pm[0].length
           let d = 1,
             p = start

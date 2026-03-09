@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/style/noProcessEnv: env detection */
 'use server'
 import type { FunctionReference } from 'convex/server'
 

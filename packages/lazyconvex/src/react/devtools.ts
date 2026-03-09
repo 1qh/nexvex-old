@@ -191,6 +191,7 @@ const notify = () => {
   },
   /** Subscribes to devtools state and returns current errors, mutations, subscriptions, and cache entries. */
   useDevErrors = () => {
+    // eslint-disable-next-line react/hook-use-state
     const [, setTick] = useState(0)
     useEffect(() => {
       const fn = () => setTick(t => t + 1)
@@ -198,7 +199,9 @@ const notify = () => {
       return () => {
         listeners = listeners.filter(l => l !== fn)
       }
+      // biome-ignore lint/correctness/useExhaustiveDependencies: subscribe once
     }, [])
+    // biome-ignore lint/correctness/useExhaustiveDependencies: derived from mutable module stores
     return useMemo(
       () => ({
         cache: [...cacheStore.values()],
@@ -210,7 +213,7 @@ const notify = () => {
         subscriptions: [...subStore.values()]
       }),
 
-      [errorStore.length, mutationStore.length, subStore.size, cacheStore.size]
+      []
     )
   }
 

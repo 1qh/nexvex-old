@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/style/noProcessEnv: env detection in config */
 import type { NextConfig } from 'next'
 
 interface CreateNextConfigOptions {

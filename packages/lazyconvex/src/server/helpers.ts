@@ -1,4 +1,5 @@
-/* eslint-disable no-await-in-loop */
+/** biome-ignore-all lint/suspicious/useAwait: promise-function-async conflict */
+/* eslint-disable max-depth */
 // biome-ignore-all lint/performance/noAwaitInLoops: x
 import type { RegisteredQuery } from 'convex/server'
 import type { ZodRawShape } from 'zod/v4'
@@ -38,6 +39,7 @@ const TOKEN_BYTES = 24,
   },
   RUNTIME_FILTER_WARN_THRESHOLD = 1000,
   log = (level: 'debug' | 'error' | 'info' | 'warn', msg: string, data?: Record<string, unknown>) => {
+    // eslint-disable-next-line no-console
     console[level](JSON.stringify({ level, msg, ts: Date.now(), ...data }))
   },
   // eslint-disable-next-line @typescript-eslint/max-params

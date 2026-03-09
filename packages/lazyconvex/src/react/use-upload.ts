@@ -1,5 +1,5 @@
 // oxlint-disable unicorn/prefer-add-event-listener
-/* eslint-disable no-await-in-loop */
+
 /** biome-ignore-all lint/performance/noAwaitInLoops: retry logic */
 'use client'
 
@@ -40,7 +40,7 @@ const useUpload = (uploadMutation: FunctionReference<'mutation'>, options?: Uplo
     uploadOnce = async (file: File): Promise<UploadResult> => {
       try {
         const url = (await getUrl()) as string
-        // oxlint-disable-next-line promise/avoid-new
+        // oxlint-disable-next-line promise/avoid-new, promise/param-names
         return await new Promise(res => {
           const x = new XMLHttpRequest()
           xhrRef.current = x

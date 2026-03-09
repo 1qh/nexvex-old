@@ -1,4 +1,4 @@
-/* eslint-disable no-await-in-loop, @typescript-eslint/no-unnecessary-type-parameters */
+/* eslint-disable @typescript-eslint/no-unnecessary-type-parameters */
 import type { GenericDataModel } from 'convex/server'
 import type { ZodObject, ZodRawShape } from 'zod/v4'
 

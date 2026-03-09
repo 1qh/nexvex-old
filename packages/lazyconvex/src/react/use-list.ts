@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/style/noProcessEnv: env detection */
 'use client'
 
 import type { PaginatedQueryArgs, PaginatedQueryReference } from 'convex/react'
@@ -76,12 +77,15 @@ const classifyPending = (pending: PendingMutation[]) => {
       pending = usePendingMutations(),
       subIdRef = useRef<number>(0)
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: subscribe lifecycle is intentionally one-time
     useEffect(() => {
       if (!isDev) return
       const queryName = typeof query === 'string' ? query : ((query as { _name?: string })._name ?? 'unknown')
       subIdRef.current = trackSubscription(queryName, queryArgs as Record<string, unknown>)
       const id = subIdRef.current
       return () => untrackSubscription(id)
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     useEffect(() => {
@@ -93,7 +97,7 @@ const classifyPending = (pending: PendingMutation[]) => {
             ? 'loaded'
             : 'loading'
       updateSubscription(subIdRef.current, devStatus)
-    }, [status, results])
+    }, [status])
 
     useEffect(() => {
       if (!(isDev && subIdRef.current)) return

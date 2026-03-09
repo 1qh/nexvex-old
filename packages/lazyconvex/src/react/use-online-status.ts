@@ -3,11 +3,11 @@
 import { useSyncExternalStore } from 'react'
 
 const subscribe = (onStoreChange: () => void) => {
-    window.addEventListener('online', onStoreChange)
-    window.addEventListener('offline', onStoreChange)
+    globalThis.addEventListener('online', onStoreChange)
+    globalThis.addEventListener('offline', onStoreChange)
     return () => {
-      window.removeEventListener('online', onStoreChange)
-      window.removeEventListener('offline', onStoreChange)
+      globalThis.removeEventListener('online', onStoreChange)
+      globalThis.removeEventListener('offline', onStoreChange)
     }
   },
   getSnapshot = () => navigator.onLine,

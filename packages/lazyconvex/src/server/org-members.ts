@@ -31,7 +31,7 @@ const makeMemberHandlers = ({ m, q }: { m: Mb; q: Qb }) => {
           member = await getOrgMember({ db, orgId, userId }),
           role = getOrgRole({ member, org: orgDoc, userId })
         if (!role) return null
-        return { memberId: ((member as null | Rec)?._id as GenericId<'orgMember'>) ?? null, role }
+        return { memberId: member ? (member._id as GenericId<'orgMember'>) : null, role }
       }
     }),
     members = q({

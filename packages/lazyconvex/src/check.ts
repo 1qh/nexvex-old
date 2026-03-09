@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 /* eslint-disable complexity */
+/* eslint-disable no-console */
 /* oxlint-disable eslint/max-statements, eslint/complexity, max-depth */
 /** biome-ignore-all lint/style/noProcessEnv: cli */
 /** biome-ignore-all lint/performance/noAwaitInLoops: sequential */
@@ -81,8 +82,8 @@ const schemaMarkers = ['makeOwned(', 'makeOrgScoped(', 'makeSingleton(', 'makeBa
     const tables = new Set<string>()
     for (const factory of wrapperFactories) {
       const pat = new RegExp(`${factory}\\(\\{`, 'gu')
-      let fm = pat.exec(content)
-      while (fm) {
+      let fm: null | RegExpExecArray = pat.exec(content)
+      while (fm !== null) {
         let depth = 1,
           pos = fm.index + fm[0].length
         while (pos < content.length && depth > 0) {
@@ -286,8 +287,8 @@ const schemaMarkers = ['makeOwned(', 'makeOrgScoped(', 'makeSingleton(', 'makeBa
     const result = new Map<string, TableIndex[]>(),
       helperPat = new RegExp(`(\\w+)\\s*:\\s*(?:${TABLE_HELPER_SRC})\\s*\\(`, 'gu'),
       tables: { name: string; pos: number }[] = []
-    let tm = helperPat.exec(schemaContent)
-    while (tm) {
+    let tm: null | RegExpExecArray = helperPat.exec(schemaContent)
+    while (tm !== null) {
       const tName = tm[1] ?? ''
       tables.push({ name: tName, pos: tm.index })
       result.set(tName, [])

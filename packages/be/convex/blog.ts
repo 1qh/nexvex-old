@@ -42,6 +42,7 @@ const {
       return posts.filter(p => (p as Record<string, unknown>).userId === userId)
     }
   }),
+  // eslint-disable-next-line lazyconvex/no-unprotected-mutation -- demo endpoint enforces ownership in handler
   togglePublish = m({
     args: { id: zid('blog') },
     handler: async (ctx, { id }) => {

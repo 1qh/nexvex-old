@@ -171,7 +171,7 @@ const mergeGlobalHooks = (a: GlobalHooks | undefined, b: GlobalHooks | undefined
     type QCtx = GenericQueryCtx<DM>
     type MCtx = GenericMutationCtx<DM>
     const { getAuthUserId } = config,
-      mwHooks = config.middleware?.length ? composeMiddleware(...config.middleware) : undefined,
+      mwHooks = config.middleware && config.middleware.length > 0 ? composeMiddleware(...config.middleware) : undefined,
       gh = mergeGlobalHooks(config.hooks, mwHooks),
       authId = async (c: unknown) => getAuthUserId(typed(c)),
       asDb = (c: { db: unknown }) => typed(c.db) as DbLike,

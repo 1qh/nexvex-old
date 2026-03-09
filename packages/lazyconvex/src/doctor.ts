@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 /* eslint-disable complexity */
+/* eslint-disable no-console */
 /* oxlint-disable eslint/max-statements, eslint/complexity */
 /** biome-ignore-all lint/style/noProcessEnv: cli */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'

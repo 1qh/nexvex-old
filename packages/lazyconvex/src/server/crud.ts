@@ -1,5 +1,6 @@
 // oxlint-disable promise/prefer-await-to-then
-/* eslint-disable no-await-in-loop, complexity */
+/* eslint-disable complexity */
+/* eslint-disable @eslint-react/no-unused-props, max-depth */
 // biome-ignore-all lint/suspicious/useAwait: x
 // biome-ignore-all lint/performance/noAwaitInLoops: x
 import type { ZodObject, ZodRawShape } from 'zod/v4'
@@ -123,7 +124,7 @@ const hk = (c: CrudMCtx): HookCtx => ({ db: c.db, storage: c.storage, userId: c.
         return e
       },
       canUseOwnIndex = (w: undefined | W): boolean => {
-        if (!w || w.or?.length) return false
+        if (!w || (w.or?.length ?? 0) > 0) return false
         const gs = groupList(w)
         return gs.length === 1 && gs[0]?.own === true
       },

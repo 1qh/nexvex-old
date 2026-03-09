@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/useAwait: promise-function-async conflict */
 /** biome-ignore-all lint/style/useReactFunctionComponents: ErrorBoundary requires class component */
 /* eslint-disable @typescript-eslint/explicit-member-accessibility, react/require-optimization, react/no-set-state, react/sort-comp */
 'use client'

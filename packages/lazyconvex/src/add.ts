@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+/* eslint-disable no-console */
 
 /** biome-ignore-all lint/style/noProcessEnv: cli */
 
@@ -198,7 +199,7 @@ ${fieldLines}
 export { ${wrapper} }
 `
   },
-  genEndpointContent = (name: string, type: TableType, _parent: string): string => {
+  genEndpointContent = (name: string, type: TableType): string => {
     const factory = factoryFn(type),
       wrapper = schemaWrapper(type)
 
@@ -356,13 +357,7 @@ export default ${title.replaceAll(/\s/gu, '')}Page
     else skipped += 1
 
     const endpointFile = join(convexPath, `${flags.name}.ts`)
-    if (
-      writeIfNotExists(
-        endpointFile,
-        genEndpointContent(flags.name, flags.type, flags.parent),
-        `${flags.convexDir}/${flags.name}.ts`
-      )
-    )
+    if (writeIfNotExists(endpointFile, genEndpointContent(flags.name, flags.type), `${flags.convexDir}/${flags.name}.ts`))
       created += 1
     else skipped += 1
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 /* eslint-disable complexity */
+/* eslint-disable no-console */
 /* oxlint-disable eslint/max-statements, eslint/complexity */
 /** biome-ignore-all lint/style/noProcessEnv: cli */
 import { execSync } from 'node:child_process'
@@ -87,7 +88,7 @@ const WRAPPER_FACTORIES = ['makeOwned', 'makeOrgScoped', 'makeSingleton', 'makeB
     for (const factory of WRAPPER_FACTORIES) {
       const pat = new RegExp(`${factory}\\(\\{`, 'gu')
       let fm = pat.exec(content)
-      while (fm) {
+      while (fm !== null) {
         let depth = 1,
           pos = fm.index + fm[0].length
         while (pos < content.length && depth > 0) {

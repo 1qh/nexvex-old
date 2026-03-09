@@ -102,7 +102,7 @@ const defineSteps = <const Defs extends readonly [StepDef, ...StepDef[]]>(...def
             setError(null)
             setIsPending(true)
             try {
-              await opts.onSubmit(allData as StepDataMap<Defs>)
+              await Promise.resolve(opts.onSubmit(allData as StepDataMap<Defs>))
               setIsCompleted(true)
               opts.onSuccess?.()
             } catch (submitError) {
@@ -171,6 +171,7 @@ const defineSteps = <const Defs extends readonly [StepDef, ...StepDef[]]>(...def
       })
 
       return (
+        // eslint-disable-next-line @eslint-react/no-unstable-context-value
         <FormContext value={{ form: instance, meta, schema, serverErrors: {} }}>
           {render(fields as TypedFields<output<ExtractSchema<Defs, Id>>>)}
         </FormContext>
@@ -203,6 +204,7 @@ const defineSteps = <const Defs extends readonly [StepDef, ...StepDef[]]>(...def
                 data-testid={`step-indicator-${step.id}`}
                 disabled={!isCompleted}
                 onClick={() => {
+                  // biome-ignore lint/nursery/noFloatingPromises: stepperize goTo returns void
                   if (isCompleted) inner.navigation.goTo(step.id)
                 }}
                 type='button'>
@@ -297,13 +299,14 @@ const defineSteps = <const Defs extends readonly [StepDef, ...StepDef[]]>(...def
             setHasSaved(true)
             // oxlint-disable-next-line promise/prefer-await-to-then
             if (currentIsLast) s.submitAll(stepDataRef.current).catch(() => null)
+            // biome-ignore lint/nursery/noFloatingPromises: stepperize next returns void
             else s.inner.navigation.next()
           },
           [currentId, currentIsLast, s]
         ),
         handlePrev = useCallback(() => {
           if (formHandleRef.current) stepDataRef.current[currentId] = formHandleRef.current.values()
-
+          // biome-ignore lint/nursery/noFloatingPromises: stepperize prev returns void
           s.inner.navigation.prev()
         }, [currentId, s.inner]),
         registerForm = useCallback((handle: FormHandle | null) => {
@@ -340,6 +343,7 @@ const defineSteps = <const Defs extends readonly [StepDef, ...StepDef[]]>(...def
                 )}
                 <Button data-testid={currentIsLast ? 'step-submit' : 'step-next'} disabled={s.isPending} type='submit'>
                   {s.isPending ? <Spinner className='mr-2' /> : null}
+                  {/* biome-ignore lint/nursery/noLeakedRender: ternary with string values is safe */}
                   {currentIsLast ? submitLabel : nextLabel}
                 </Button>
               </div>

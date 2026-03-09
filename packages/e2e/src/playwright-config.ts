@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/style/noProcessEnv: env detection in config */
 import { defineConfig, devices } from '@playwright/test'
 
 interface PlaywrightOptions {
@@ -6,6 +7,7 @@ interface PlaywrightOptions {
 }
 
 const createPlaywrightConfig = ({ port, webServerUrl }: PlaywrightOptions) => {
+  // biome-ignore lint/style/noProcessEnv: CI detection
   const baseURL = `http://localhost:${port}`,
     isCI = Boolean(process.env.CI)
 

@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop */
 /** biome-ignore-all lint/performance/noAwaitInLoops: sequential deletes */
 import type { GenericDataModel, GenericMutationCtx, GenericQueryCtx, MutationBuilder, QueryBuilder } from 'convex/server'
 import type { GenericId } from 'convex/values'
@@ -90,7 +89,7 @@ const makeOrg = <DM extends GenericDataModel, S extends ZodRawShape>({
           .unique()
         if (existing) return err('ORG_SLUG_TAKEN')
         const orgId = await (c.db as DbLike).insert('org', {
-          avatarId: (data.avatarId as string) ?? undefined,
+          avatarId: data.avatarId as string | undefined,
           name: data.name,
           slug: data.slug,
           userId: (c.user as Rec)._id,
@@ -228,7 +227,7 @@ const makeOrg = <DM extends GenericDataModel, S extends ZodRawShape>({
               )
               .collect()
             for (const d of docs) {
-              if (fileFields?.length && storage) await cleanFiles({ doc: d, fileFields, storage })
+              if (fileFields && fileFields.length > 0 && storage) await cleanFiles({ doc: d, fileFields, storage })
               await db.delete(d._id as string)
             }
           }

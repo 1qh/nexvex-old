@@ -1,4 +1,6 @@
-// biome-ignore-all lint/performance/useTopLevelRegex: test helper
+/** biome-ignore-all lint/suspicious/useAwait: promise-function-async conflict */
+/** biome-ignore-all lint/performance/useTopLevelRegex: test helper */
+/** biome-ignore-all lint/style/noProcessEnv: test helper */
 import type { api as BeApi } from '@a/be'
 import type { Id } from '@a/be/model'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
@@ -15,8 +17,8 @@ const api = anyApi as unknown as typeof BeApi,
   },
   extractErrorCode = (e: unknown): null | { code: string } => {
     if (e instanceof Error) {
-      const match = /\{"code":"([^"]+)"[^}]*\}/u.exec(e.message)
-      if (match?.[1]) return { code: match[1] }
+      const match = /\{"code":"(?<code>[^"]+)"[^}]*\}/u.exec(e.message)
+      if (match?.groups?.code) return { code: match.groups.code }
       if (e.message.includes('ArgumentValidationError') || e.message.includes('does not match validator'))
         return { code: 'VALIDATION_ERROR' }
     }

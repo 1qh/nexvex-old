@@ -17,6 +17,7 @@ export const {
     rm,
     setEditors,
     update
+    // eslint-disable-next-line lazyconvex/require-rate-limit -- demo backend keeps default write throughput
   } = orgCrud('wiki', orgScoped.wiki, { acl: true, softDelete: true }),
   listDeleted = q({
     args: { orgId: zid('org') },

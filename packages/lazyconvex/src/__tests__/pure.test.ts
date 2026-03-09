@@ -141,6 +141,7 @@ import {
   time,
   warnLargeFilterSet
 } from '../server/helpers'
+import { collectSettled, resolveBulkError } from '../react/use-bulk-mutate'
 import {
   auditLog,
   composeMiddleware,
@@ -6249,6 +6250,63 @@ describe('middleware', () => {
         hooks = composeMiddleware(mw1, mw2),
         result = await hooks.beforeUpdate?.(mockCtx, { id: 'id1', patch: { title: 'x' }, prev: {} })
       expect(result).toEqual({ normalized: true, title: 'x', validated: true })
+    })
+  })
+
+  describe('collectSettled', () => {
+    test('separates fulfilled from rejected', () => {
+      const settled: PromiseSettledResult<number>[] = [
+        { status: 'fulfilled', value: 1 },
+        { reason: 'fail', status: 'rejected' },
+        { status: 'fulfilled', value: 2 }
+      ]
+      const { errors, results } = collectSettled(settled)
+      expect(results).toEqual([1, 2])
+      expect(errors).toEqual(['fail'])
+    })
+
+    test('handles all fulfilled', () => {
+      const settled: PromiseSettledResult<string>[] = [
+        { status: 'fulfilled', value: 'a' },
+        { status: 'fulfilled', value: 'b' }
+      ]
+      const { errors, results } = collectSettled(settled)
+      expect(results).toEqual(['a', 'b'])
+      expect(errors).toEqual([])
+    })
+
+    test('handles all rejected', () => {
+      const settled: PromiseSettledResult<string>[] = [
+        { reason: 'e1', status: 'rejected' },
+        { reason: 'e2', status: 'rejected' }
+      ]
+      const { errors, results } = collectSettled(settled)
+      expect(results).toEqual([])
+      expect(errors).toEqual(['e1', 'e2'])
+    })
+
+    test('handles empty array', () => {
+      const { errors, results } = collectSettled([])
+      expect(results).toEqual([])
+      expect(errors).toEqual([])
+    })
+  })
+
+  describe('resolveBulkError', () => {
+    test('returns defaultOnError when no options', () => {
+      const handler = resolveBulkError()
+      expect(typeof handler).toBe('function')
+    })
+
+    test('returns undefined when onError is false', () => {
+      const handler = resolveBulkError({ onError: false })
+      expect(handler).toBeUndefined()
+    })
+
+    test('returns custom handler when provided', () => {
+      const custom = () => {}
+      const handler = resolveBulkError({ onError: custom })
+      expect(handler).toBe(custom)
     })
   })
 

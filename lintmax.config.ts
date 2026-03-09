@@ -38,6 +38,7 @@ export default defineConfig({
     rules: {
       '@next/next/no-img-element': 'off',
       'eslint/max-depth': 'off',
+      'eslint/sort-keys': 'off',
       'eslint/no-await-in-loop': 'off',
       'eslint/no-empty-function': 'off',
       'import/no-unassigned-import': 'off',

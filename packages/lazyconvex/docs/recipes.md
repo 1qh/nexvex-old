@@ -1,6 +1,6 @@
 # Recipes
 
-7 real-world composition patterns.
+9 real-world composition patterns.
 Each recipe shows schema → backend → frontend.
 
 ## Recipe 1: Blog with Auth + File Upload + Pagination + Search
@@ -553,3 +553,84 @@ const ProfilePage = () => {
   )
 }
 ```
+
+## Recipe 8: Bulk Operations with Progress
+
+**Features:** useBulkMutate · toast feedback · progress tracking · error collection
+
+### Backend
+
+Uses the same `bulkRm` from any `crud()` call.
+No extra backend code needed.
+
+### Frontend
+
+```tsx
+import { useMutation } from 'convex/react'
+import { useBulkMutate } from 'lazyconvex/react'
+
+const BulkActions = ({ selectedIds }: { selectedIds: string[] }) => {
+  const rm = useMutation(api.blog.rm)
+  const { isPending, progress, run } = useBulkMutate(
+    (id: string) => rm({ id }),
+    {
+      onProgress: p => console.log(`${p.succeeded}/${p.total}`),
+      toast: {
+        error: 'Some items failed to delete',
+        loading: p => `Deleting ${p.succeeded}/${p.total}...`,
+        success: n => `Deleted ${n} items`
+      }
+    }
+  )
+
+  return (
+    <button
+      disabled={isPending}
+      onClick={() => {
+        run(selectedIds)
+      }}
+    >
+      {progress
+        ? `${progress.succeeded}/${progress.total}`
+        : `Delete ${selectedIds.length}`}
+    </button>
+  )
+}
+```
+
+`useBulkMutate` fires all mutations concurrently, tracks per-item success/failure, and
+returns `{ errors, results, settled }` when done.
+Use `onError: false` to silence the default error toast.
+Use `onSettled` for cleanup that runs regardless of success or failure.
+
+## Recipe 9: Ownership Flags with useOwnRows
+
+**Features:** useOwnRows · per-row ownership · conditional UI
+
+### Frontend
+
+```tsx
+import { useQuery } from 'convex/react'
+import { useList, useOwnRows } from 'lazyconvex/react'
+
+const BlogList = () => {
+  const me = useQuery(api.users.viewer)
+  const { items } = useList(api.blog.pub.list)
+  const blogs = useOwnRows(items, me ? b => b.userId === me._id : null)
+
+  return (
+    <ul>
+      {blogs.map(b => (
+        <li key={b._id}>
+          {b.title}
+          {b.own && <span>yours</span>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+```
+
+`useOwnRows` annotates each row with `own: boolean` using a memoized predicate.
+Pass `null` when the user is unauthenticated — all rows get `own: false`. Use the `own`
+flag to conditionally render edit/delete buttons without extra queries.

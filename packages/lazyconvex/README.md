@@ -484,21 +484,21 @@ bunx lazyconvex codegen-swift --schema packages/be/t.ts --convex packages/be/con
 
 ## Documentation
 
-| Guide                                        | What’s covered                                                                                     |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [Quickstart](docs/quickstart.md)             | From zero to running app in 5 minutes                                                              |
-| [Forms](docs/forms.md)                       | Typesafe forms, multi-step wizards, auto-save, conflict detection, async validation                |
-| [Data Fetching](docs/data-fetching.md)       | pub/auth queries, where clauses, pagination, search                                                |
-| [Organizations](docs/organizations.md)       | orgCrud, ACL, cascade delete, invites, join requests, org hooks                                    |
-| [Custom Queries](docs/custom-queries.md)     | pq/q/m escape hatches, mixing with CRUD, migration guide                                           |
-| [Native Apps](docs/native-apps.md)           | Swift codegen, ConvexClientProtocol, mobile (Skip), desktop (SwiftCrossUI)                         |
-| [Testing](docs/testing.md)                   | makeTestAuth, makeOrgTestCrud, convex-test patterns                                                |
-| [API Reference](docs/api-reference.md)       | All exports, error codes, file upload, rate limiting, known limitations                            |
-| [Migration](docs/migration.md)               | Incremental adoption, convert one table at a time, coexistence with raw Convex                     |
-| [Schema Evolution](docs/schema-evolution.md) | Adding, renaming, removing fields, type changes, deployment strategies                             |
-| [Ejecting](docs/ejecting.md)                 | Gradual replacement of factories with raw Convex, what you lose/keep                               |
-| [Security](docs/security.md)                 | Input sanitization, rate limiting, auth enforcement, ownership verification, org ACL               |
-| [Recipes](docs/recipes.md)                   | 7 real-world composition patterns: blog+files, org+ACL, custom queries, presence, multi-step forms |
+| Guide                                        | What’s covered                                                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| [Quickstart](docs/quickstart.md)             | From zero to running app in 5 minutes                                                                                                |
+| [Forms](docs/forms.md)                       | Typesafe forms, multi-step wizards, auto-save, conflict detection, async validation                                                  |
+| [Data Fetching](docs/data-fetching.md)       | pub/auth queries, where clauses, pagination, search                                                                                  |
+| [Organizations](docs/organizations.md)       | orgCrud, ACL, cascade delete, invites, join requests, org hooks                                                                      |
+| [Custom Queries](docs/custom-queries.md)     | pq/q/m escape hatches, mixing with CRUD, migration guide                                                                             |
+| [Native Apps](docs/native-apps.md)           | Swift codegen, ConvexClientProtocol, mobile (Skip), desktop (SwiftCrossUI)                                                           |
+| [Testing](docs/testing.md)                   | makeTestAuth, makeOrgTestCrud, convex-test patterns                                                                                  |
+| [API Reference](docs/api-reference.md)       | All exports, error codes, file upload, rate limiting, known limitations                                                              |
+| [Migration](docs/migration.md)               | Incremental adoption, convert one table at a time, coexistence with raw Convex                                                       |
+| [Schema Evolution](docs/schema-evolution.md) | Adding, renaming, removing fields, type changes, deployment strategies                                                               |
+| [Ejecting](docs/ejecting.md)                 | Gradual replacement of factories with raw Convex, what you lose/keep                                                                 |
+| [Security](docs/security.md)                 | Input sanitization, rate limiting, auth enforcement, ownership verification, org ACL                                                 |
+| [Recipes](docs/recipes.md)                   | 9 real-world composition patterns: blog+files, org+ACL, custom queries, presence, multi-step forms, bulk operations, ownership flags |
 
 ## Contributing
 

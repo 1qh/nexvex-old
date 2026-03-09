@@ -116,7 +116,16 @@ const classifyPending = (pending: PendingMutation[]) => {
       loadMore: (n?: number) => loadMore(n ?? pageSize),
       status
     }
-  }
+  },
+  useOwnRows = <T extends Rec>(
+    rows: readonly T[],
+    isOwn: ((row: T) => boolean) | null | undefined
+  ): (T & { own: boolean })[] =>
+    useMemo(() => {
+      const out: (T & { own: boolean })[] = []
+      for (const row of rows) out.push({ ...row, own: isOwn ? isOwn(row) : false })
+      return out
+    }, [rows, isOwn])
 
 export type { UseListOptions }
-export { applyOptimistic, DEFAULT_PAGE_SIZE, useList }
+export { applyOptimistic, DEFAULT_PAGE_SIZE, useList, useOwnRows }

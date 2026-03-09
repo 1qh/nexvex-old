@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop */
 // biome-ignore-all lint/performance/noAwaitInLoops: x
 import type { Id } from '@a/be/model'
 import type { UIMessage } from 'ai'
@@ -17,7 +16,6 @@ import {
 import { fetchMutation, fetchQuery } from 'convex/nextjs'
 import { getToken, isAuthenticated } from 'lazyconvex/next'
 import { z } from 'zod/v4'
-export const maxDuration = 60
 
 const filterSupportedParts = (parts: Record<string, unknown>[]) =>
     parts
@@ -176,5 +174,6 @@ const filterSupportedParts = (parts: Record<string, unknown>[]) =>
     if (!id) return new Response('Bad request', { status: 400 })
     await fetchMutation(api.chat.rm, { id: id as Id<'chat'> }, { token })
     return new Response('OK', { status: 200 })
-  }
-export { DELETE, POST }
+  },
+  maxDuration = 60
+export { DELETE, maxDuration, POST }

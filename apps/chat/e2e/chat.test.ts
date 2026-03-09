@@ -6,8 +6,8 @@ import { login } from './helpers'
 const CHAT_URL_PATTERN = /\/[a-z0-9]+/u
 
 test.describe('New Chat Page', () => {
-  test.beforeEach(async ({ chatPage, page }) => {
-    await login(page)
+  test.beforeEach(async ({ chatPage }) => {
+    await login()
     await chatPage.goto()
   })
 
@@ -51,8 +51,8 @@ test.describe('New Chat Page', () => {
 })
 
 test.describe('Chat Conversation', () => {
-  test.beforeEach(async ({ chatPage, page }) => {
-    await login(page)
+  test.beforeEach(async ({ chatPage }) => {
+    await login()
     await chatPage.goto()
   })
 
@@ -111,8 +111,8 @@ test.describe('Chat Conversation', () => {
 })
 
 test.describe('Chat Persistence', () => {
-  test.beforeEach(async ({ chatPage, page }) => {
-    await login(page)
+  test.beforeEach(async ({ chatPage }) => {
+    await login()
     await chatPage.goto()
   })
 
@@ -142,8 +142,8 @@ test.describe('Chat Persistence', () => {
 
 test.describe
   .serial('Chat Sidebar', () => {
-    test.beforeEach(async ({ chatPage, page }) => {
-      await login(page)
+    test.beforeEach(async ({ chatPage }) => {
+      await login()
       await chatPage.goto()
     })
 
@@ -212,8 +212,8 @@ test.describe
   })
 
 test.describe('Chat Tool Approval', () => {
-  test.beforeEach(async ({ chatPage, page }) => {
-    await login(page)
+  test.beforeEach(async ({ chatPage }) => {
+    await login()
     await chatPage.goto()
   })
 
@@ -235,8 +235,8 @@ test.describe('Chat Tool Approval', () => {
 })
 
 test.describe('Chat Thinking Indicator', () => {
-  test.beforeEach(async ({ chatPage, page }) => {
-    await login(page)
+  test.beforeEach(async ({ chatPage }) => {
+    await login()
     await chatPage.goto()
     await chatPage.sendUserMessage('Hello')
     await chatPage.waitForResponse()

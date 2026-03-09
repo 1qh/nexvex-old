@@ -15,22 +15,23 @@ import { useMutation, usePreloadedQuery } from 'convex/react'
 import { AutoSaveIndicator, Form, useForm } from 'lazyconvex/components'
 import { Settings } from 'lucide-react'
 import Link from 'next/link'
-import { useTransition } from 'react'
+import { useId, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { editBlog } from '~/schema'
 
 const Publish = ({ className, id, published, ...props }: ComponentProps<'div'> & { id: string; published: boolean }) => {
     const update = useMutation(api.blog.update),
-      [pending, go] = useTransition()
+      [pending, go] = useTransition(),
+      switchId = useId()
     return (
       <div className={cn('flex items-center gap-2', className)} data-testid='publish-toggle' {...props}>
-        <Label htmlFor='publish'>{pending ? <Spinner /> : published ? 'Published' : 'Draft'}</Label>
+        <Label htmlFor={switchId}>{pending ? <Spinner /> : published ? 'Published' : 'Draft'}</Label>
         <Switch
           checked={published}
           data-testid='publish-switch'
           disabled={pending}
-          id='publish'
+          id={switchId}
           onCheckedChange={() =>
             go(async () => {
               await update({ id, published: !published })

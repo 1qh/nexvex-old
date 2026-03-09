@@ -169,7 +169,7 @@ const Delete = ({ id, onOptimisticRemove }: { id: Blog['_id']; onOptimisticRemov
           {formatDistance(updatedAt, new Date(), { addSuffix: true })}
           <p>•</p>
           <p className='rounded-full bg-muted-foreground px-1.5 text-background capitalize'>{category}</p>
-          {tags?.length ? (
+          {tags && tags.length > 0 ? (
             <>
               <p>•</p>
               <p>{tags.map((tag: string) => `#${tag} `)}</p>
@@ -209,6 +209,7 @@ const Delete = ({ id, onOptimisticRemove }: { id: Blog['_id']; onOptimisticRemov
       />
       <Link className='mt-1 block' data-testid='blog-card-link' href={`/${_id}`}>
         {coverImageUrl ? (
+          // oxlint-disable-next-line @next/next/no-img-element
           <img
             alt={title}
             className='my-1 w-full rounded-lg object-cover'

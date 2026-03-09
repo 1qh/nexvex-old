@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/useTopLevelRegex: test file
-/* eslint-disable jest/no-conditional-in-test */
+
+/* eslint-disable @typescript-eslint/no-unnecessary-condition */
 import {
   addTestOrgMember,
   api,
@@ -254,7 +255,7 @@ test.describe
       await cleanupTestUsers()
     })
 
-    test('member exists in org', async () => {
+    test('member exists in org', () => {
       expect(memberUserId).toBeDefined()
     })
 

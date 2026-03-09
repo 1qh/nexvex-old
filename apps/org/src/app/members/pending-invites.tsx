@@ -20,7 +20,7 @@ const PendingInvites = () => {
   if (invites.length === 0) return null
 
   const handleCopy = (token: string) => {
-      const url = `${window.location.origin}/invite/${token}`
+      const url = `${globalThis.location.origin}/invite/${token}`
       navigator.clipboard
         .writeText(url)
         .then(() => toast.success('Invite link copied'))

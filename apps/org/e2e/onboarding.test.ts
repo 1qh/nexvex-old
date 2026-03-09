@@ -452,7 +452,7 @@ test.describe
 
       const hasHandler = await page.evaluate(() => {
         const event = new Event('beforeunload', { cancelable: true })
-        window.dispatchEvent(event)
+        globalThis.dispatchEvent(event)
         return event.defaultPrevented
       })
       expect(hasHandler).toBe(true)
@@ -652,7 +652,7 @@ test.describe
       await expect(onboardingPage.getSubmitButton()).toBeVisible({ timeout: 5000 })
       await onboardingPage.clickSubmit()
 
-      await expect(async () => {
+      await expect(() => {
         const url = page.url()
         expect(url).not.toContain('/onboarding')
       }).toPass({ timeout: 15_000 })

@@ -51,7 +51,7 @@ const wikiRestore = (api.wiki as typeof api.wiki & { restore: typeof api.wiki.rm
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-4'>
             <h1 className='text-2xl font-bold'>
-              Wiki <span className='text-base font-normal text-muted-foreground'>({visibleCount ?? 0})</span>
+              Wiki <span className='text-base font-normal text-muted-foreground'>({visibleCount})</span>
             </h1>
             {isAdmin && !showDeleted && selected.size > 0 ? (
               <div className='flex items-center gap-2'>
@@ -112,14 +112,7 @@ const wikiRestore = (api.wiki as typeof api.wiki & { restore: typeof api.wiki.rm
                     <Button
                       data-testid='restore-wiki'
                       onClick={() => {
-                        const run = async () => {
-                          try {
-                            await restoreMut({ id: w._id })
-                          } catch (restoreError: unknown) {
-                            fail(restoreError)
-                          }
-                        }
-                        run()
+                        restoreMut({ id: w._id }).catch(fail)
                       }}
                       size='sm'
                       variant='outline'>

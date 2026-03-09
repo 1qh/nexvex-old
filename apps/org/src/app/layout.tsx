@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/useAwait: promise-function-async conflict */
 import type { Doc } from '@a/be/model'
 import type { FunctionReference } from 'convex/server'
 import type { OrgRole } from 'lazyconvex'

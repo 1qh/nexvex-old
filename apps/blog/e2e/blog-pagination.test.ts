@@ -1,11 +1,10 @@
-/* eslint-disable jest/no-conditional-in-test */
 import { expect, test } from './fixtures'
 import { login } from './helpers'
 
 test.describe
   .serial('Blog Pagination', () => {
-    test.beforeEach(async ({ blogPage, page }) => {
-      await login(page)
+    test.beforeEach(async ({ blogPage }) => {
+      await login()
       await blogPage.goto('/pagination')
     })
 
@@ -32,7 +31,6 @@ test.describe
         loadMoreVisible = await loadMore.isVisible().catch(() => false),
         loadingVisible = await loadingMore.isVisible().catch(() => false)
 
-      // eslint-disable-next-line jest/no-conditional-in-test
       expect(exhaustedVisible || loadMoreVisible || loadingVisible).toBe(true)
     })
   })

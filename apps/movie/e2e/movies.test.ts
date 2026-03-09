@@ -6,8 +6,8 @@ const FETCH_BY_ID_RE = /Fetch by ID/iu,
 
 test.describe
   .serial('Movie Search', () => {
-    test.beforeEach(async ({ moviePage, page }) => {
-      await login(page)
+    test.beforeEach(async ({ moviePage }) => {
+      await login()
       await moviePage.gotoSearch()
     })
 
@@ -44,8 +44,8 @@ test.describe
 
 test.describe
   .serial('Movie Fetch by ID', () => {
-    test.beforeEach(async ({ moviePage, page }) => {
-      await login(page)
+    test.beforeEach(async ({ moviePage }) => {
+      await login()
       await moviePage.gotoFetch()
     })
 

@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/correctness/useUniqueElementIds: StepForm.Step id is a step identifier, not a DOM id */
 'use client'
 
 import { api } from '@a/be'
@@ -33,7 +34,7 @@ const { StepForm, useStepper } = defineSteps(
         },
         onSuccess: () => {
           toast.success('Welcome aboard!')
-          window.location.href = '/'
+          globalThis.location.href = '/'
         },
         values: profile
           ? {

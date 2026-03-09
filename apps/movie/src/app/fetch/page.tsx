@@ -1,4 +1,5 @@
-// biome-ignore-all lint/correctness/useImageSize: x
+/** biome-ignore-all lint/correctness/useImageSize: external TMDB image URLs */
+/** biome-ignore-all lint/performance/noImgElement: external TMDB image URLs */
 'use client'
 import { api } from '@a/be'
 import { Badge } from '@a/ui/badge'
@@ -25,10 +26,12 @@ const TMDB_IMG = 'https://image.tmdb.org/t/p/w300',
         </span>
       </div>
       {movie.backdrop_path ? (
+        // oxlint-disable-next-line @next/next/no-img-element
         <img alt={movie.title} className='w-full rounded-lg object-cover' src={`${TMDB_BACKDROP}${movie.backdrop_path}`} />
       ) : null}
       <div className='flex gap-4'>
         {movie.poster_path ? (
+          // oxlint-disable-next-line @next/next/no-img-element
           <img
             alt={movie.title}
             className='h-56 w-36 shrink-0 rounded-lg object-cover'

@@ -157,7 +157,7 @@ const TaskRow = ({ canAssign, canEdit, members, onAssign, onDelete, onToggle, on
       removeEditorMut = useOrgMutation(api.project.removeEditor),
       [title, setTitle] = useState(''),
       [priority, setPriority] = useState<Priority>('medium'),
-      [selected, setSelected] = useState<Set<Id<'task'>>>(new Set())
+      [selected, setSelected] = useState<Set<Id<'task'>>>(() => new Set())
 
     if (!(project && tasks && me && members && editorsList)) return <Skeleton className='h-40' />
 
@@ -174,7 +174,7 @@ const TaskRow = ({ canAssign, canEdit, members, onAssign, onDelete, onToggle, on
       },
       handleAddTask = (e: React.SyntheticEvent) => {
         e.preventDefault()
-        doAddTask()
+        doAddTask().catch(fail)
       },
       handleToggle = (id: Id<'task'>) => {
         toggleTask({ id }).catch(fail)

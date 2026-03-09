@@ -8,7 +8,7 @@ import { Switch } from '@a/ui/switch'
 import { useMutation } from 'convex/react'
 import { SparklesIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useId, useState, useTransition } from 'react'
 
 const Page = () => {
   const router = useRouter(),
@@ -16,6 +16,7 @@ const Page = () => {
     [isSubmitting, setIsSubmitting] = useState(false),
     [isPublic, setIsPublic] = useState(false),
     [isPending, startTransition] = useTransition(),
+    toggleId = useId(),
     handleSubmit = async ({ text }: { text: string }) => {
       if (!text.trim() || isSubmitting) return
       setIsSubmitting(true)
@@ -40,8 +41,8 @@ const Page = () => {
       </Conversation>
       <div className='mx-auto flex w-full max-w-3xl flex-col gap-2'>
         <div className='flex items-center gap-2 px-1'>
-          <Switch checked={isPublic} data-testid='public-toggle' id='public-toggle' onCheckedChange={setIsPublic} />
-          <Label htmlFor='public-toggle'>{isPublic ? 'Public' : 'Private'}</Label>
+          <Switch checked={isPublic} data-testid='public-toggle' id={toggleId} onCheckedChange={setIsPublic} />
+          <Label htmlFor={toggleId}>{isPublic ? 'Public' : 'Private'}</Label>
         </div>
         <PromptInput onSubmit={handleSubmit}>
           <PromptInputTextarea

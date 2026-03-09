@@ -64,17 +64,14 @@ const ChatSidebar = <T extends Thread>({ basePath, getTitle, onDelete, threads }
                   onClick={() => router.push(`${basePath}/${t._id}`)}>
                   <MessageSquareIcon className='size-4' />
                   <span className='flex-1 truncate'>{getTitle ? getTitle(t) : (t.title ?? 'Untitled')}</span>
-                  <span
-                    className='flex size-6 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/item:opacity-100 hover:bg-accent'
+                  <button
+                    className='flex size-6 cursor-pointer items-center justify-center rounded-sm border-none bg-transparent p-0 opacity-0 transition-opacity group-hover/item:opacity-100 hover:bg-accent'
                     data-testid='delete-thread-button'
                     // eslint-disable-next-line @typescript-eslint/strict-void-return
                     onClick={async e => handleDelete(e, t._id)}
-                    // eslint-disable-next-line @typescript-eslint/strict-void-return
-                    onKeyDown={async e => e.key === 'Enter' && handleDelete(e, t._id)}
-                    role='button'
-                    tabIndex={0}>
+                    type='button'>
                     <Trash2Icon className='size-3' />
-                  </span>
+                  </button>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

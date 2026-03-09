@@ -4,7 +4,7 @@ import { login } from './helpers'
 test.describe
   .serial('Blog Search', () => {
     test.beforeEach(async ({ blogPage, page }) => {
-      await login(page)
+      await login()
       await page.waitForLoadState('domcontentloaded')
       await blogPage.goto('/')
       await page.locator('[data-testid="blog-list"], [data-testid="empty-state"]').first().waitFor()

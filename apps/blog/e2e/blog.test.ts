@@ -7,8 +7,8 @@ const BLOG_DETAIL_URL = /\/[a-z0-9]+$/u,
 
 test.describe
   .serial('Blog CRUD - Create', () => {
-    test.beforeEach(async ({ blogPage, page }) => {
-      await login(page)
+    test.beforeEach(async ({ blogPage }) => {
+      await login()
       await blogPage.goto('/')
     })
 
@@ -47,8 +47,8 @@ test.describe
 
 test.describe
   .serial('Blog CRUD - Read', () => {
-    test.beforeEach(async ({ blogPage, page }) => {
-      await login(page)
+    test.beforeEach(async ({ blogPage }) => {
+      await login()
       await blogPage.goto('/')
     })
 
@@ -69,8 +69,8 @@ test.describe
 
 test.describe
   .serial('Blog CRUD - Update', () => {
-    test.beforeEach(async ({ blogPage, page }) => {
-      await login(page)
+    test.beforeEach(async ({ blogPage }) => {
+      await login()
       await blogPage.goto('/')
     })
 
@@ -151,8 +151,8 @@ test.describe
 
 test.describe
   .serial('Blog CRUD - Delete', () => {
-    test.beforeEach(async ({ blogPage, page }) => {
-      await login(page)
+    test.beforeEach(async ({ blogPage }) => {
+      await login()
       await blogPage.goto('/')
     })
 
@@ -198,8 +198,8 @@ test.describe
 
 test.describe
   .serial('Blog CRUD - Navigation', () => {
-    test.beforeEach(async ({ blogPage, page }) => {
-      await login(page)
+    test.beforeEach(async ({ blogPage }) => {
+      await login()
       await blogPage.goto('/')
     })
 

@@ -6,8 +6,8 @@ import { login } from './helpers'
 const CHAT_URL_PATTERN = /\/[a-z0-9]+/u
 
 test.describe('Public Chats Page', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page)
+  test.beforeEach(async () => {
+    await login()
   })
 
   test('/public page loads', async ({ chatPage }) => {
@@ -23,8 +23,8 @@ test.describe('Public Chats Page', () => {
 
 test.describe
   .serial('Public Chat Creation and Visibility', () => {
-    test.beforeEach(async ({ page }) => {
-      await login(page)
+    test.beforeEach(async () => {
+      await login()
     })
 
     test('creating a public chat shows it on /public page', async ({ chatPage, page }) => {

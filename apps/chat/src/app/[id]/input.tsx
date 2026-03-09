@@ -17,7 +17,7 @@ const ChatInput = ({ disabled = false, isBusy, onAbort, onSubmit, placeholder = 
       if (!text.trim() || isSubmitting || isBusy) return
       setIsSubmitting(true)
       try {
-        await onSubmit(text)
+        await Promise.resolve(onSubmit(text))
       } finally {
         setIsSubmitting(false)
       }

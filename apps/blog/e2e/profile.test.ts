@@ -5,8 +5,8 @@ import { login } from './helpers'
 
 test.describe
   .serial('Profile - Create', () => {
-    test.beforeEach(async ({ page }) => {
-      await login(page)
+    test.beforeEach(async () => {
+      await login()
     })
 
     test('shows empty profile form when no profile exists', async ({ profilePage }) => {
@@ -42,8 +42,8 @@ test.describe
 
 test.describe
   .serial('Profile - Update', () => {
-    test.beforeEach(async ({ page, profilePage }) => {
-      await login(page)
+    test.beforeEach(async ({ profilePage }) => {
+      await login()
       await profilePage.goto()
     })
 
@@ -86,8 +86,8 @@ test.describe
 
 test.describe
   .serial('Profile - Avatar', () => {
-    test.beforeEach(async ({ page, profilePage }) => {
-      await login(page)
+    test.beforeEach(async ({ profilePage }) => {
+      await login()
       await profilePage.goto()
     })
 
@@ -137,8 +137,8 @@ test.describe
 
 test.describe
   .serial('Profile - Navigation', () => {
-    test.beforeEach(async ({ page }) => {
-      await login(page)
+    test.beforeEach(async () => {
+      await login()
     })
 
     test('profile link is visible in layout', async ({ page, profilePage }) => {

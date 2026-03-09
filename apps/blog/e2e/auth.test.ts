@@ -4,7 +4,7 @@ import { login } from './helpers'
 
 test.describe('Authentication', () => {
   test('session persists across page navigation', async ({ page }) => {
-    await login(page)
+    await login()
     await page.goto('/')
     await expect(page).toHaveURL('/')
 
@@ -15,7 +15,7 @@ test.describe('Authentication', () => {
   })
 
   test('session persists after page reload', async ({ page }) => {
-    await login(page)
+    await login()
     await page.goto('/')
 
     await page.reload()

@@ -10,7 +10,7 @@ import { Create, List } from './common'
 
 const Page = () => {
   const { items, loadMore, status } = useList(api.blog.list, { where: { or: [{ published: true }, { own: true }] } }),
-    [removedIds, setRemovedIds] = useState<Set<string>>(new Set()),
+    [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set()),
     [query, setQuery] = useState(''),
     deferredQuery = useDeferredValue(query.toLowerCase()),
     filtered = items.filter(b => {

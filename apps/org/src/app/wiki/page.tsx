@@ -56,7 +56,12 @@ const wikiRestore = (api.wiki as typeof api.wiki & { restore: typeof api.wiki.rm
             {isAdmin && !showDeleted && selected.size > 0 ? (
               <div className='flex items-center gap-2'>
                 <span className='text-sm text-muted-foreground'>{selected.size} selected</span>
-                <Button onClick={handleBulkDelete} size='sm' variant='destructive'>
+                <Button
+                  onClick={() => {
+                    handleBulkDelete()
+                  }}
+                  size='sm'
+                  variant='destructive'>
                   Delete
                 </Button>
                 <Button onClick={clear} size='sm' variant='ghost'>
